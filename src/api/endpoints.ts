@@ -1,3 +1,4 @@
+// src/api/endpoints.ts
 import { apiClient } from './client';
 import { 
   LoginRequest, 
@@ -10,8 +11,18 @@ import {
 export const api = {
   // Auth endpoints
   auth: {
-    login: (data: LoginRequest) => 
-      apiClient.post<LoginResponse>('/auth/login', data),
+    login: (data: LoginRequest) => {
+      // OAuth2 requires form-urlencoded format
+      const formData = new URLSearchParams();
+      formData.append('username', data.username);
+      formData.append('password', data.password);
+      
+      return apiClient.post<LoginResponse>('/auth/login', formData.toString(), {
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+      });
+    },
     
     register: (data: { email: string; username: string; password: string }) => 
       apiClient.post<LoginResponse>('/auth/register', data),

@@ -1,3 +1,4 @@
+// src/store/slices/authSlice.ts
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
 import { User, LoginRequest } from '../../types';
 import { api } from '../../api/endpoints';
@@ -18,6 +19,15 @@ const initialState: AuthState = {
   isLoading: false,
   error: null,
   isAuthenticated: false,
+};
+
+// Temporary mock user for development
+const mockUser: User = {
+  id: '1',
+  email: 'demo@fintellic.com',
+  username: 'demo',
+  subscription_tier: 'pro',
+  created_at: new Date().toISOString(),
 };
 
 // Async thunks
