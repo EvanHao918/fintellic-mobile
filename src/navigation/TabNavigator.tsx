@@ -7,6 +7,7 @@ import WatchlistScreen from '../screens/WatchlistScreen';
 import HistoryScreen from '../screens/HistoryScreen';
 import ProfileScreen from '../screens/ProfileScreen';
 
+
 export type TabParamList = {
   Home: undefined;
   Calendar: undefined;
@@ -98,3 +99,4 @@ export default function TabNavigator() {
     </Tab.Navigator>
   );
 }
+

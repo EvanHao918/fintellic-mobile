@@ -1,106 +1,109 @@
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
-import { Filing } from '../../types';
-import { api } from '../../api/endpoints';
+import { Filing, VoteType } from '../../types';
+import * as filingsAPI from '../../api/filings';
 
 interface FilingsState {
   filings: Filing[];
   currentFiling: Filing | null;
-  popularFilings: Filing[];
   isLoading: boolean;
   error: string | null;
+  page: number;
   hasMore: boolean;
-  currentPage: number;
+  totalCount: number;
+  isRefreshing: boolean;
 }
 
 const initialState: FilingsState = {
   filings: [],
   currentFiling: null,
-  popularFilings: [],
   isLoading: false,
   error: null,
+  page: 1,
   hasMore: true,
-  currentPage: 0,
+  totalCount: 0,
+  isRefreshing: false,
 };
 
 // Async thunks
 export const fetchFilings = createAsyncThunk(
-  'filings/fetchList',
-  async (params?: { 
-    limit?: number; 
-    offset?: number; 
-    filing_type?: string;
-    company_id?: string;
-  }) => {
-    const response = await api.filings.getList(params);
-    return response;
+  'filings/fetchFilings',
+  async ({ page, isRefresh }: { page: number; isRefresh?: boolean }) => {
+    const response = await filingsAPI.getFilings(page);
+    // Fix API response format - backend returns 'data' not 'items'
+    const normalizedResponse = {
+      items: response.data || [],
+      total: response.total,
+      page: page,
+      pages: Math.ceil(response.total / 20),
+    };
+    return { ...normalizedResponse, isRefresh };
   }
 );
 
 export const fetchFilingById = createAsyncThunk(
-  'filings/fetchById',
+  'filings/fetchFilingById',
   async (id: string) => {
-    const response = await api.filings.getById(id);
-    return response;
-  }
-);
-
-export const fetchPopularFilings = createAsyncThunk(
-  'filings/fetchPopular',
-  async (period: 'day' | 'week' | 'month' = 'week') => {
-    const response = await api.filings.getPopular(period);
-    return response;
+    const filing = await filingsAPI.getFilingById(id);
+    return filing;
   }
 );
 
 export const voteFiling = createAsyncThunk(
   'filings/vote',
-  async ({ filingId, voteType }: { filingId: string; voteType: 'bullish' | 'bearish' }) => {
-    await api.filings.vote(filingId, voteType);
-    return { filingId, voteType };
+  async ({ filingId, voteType }: { filingId: string; voteType: VoteType }) => {
+    const response = await filingsAPI.voteOnFiling(filingId, voteType);
+    return { filingId, ...response };
   }
 );
 
-// Slice
 const filingsSlice = createSlice({
   name: 'filings',
   initialState,
   reducers: {
-    clearFilings: (state) => {
+    resetFilings: (state) => {
       state.filings = [];
-      state.currentPage = 0;
+      state.page = 1;
       state.hasMore = true;
-    },
-    clearError: (state) => {
       state.error = null;
+    },
+    setCurrentFiling: (state, action: PayloadAction<Filing | null>) => {
+      state.currentFiling = action.payload;
     },
   },
   extraReducers: (builder) => {
-    // Fetch filings list
+    // Fetch filings
     builder
-      .addCase(fetchFilings.pending, (state) => {
+      .addCase(fetchFilings.pending, (state, action) => {
         state.isLoading = true;
         state.error = null;
+        if (action.meta.arg.isRefresh) {
+          state.isRefreshing = true;
+        }
       })
       .addCase(fetchFilings.fulfilled, (state, action) => {
         state.isLoading = false;
+        state.isRefreshing = false;
+        state.totalCount = action.payload.total;
         
-        // If it's the first page, replace the list
-        if (state.currentPage === 0) {
-          state.filings = action.payload;
+        if (action.payload.isRefresh) {
+          state.filings = action.payload.items;
+          state.page = 1;
         } else {
-          // Otherwise, append to the list
-          state.filings = [...state.filings, ...action.payload];
+          // Remove duplicates when paginating
+          const existingIds = new Set(state.filings.map(f => f.id));
+          const newFilings = action.payload.items.filter(f => !existingIds.has(f.id));
+          state.filings = [...state.filings, ...newFilings];
         }
         
-        // Update pagination
-        state.currentPage += 1;
-        state.hasMore = action.payload.length === 20; // Assuming page size is 20
+        state.hasMore = action.payload.page < action.payload.pages;
+        state.page = action.payload.page;
       })
       .addCase(fetchFilings.rejected, (state, action) => {
         state.isLoading = false;
+        state.isRefreshing = false;
         state.error = action.error.message || 'Failed to fetch filings';
       });
-    
+
     // Fetch single filing
     builder
       .addCase(fetchFilingById.pending, (state) => {
@@ -110,36 +113,38 @@ const filingsSlice = createSlice({
       .addCase(fetchFilingById.fulfilled, (state, action) => {
         state.isLoading = false;
         state.currentFiling = action.payload;
+        
+        // Update filing in list if exists
+        const index = state.filings.findIndex(f => f.id === action.payload.id);
+        if (index !== -1) {
+          state.filings[index] = action.payload;
+        }
       })
       .addCase(fetchFilingById.rejected, (state, action) => {
         state.isLoading = false;
         state.error = action.error.message || 'Failed to fetch filing';
       });
-    
-    // Fetch popular filings
-    builder
-      .addCase(fetchPopularFilings.pending, (state) => {
-        state.isLoading = true;
-      })
-      .addCase(fetchPopularFilings.fulfilled, (state, action) => {
-        state.isLoading = false;
-        state.popularFilings = action.payload;
-      })
-      .addCase(fetchPopularFilings.rejected, (state, action) => {
-        state.isLoading = false;
-        state.error = action.error.message || 'Failed to fetch popular filings';
-      });
-    
+
     // Vote on filing
     builder
       .addCase(voteFiling.fulfilled, (state, action) => {
-        // Update the vote in the local state if needed
-        // This is a simplified version - you might want to update vote counts
-        const { filingId, voteType } = action.payload;
-        // TODO: Update filing vote state
+        const { filingId, vote_counts, user_vote } = action.payload;
+        
+        // Update filing in list
+        const filing = state.filings.find(f => f.id === filingId);
+        if (filing) {
+          filing.vote_counts = vote_counts;
+          filing.user_vote = user_vote;
+        }
+        
+        // Update current filing if it's the same
+        if (state.currentFiling?.id === filingId) {
+          state.currentFiling.vote_counts = vote_counts;
+          state.currentFiling.user_vote = user_vote;
+        }
       });
   },
 });
 
-export const { clearFilings, clearError } = filingsSlice.actions;
+export const { resetFilings, setCurrentFiling } = filingsSlice.actions;
 export default filingsSlice.reducer;

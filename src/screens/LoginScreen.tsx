@@ -68,7 +68,7 @@ export default function LoginScreen() {
     }
 
     try {
-      await dispatch(login({ username: email, password })).unwrap();
+      await dispatch(login({ email: email, password })).unwrap();
     } catch (err) {
       // Error is handled by Redux
     }

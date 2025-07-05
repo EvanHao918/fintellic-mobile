@@ -1,197 +1,278 @@
-// src/screens/HomeScreen.tsx
-import React from 'react';
+import React, { useEffect, useCallback, useState } from 'react';
 import {
   View,
   StyleSheet,
-  ScrollView,
+  FlatList,
   RefreshControl,
-  Animated,
+  ActivityIndicator,
+  Text,
+  TouchableOpacity,
 } from 'react-native';
-import { Text } from 'react-native-elements';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useNavigation } from '@react-navigation/native';
+import { StackNavigationProp } from '@react-navigation/stack';
+import { useDispatch, useSelector } from 'react-redux';
 import { FilingCard } from '../components';
 import { Filing } from '../types';
-import themeConfig from '../theme';
-import { useFadeAnimation, staggerAnimation, animations } from '../utils/animations';
+import { RootState } from '../store';
+import { fetchFilings, voteFiling } from '../store/slices/filingsSlice';
+import { AppDispatch } from '../store';
+import { colors, typography, spacing } from '../theme';
 
-const { colors, typography, spacing, commonStyles } = themeConfig;
+type HomeScreenNavigationProp = StackNavigationProp<any, 'Home'>;
 
-// Mock data for demonstration
-const mockFilings: Filing[] = [
-  {
-    id: '1',
-    company_id: '1',
-    company_name: 'Apple Inc.',
-    company_ticker: 'AAPL',
-    filing_type: '10-K',
-    filing_date: new Date().toISOString(),
-    accession_number: '0000320193-24-000001',
-    filing_url: '#',
-    processing_status: 'completed',
-    ai_summary: 'Apple reported record revenue of $383.3B for fiscal 2023, driven by strong iPhone sales and growing services revenue. The company maintained its industry-leading margins despite global supply chain challenges.',
-    management_tone: 'bullish',
-    key_insights: [
-      'Services revenue grew 15% YoY to all-time high',
-      'iPhone revenue up 7% despite challenging market',
-      'Returned over $90B to shareholders'
-    ],
-    financial_highlights: {
-      revenue: 383285000000,
-      net_income: 96995000000,
-    },
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  },
-  {
-    id: '2',
-    company_id: '2',
-    company_name: 'Microsoft Corporation',
-    company_ticker: 'MSFT',
-    filing_type: '10-Q',
-    filing_date: new Date(Date.now() - 3600000).toISOString(), // 1 hour ago
-    accession_number: '0000789019-24-000002',
-    filing_url: '#',
-    processing_status: 'completed',
-    ai_summary: 'Microsoft Q1 results show 12% revenue growth to $56.5B, with Azure cloud services growing 29%. AI initiatives are showing strong early momentum with enterprise customers.',
-    management_tone: 'bullish',
-    key_insights: [
-      'Cloud revenue exceeded $30B for the quarter',
-      'AI services adoption accelerating across enterprise',
-    ],
-    financial_highlights: {
-      revenue: 56517000000,
-      net_income: 22291000000,
-    },
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  },
-  {
-    id: '3',
-    company_id: '3',
-    company_name: 'Tesla Inc.',
-    company_ticker: 'TSLA',
-    filing_type: '8-K',
-    filing_date: new Date(Date.now() - 7200000).toISOString(), // 2 hours ago
-    accession_number: '0001318605-24-000003',
-    filing_url: '#',
-    processing_status: 'completed',
-    ai_summary: 'Tesla announced a new Gigafactory in Mexico with $5B investment. Production expected to begin in 2025 with initial capacity of 1M vehicles annually.',
-    management_tone: 'neutral',
-    key_insights: [
-      'New factory to focus on next-gen vehicle platform',
-      'Expected to create 10,000+ jobs',
-    ],
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  },
-];
-
-export default function HomeScreen() {
-  const [refreshing, setRefreshing] = React.useState(false);
-  const { fadeAnim } = useFadeAnimation(0, true);
+export const HomeScreen: React.FC = () => {
+  const navigation = useNavigation<HomeScreenNavigationProp>();
+  const dispatch = useDispatch<AppDispatch>();
   
-  // Animation refs for cards
-  const cardAnimations = React.useRef(
-    mockFilings.map(() => new Animated.Value(0))
-  ).current;
+  // Redux state with default values
+  const { 
+    filings = [], 
+    isLoading = false, 
+    isRefreshing = false, 
+    hasMore = true, 
+    error = null 
+  } = useSelector((state: RootState) => state.filings || {});
+  
+  const { isAuthenticated = false } = useSelector((state: RootState) => state.auth || {});
+  
+  // Local state
+  const [page, setPage] = useState(1);
 
-  React.useEffect(() => {
-    // Animate cards in with stagger effect
-    const fadeInAnimations = cardAnimations.map((anim) =>
-      animations.fadeIn(anim)
+  // Load initial data
+  useEffect(() => {
+    if (isAuthenticated) {
+      loadFilings(1, true);
+    }
+  }, [isAuthenticated]);
+
+  // Load filings
+  const loadFilings = useCallback(async (pageNum: number, isRefresh = false) => {
+    try {
+      await dispatch(fetchFilings({ page: pageNum, isRefresh })).unwrap();
+      if (!isRefresh) {
+        setPage(pageNum);
+      } else {
+        setPage(1);
+      }
+    } catch (error) {
+      console.error('Failed to load filings:', error);
+    }
+  }, [dispatch]);
+
+  // Handle refresh
+  const handleRefresh = useCallback(() => {
+    loadFilings(1, true);
+  }, [loadFilings]);
+
+  // Handle load more - with safe length check
+  const handleLoadMore = useCallback(() => {
+    if (!isLoading && hasMore && filings && filings.length > 0) {
+      loadFilings(page + 1);
+    }
+  }, [isLoading, hasMore, page, filings, loadFilings]);
+
+  // Handle filing press
+  const handleFilingPress = useCallback((filing: Filing) => {
+    navigation.navigate('FilingDetail', { filingId: filing.id });
+  }, [navigation]);
+
+  // Handle vote
+  const handleVote = useCallback(async (filingId: string, voteType: 'bullish' | 'neutral' | 'bearish') => {
+    if (!isAuthenticated) {
+      navigation.navigate('Login');
+      return;
+    }
+    
+    try {
+      await dispatch(voteFiling({ filingId, voteType })).unwrap();
+    } catch (error) {
+      console.error('Failed to vote:', error);
+    }
+  }, [dispatch, isAuthenticated, navigation]);
+
+  // Render filing item
+  const renderFiling = useCallback(({ item }: { item: Filing }) => (
+    <FilingCard
+      filing={item}
+      onPress={() => handleFilingPress(item)}
+      onVote={(filingId: string, voteType: 'bullish' | 'neutral' | 'bearish') => handleVote(filingId, voteType)}
+    />
+  ), [handleFilingPress, handleVote]);
+  
+  // Render footer
+  const renderFooter = () => {
+    if (!isLoading || isRefreshing) return null;
+    
+    return (
+      <View style={styles.footer}>
+        <ActivityIndicator size="small" color={colors.primary} />
+      </View>
     );
-    staggerAnimation(fadeInAnimations, 100).start();
-  }, []);
-
-  const handleRefresh = React.useCallback(() => {
-    setRefreshing(true);
-    // Simulate refresh
-    setTimeout(() => {
-      setRefreshing(false);
-    }, 2000);
-  }, []);
-
-  const handleFilingPress = (filing: Filing) => {
-    console.log('Filing pressed:', filing.id);
-    // Navigation will be implemented later
   };
 
-  const handleVote = (filingId: string, voteType: 'bullish' | 'neutral' | 'bearish') => {
-    console.log('Vote:', filingId, voteType);
-    // Vote API call will be implemented later
+  // Render empty state
+  const renderEmpty = () => {
+    if (isLoading) return null;
+    
+    return (
+      <View style={styles.emptyContainer}>
+        <Text style={styles.emptyTitle}>No filings yet</Text>
+        <Text style={styles.emptyText}>
+          {isAuthenticated 
+            ? "Check back soon for the latest financial reports"
+            : "Please login to view filings"
+          }
+        </Text>
+        {!isAuthenticated && (
+          <TouchableOpacity 
+            style={styles.loginButton}
+            onPress={() => navigation.navigate('Login')}
+          >
+            <Text style={styles.loginButtonText}>Login</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+    );
   };
+
+  // Render error state - with safe length check
+  if (error && (!filings || filings.length === 0)) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.errorContainer}>
+          <Text style={styles.errorTitle}>Something went wrong</Text>
+          <Text style={styles.errorText}>{error}</Text>
+          <TouchableOpacity 
+            style={styles.retryButton}
+            onPress={handleRefresh}
+          >
+            <Text style={styles.retryButtonText}>Try Again</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
-      <Animated.View style={[styles.content, { opacity: fadeAnim }]}>
-        {/* Header */}
-        <View style={styles.header}>
-          <Text style={styles.headerTitle}>Latest Filings</Text>
-          <Text style={styles.headerSubtitle}>
-            Real-time SEC filings with AI insights
-          </Text>
-        </View>
-
-        {/* Filings List */}
-        <ScrollView
-          style={styles.scrollView}
-          contentContainerStyle={styles.scrollContent}
-          showsVerticalScrollIndicator={false}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={handleRefresh}
-              tintColor={colors.primary}
-            />
-          }
-        >
-          {mockFilings.map((filing, index) => (
-            <Animated.View
-              key={filing.id}
-              style={{ opacity: cardAnimations[index] }}
-            >
-              <FilingCard
-                filing={filing}
-                onPress={handleFilingPress}
-                onVote={handleVote}
-              />
-            </Animated.View>
-          ))}
-        </ScrollView>
-      </Animated.View>
+    <SafeAreaView style={styles.container}>
+      <View style={styles.header}>
+        <Text style={styles.title}>Latest Filings</Text>
+        <Text style={styles.subtitle}>5-minute summaries of financial reports</Text>
+      </View>
+      
+      <FlatList
+        data={filings || []}
+        renderItem={renderFiling}
+        keyExtractor={(item) => item.id}
+        contentContainerStyle={styles.listContent}
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefreshing}
+            onRefresh={handleRefresh}
+            tintColor={colors.primary}
+          />
+        }
+        onEndReached={handleLoadMore}
+        onEndReachedThreshold={0.5}
+        ListFooterComponent={renderFooter}
+        ListEmptyComponent={renderEmpty}
+        showsVerticalScrollIndicator={false}
+      />
     </SafeAreaView>
   );
-}
+};
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,
   },
-  content: {
-    flex: 1,
-  },
   header: {
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.lg,
-    backgroundColor: colors.white,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   },
-  headerTitle: {
-    fontSize: typography.fontSize.xxl,
+  title: {
+    fontSize: typography.fontSize.xl,
     fontWeight: typography.fontWeight.bold,
     color: colors.text,
-    marginBottom: spacing.xxs,
+    marginBottom: spacing.xs,
   },
-  headerSubtitle: {
+  subtitle: {
     fontSize: typography.fontSize.base,
+    fontWeight: typography.fontWeight.regular,
     color: colors.textSecondary,
   },
-  scrollView: {
-    flex: 1,
+  listContent: {
+    paddingBottom: spacing.xl,
   },
-  scrollContent: {
-    padding: spacing.md,
+  footer: {
+    paddingVertical: spacing.lg,
+    alignItems: 'center',
+  },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: spacing.xl,
+    paddingTop: spacing.xxxl * 2,
+  },
+  emptyTitle: {
+    fontSize: typography.fontSize.lg,
+    fontWeight: typography.fontWeight.semibold,
+    color: colors.text,
+    marginBottom: spacing.sm,
+  },
+  emptyText: {
+    fontSize: typography.fontSize.base,
+    fontWeight: typography.fontWeight.regular,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    marginBottom: spacing.lg,
+  },
+  loginButton: {
+    backgroundColor: colors.primary,
+    paddingHorizontal: spacing.xl,
+    paddingVertical: spacing.md,
+    borderRadius: 8,
+  },
+  loginButtonText: {
+    fontSize: typography.fontSize.base,
+    fontWeight: typography.fontWeight.semibold,
+    color: colors.white,
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: spacing.xl,
+  },
+  errorTitle: {
+    fontSize: typography.fontSize.lg,
+    fontWeight: typography.fontWeight.semibold,
+    color: colors.text,
+    marginBottom: spacing.sm,
+  },
+  errorText: {
+    fontSize: typography.fontSize.base,
+    fontWeight: typography.fontWeight.regular,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    marginBottom: spacing.lg,
+  },
+  retryButton: {
+    backgroundColor: colors.primary,
+    paddingHorizontal: spacing.xl,
+    paddingVertical: spacing.md,
+    borderRadius: 8,
+  },
+  retryButtonText: {
+    fontSize: typography.fontSize.base,
+    fontWeight: typography.fontWeight.semibold,
+    color: colors.white,
   },
 });
+
+export default HomeScreen;

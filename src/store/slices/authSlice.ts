@@ -1,81 +1,71 @@
-// src/store/slices/authSlice.ts
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
-import { User, LoginRequest } from '../../types';
-import { api } from '../../api/endpoints';
-import { storage } from '../../utils/storage';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { AuthState, User, LoginCredentials, AuthResponse } from '../../types';
 import { STORAGE_KEYS } from '../../utils/constants';
-
-interface AuthState {
-  user: User | null;
-  token: string | null;
-  isLoading: boolean;
-  error: string | null;
-  isAuthenticated: boolean;
-}
+import apiClient from '../../api/client';
 
 const initialState: AuthState = {
   user: null,
   token: null,
+  isAuthenticated: false,
   isLoading: false,
   error: null,
-  isAuthenticated: false,
-};
-
-// Temporary mock user for development
-const mockUser: User = {
-  id: '1',
-  email: 'demo@fintellic.com',
-  username: 'demo',
-  subscription_tier: 'pro',
-  created_at: new Date().toISOString(),
 };
 
 // Async thunks
 export const login = createAsyncThunk(
   'auth/login',
-  async (credentials: LoginRequest) => {
-    const response = await api.auth.login(credentials);
-    
-    // Save token to storage
-    await storage.set(STORAGE_KEYS.AUTH_TOKEN, response.access_token);
-    await storage.set(STORAGE_KEYS.USER_DATA, response.user);
-    
-    return response;
+  async (credentials: LoginCredentials) => {
+    const formData = new URLSearchParams();
+    formData.append('username', credentials.email);
+    formData.append('password', credentials.password);
+
+    const response = await apiClient.post<AuthResponse>('/auth/login', formData, {
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+    });
+
+    // Store token
+    await AsyncStorage.setItem(STORAGE_KEYS.AUTH_TOKEN, response.data.access_token);
+    await AsyncStorage.setItem(STORAGE_KEYS.USER_INFO, JSON.stringify(response.data.user));
+
+    return response.data;
   }
 );
+
+export const logout = createAsyncThunk('auth/logout', async () => {
+  await AsyncStorage.multiRemove([
+    STORAGE_KEYS.AUTH_TOKEN,
+    STORAGE_KEYS.USER_INFO,
+  ]);
+});
 
 export const loadStoredAuth = createAsyncThunk(
-  'auth/loadStored',
+  'auth/loadStoredAuth',
   async () => {
-    const token = await storage.get<string>(STORAGE_KEYS.AUTH_TOKEN);
-    const user = await storage.get<User>(STORAGE_KEYS.USER_DATA);
-    
-    if (!token || !user) {
-      throw new Error('No stored auth data');
+    const token = await AsyncStorage.getItem(STORAGE_KEYS.AUTH_TOKEN);
+    const userInfo = await AsyncStorage.getItem(STORAGE_KEYS.USER_INFO);
+
+    if (token && userInfo) {
+      const user = JSON.parse(userInfo);
+      // Set token to axios default headers
+      apiClient.setAuthToken(token);
+      return { token, user };
     }
-    
-    // Verify token by fetching current user
-    const currentUser = await api.auth.getCurrentUser();
-    
-    return { token, user: currentUser };
+    return null;
   }
 );
 
-export const logout = createAsyncThunk(
-  'auth/logout',
-  async () => {
-    await storage.remove(STORAGE_KEYS.AUTH_TOKEN);
-    await storage.remove(STORAGE_KEYS.USER_DATA);
-  }
-);
-
-// Slice
 const authSlice = createSlice({
   name: 'auth',
   initialState,
   reducers: {
     clearError: (state) => {
       state.error = null;
+    },
+    updateUser: (state, action: PayloadAction<User>) => {
+      state.user = action.payload;
     },
   },
   extraReducers: (builder) => {
@@ -90,33 +80,34 @@ const authSlice = createSlice({
         state.isAuthenticated = true;
         state.token = action.payload.access_token;
         state.user = action.payload.user;
+        state.error = null;
       })
       .addCase(login.rejected, (state, action) => {
         state.isLoading = false;
+        state.isAuthenticated = false;
         state.error = action.error.message || 'Login failed';
       });
-    
+
+    // Logout
+    builder
+      .addCase(logout.fulfilled, (state) => {
+        state.user = null;
+        state.token = null;
+        state.isAuthenticated = false;
+        state.error = null;
+      });
+
     // Load stored auth
     builder
       .addCase(loadStoredAuth.fulfilled, (state, action) => {
-        state.isAuthenticated = true;
-        state.token = action.payload.token;
-        state.user = action.payload.user;
-      })
-      .addCase(loadStoredAuth.rejected, (state) => {
-        state.isAuthenticated = false;
-        state.token = null;
-        state.user = null;
+        if (action.payload) {
+          state.token = action.payload.token;
+          state.user = action.payload.user;
+          state.isAuthenticated = true;
+        }
       });
-    
-    // Logout
-    builder.addCase(logout.fulfilled, (state) => {
-      state.isAuthenticated = false;
-      state.token = null;
-      state.user = null;
-    });
   },
 });
 
-export const { clearError } = authSlice.actions;
+export const { clearError, updateUser } = authSlice.actions;
 export default authSlice.reducer;
