@@ -61,6 +61,31 @@ export interface User {
     total_liabilities?: number;
     shareholders_equity?: number;
     operating_cash_flow?: number;
+    // Add new fields for structured financial data
+    revenue_trend?: Array<{
+      period: string;
+      value: number;
+      label: string;
+      unit?: string;
+    }>;
+    key_metrics?: Array<{
+      label: string;
+      value: number;
+      unit: string;
+      change?: number;
+      direction?: 'up' | 'down' | 'flat';
+    }>;
+    segment_breakdown?: Array<{
+      category: string;
+      value: number;
+      percentage?: number;
+      unit?: string;
+    }>;
+    valuation_metrics?: Array<{
+      label: string;
+      value: string | number;
+      unit?: string;
+    }>;
   }
   
   // Backend filing response structure
@@ -162,6 +187,7 @@ export interface User {
   }
 
   // Visual data types for charts
+// Visual data types for charts
 export interface VisualData {
     id: string;
     type: 'trend' | 'comparison' | 'metrics';

@@ -148,80 +148,122 @@ export default function FilingDetailScreen() {
     setIsRefreshing(false);
   };
 
-  // Generate sample visualization data based on filing type
+  // Generate visualization data based on filing type and real financial data
   const generateVisualsForFiling = (filing: Filing): VisualData[] => {
     const visuals: VisualData[] = [];
     
+    // Check if we have financial highlights data from backend
+    const financialData = filing.financial_highlights;
+    
     // For 10-K and 10-Q, show financial trends
-    if (filing.filing_type === '10-K' || filing.filing_type === '10-Q') {
-      // Revenue trend
-      visuals.push({
-        id: 'revenue-trend',
-        type: 'trend',
-        title: '📈 Revenue Trend',
-        subtitle: 'Last 4 quarters',
-        data: [
-          { label: 'Q1', value: 25.2 },
-          { label: 'Q2', value: 26.8 },
-          { label: 'Q3', value: 28.1 },
-          { label: 'Q4', value: 29.5 },
-        ],
-        metadata: {
-          format: 'currency',
-          unit: 'B',
-          decimals: 1,
-        },
-      });
+    if ((filing.filing_type === '10-K' || filing.filing_type === '10-Q') && financialData) {
       
-      // Key metrics
+      // Revenue trend - use real data if available
+      if (financialData.revenue_trend && financialData.revenue_trend.length > 0) {
+        visuals.push({
+          id: 'revenue-trend',
+          type: 'trend',
+          title: '📈 Revenue Trend',
+          subtitle: 'Historical Performance',
+          data: financialData.revenue_trend.map((item: any) => ({
+            label: item.label || item.period,
+            value: item.value
+          })),
+          metadata: {
+            format: 'currency',
+            unit: financialData.revenue_trend[0]?.unit || 'B',
+            decimals: 1,
+          },
+        });
+      }
+      
+      // Key metrics - use real data if available
+      if (financialData.key_metrics && financialData.key_metrics.length > 0) {
+        visuals.push({
+          id: 'key-metrics',
+          type: 'metrics',
+          title: '💰 Key Financial Metrics',
+          data: financialData.key_metrics.map((metric: any) => ({
+            label: metric.label,
+            value: `$${metric.value}${metric.unit || 'B'}`,
+            change: metric.change ? {
+              value: metric.change,
+              direction: metric.direction || (metric.change > 0 ? 'up' : 'down')
+            } : undefined
+          })),
+        });
+      }
+      
+      // Segment breakdown - use real data if available
+      if (financialData.segment_breakdown && financialData.segment_breakdown.length > 0) {
+        visuals.push({
+          id: 'segment-breakdown',
+          type: 'comparison',
+          title: '📊 Revenue by Segment',
+          data: financialData.segment_breakdown.map((segment: any) => ({
+            category: segment.category,
+            value: segment.value
+          })),
+          metadata: {
+            format: 'currency',
+            unit: financialData.segment_breakdown[0]?.unit || 'B',
+            decimals: 1,
+          },
+        });
+      }
+    }
+    
+    // For S-1 filings, show IPO-specific metrics if available
+    if (filing.filing_type === 'S-1' && financialData) {
+      if (financialData.revenue_trend && financialData.revenue_trend.length > 0) {
+        visuals.push({
+          id: 'ipo-revenue-history',
+          type: 'trend',
+          title: '📈 Revenue History',
+          subtitle: 'Pre-IPO Performance',
+          data: financialData.revenue_trend.map((item: any) => ({
+            label: item.label || item.period,
+            value: item.value
+          })),
+          metadata: {
+            format: 'currency',
+            unit: financialData.revenue_trend[0]?.unit || 'M',
+            decimals: 1,
+          },
+        });
+      }
+      
+      if (financialData.valuation_metrics && financialData.valuation_metrics.length > 0) {
+        visuals.push({
+          id: 'ipo-valuation',
+          type: 'metrics',
+          title: '💎 IPO Valuation Metrics',
+          data: financialData.valuation_metrics.map((metric: any) => ({
+            label: metric.label,
+            value: metric.unit === '$/share' 
+              ? `${metric.value} ${metric.unit}`
+              : `$${metric.value}${metric.unit || 'B'}`
+          })),
+        });
+      }
+    }
+    
+    // For 8-K filings, show event-specific metrics if available
+    if (filing.filing_type === '8-K' && financialData && financialData.key_metrics) {
       visuals.push({
-        id: 'key-metrics',
+        id: 'event-metrics',
         type: 'metrics',
-        title: '💰 Key Financial Metrics',
-        data: [
-          {
-            label: 'Total Revenue',
-            value: '$29.5B',
-            change: { value: 8.5, direction: 'up' },
-          },
-          {
-            label: 'Net Income',
-            value: '$5.2B',
-            change: { value: 12.3, direction: 'up' },
-          },
-          {
-            label: 'Gross Margin',
-            value: '42.3%',
-            change: { value: 1.2, direction: 'up' },
-          },
-          {
-            label: 'Operating Cash',
-            value: '$8.1B',
-            change: { value: -2.1, direction: 'down' },
-          },
-        ],
+        title: '📊 Event Impact Metrics',
+        data: financialData.key_metrics.map((metric: any) => ({
+          label: metric.label,
+          value: metric.unit === '%' 
+            ? `${metric.value}${metric.unit}`
+            : `$${metric.value}${metric.unit || 'M'}`
+        })),
       });
     }
     
-    // For all filing types, add segment breakdown if available
-    if (filing.filing_type === '10-K' || filing.filing_type === '10-Q') {
-      visuals.push({
-        id: 'segment-breakdown',
-        type: 'comparison',
-        title: '📊 Revenue by Segment',
-        data: [
-          { category: 'Products', value: 18.2 },
-          { category: 'Services', value: 8.5 },
-          { category: 'Cloud', value: 2.8 },
-        ],
-        metadata: {
-          format: 'currency',
-          unit: 'B',
-          decimals: 1,
-        },
-      });
-    }
-    
+    // If no real data is available, return empty array (no mock data)
     return visuals;
   };
 
