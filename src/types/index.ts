@@ -160,3 +160,19 @@ export interface User {
     auth: AuthState;
     filings: any; // Will be defined in filingsSlice
   }
+
+  // Visual data types for charts
+export interface VisualData {
+    id: string;
+    type: 'trend' | 'comparison' | 'metrics';
+    title: string;
+    subtitle?: string;
+    data: any;
+    metadata?: {
+      format?: 'currency' | 'percentage' | 'number' | 'ratio';
+      unit?: string;
+      prefix?: string;
+      suffix?: string;
+      decimals?: number;
+    };
+  }

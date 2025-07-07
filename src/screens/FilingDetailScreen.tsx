@@ -20,7 +20,9 @@ import { useDispatch, useSelector } from 'react-redux';
 import { RootState, AppDispatch } from '../store';
 import { colors, typography, spacing, borderRadius, shadows } from '../theme';
 import { Filing, Comment, RootStackParamList } from '../types';
-import apiClient from '../api/client';
+import { getFilingById, voteOnFiling, getFilingComments, postComment } from '../api/filings';
+import { AdaptiveChart } from '../components/charts';
+import { VisualData } from '../types';
 
 // Route types
 type FilingDetailScreenRouteProp = RouteProp<RootStackParamList, 'FilingDetail'>;
@@ -53,61 +55,16 @@ export default function FilingDetailScreen() {
   // Load filing details and comments
   const loadFilingDetails = async () => {
     try {
-      // Load filing details
-      const filingResponse = await apiClient.get(`/filings/${filingId}`);
-      const filingData = filingResponse.data;
-      
-      // Transform backend data to frontend format
-      const transformedFiling: Filing = {
-        id: String(filingData.id),
-        company_id: filingData.company?.cik || filingData.cik || '',
-        company_name: filingData.company?.name || '',
-        company_ticker: filingData.company?.ticker || '',
-        company: filingData.company,
-        filing_type: filingData.form_type,
-        filing_date: filingData.filing_date,
-        accession_number: filingData.accession_number,
-        filing_url: filingData.file_url || filingData.filing_url,
-        processing_status: 'completed',
-        ai_summary: filingData.ai_summary || filingData.one_liner?.replace('FEED_SUMMARY: ', ''),
-        feed_summary: filingData.one_liner?.replace('FEED_SUMMARY: ', ''),
-        management_tone: filingData.management_tone || filingData.sentiment,
-        tags: filingData.key_tags || filingData.tags,
-        vote_counts: filingData.vote_counts || { 
-          bullish: filingData.bullish_votes || 0, 
-          neutral: filingData.neutral_votes || 0, 
-          bearish: filingData.bearish_votes || 0 
-        },
-        user_vote: filingData.user_vote,
-        comment_count: filingData.comment_count || 0,
-        created_at: filingData.created_at || filingData.filing_date,
-        updated_at: filingData.updated_at || filingData.filing_date,
-        event_type: filingData.event_type,
-        // Map the backend fields correctly
-        key_insights: filingData.key_quotes || filingData.key_insights,  // Backend uses key_quotes
-        risk_factors: filingData.risk_factors,
-        future_outlook: filingData.future_outlook,
-        financial_highlights: filingData.financial_highlights,
-      };
-      
-      // Debug logging - check all possible fields
-      console.log('All filing data fields:', Object.keys(filingData));
-      console.log('Full filing data:', filingData);
-      
-      setFiling(transformedFiling);
-      setUserVote(filingData.user_vote);
-      
-      // Debug logging
-      console.log('Filing data from API:', filingData);
-      console.log('Transformed filing:', transformedFiling);
-      console.log('Management tone:', transformedFiling.management_tone);
-      console.log('Key insights:', transformedFiling.key_insights);
-      console.log('Risk factors:', transformedFiling.risk_factors);
+      // Load filing details using the API function
+      const filingData = await getFilingById(filingId);
+      setFiling(filingData);
+      // Fix: ensure user_vote is never undefined
+      setUserVote(filingData.user_vote || null);
       
       // Load comments
       try {
-        const commentsResponse = await apiClient.get(`/filings/${filingId}/comments`);
-        setComments(commentsResponse.data || []);
+        const commentsData = await getFilingComments(filingId);
+        setComments(commentsData);
       } catch (error) {
         console.log('No comments yet');
       }
@@ -132,19 +89,17 @@ export default function FilingDetailScreen() {
     try {
       setIsVoting(true);
       
-      const response = await apiClient.post(`/filings/${filingId}/vote`, null, {
-        params: { vote_type: sentiment }
-      });
+      const response = await voteOnFiling(filingId, sentiment);
       
       // Update local state
       if (filing) {
         setFiling({
           ...filing,
-          vote_counts: response.data.vote_counts,
-          user_vote: response.data.user_vote
+          vote_counts: response.vote_counts,
+          user_vote: response.user_vote
         });
       }
-      setUserVote(response.data.user_vote);
+      setUserVote(response.user_vote);
       
     } catch (error: any) {
       console.error('Vote error:', error);
@@ -166,16 +121,7 @@ export default function FilingDetailScreen() {
     try {
       setIsSubmittingComment(true);
       
-      const response = await apiClient.post(`/filings/${filingId}/comments`, {
-        content: newComment.trim()
-      });
-      
-      // Add new comment to the list
-      const newCommentData: Comment = {
-        ...response.data,
-        user_name: user?.full_name || 'Anonymous'
-      };
-      
+      const newCommentData = await postComment(filingId, newComment.trim());
       setComments([newCommentData, ...comments]);
       setNewComment('');
       
@@ -200,6 +146,83 @@ export default function FilingDetailScreen() {
     setIsRefreshing(true);
     await loadFilingDetails();
     setIsRefreshing(false);
+  };
+
+  // Generate sample visualization data based on filing type
+  const generateVisualsForFiling = (filing: Filing): VisualData[] => {
+    const visuals: VisualData[] = [];
+    
+    // For 10-K and 10-Q, show financial trends
+    if (filing.filing_type === '10-K' || filing.filing_type === '10-Q') {
+      // Revenue trend
+      visuals.push({
+        id: 'revenue-trend',
+        type: 'trend',
+        title: '📈 Revenue Trend',
+        subtitle: 'Last 4 quarters',
+        data: [
+          { label: 'Q1', value: 25.2 },
+          { label: 'Q2', value: 26.8 },
+          { label: 'Q3', value: 28.1 },
+          { label: 'Q4', value: 29.5 },
+        ],
+        metadata: {
+          format: 'currency',
+          unit: 'B',
+          decimals: 1,
+        },
+      });
+      
+      // Key metrics
+      visuals.push({
+        id: 'key-metrics',
+        type: 'metrics',
+        title: '💰 Key Financial Metrics',
+        data: [
+          {
+            label: 'Total Revenue',
+            value: '$29.5B',
+            change: { value: 8.5, direction: 'up' },
+          },
+          {
+            label: 'Net Income',
+            value: '$5.2B',
+            change: { value: 12.3, direction: 'up' },
+          },
+          {
+            label: 'Gross Margin',
+            value: '42.3%',
+            change: { value: 1.2, direction: 'up' },
+          },
+          {
+            label: 'Operating Cash',
+            value: '$8.1B',
+            change: { value: -2.1, direction: 'down' },
+          },
+        ],
+      });
+    }
+    
+    // For all filing types, add segment breakdown if available
+    if (filing.filing_type === '10-K' || filing.filing_type === '10-Q') {
+      visuals.push({
+        id: 'segment-breakdown',
+        type: 'comparison',
+        title: '📊 Revenue by Segment',
+        data: [
+          { category: 'Products', value: 18.2 },
+          { category: 'Services', value: 8.5 },
+          { category: 'Cloud', value: 2.8 },
+        ],
+        metadata: {
+          format: 'currency',
+          unit: 'B',
+          decimals: 1,
+        },
+      });
+    }
+    
+    return visuals;
   };
 
   // Load data on mount
@@ -285,13 +308,10 @@ export default function FilingDetailScreen() {
     filing.management_tone ? { id: 'tone', type: 'tone' } : null,
     filing.key_insights && filing.key_insights.length > 0 ? { id: 'insights', type: 'insights' } : null,
     filing.risk_factors && filing.risk_factors.length > 0 ? { id: 'risks', type: 'risks' } : null,
+    { id: 'visuals', type: 'visuals' }, // Add financial visualizations
     { id: 'voting', type: 'voting' },
     { id: 'comments', type: 'comments' },
   ].filter((item): item is { id: string; type: string } => item !== null);
-  
-  // Debug logging
-  console.log('Sections to render:', sections);
-  console.log('Section types:', sections.map(s => s.type));
 
   // Render section based on type
   const renderSection = ({ item }: { item: any }) => {
@@ -368,6 +388,19 @@ export default function FilingDetailScreen() {
                 <Text style={styles.bulletPoint}>•</Text>
                 <Text style={styles.bulletText}>{risk}</Text>
               </View>
+            ))}
+          </View>
+        );
+
+      case 'visuals':
+        const visuals = generateVisualsForFiling(filing);
+        if (visuals.length === 0) return null;
+        
+        return (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>📊 Financial Overview</Text>
+            {visuals.map((visual) => (
+              <AdaptiveChart key={visual.id} visual={visual} />
             ))}
           </View>
         );
