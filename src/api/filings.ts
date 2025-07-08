@@ -24,12 +24,12 @@ export const getFilingById = async (id: string) => {
 
 // Vote on a filing
 export const voteOnFiling = async (filingId: string, voteType: VoteType) => {
-  const response = await apiClient.post(`/filings/${filingId}/vote`, null, {
-    params: { vote_type: voteType }
-  });
-  
-  return transformVoteResponse(response.data);
-};
+    const response = await apiClient.post(`/filings/${filingId}/vote`, {
+      sentiment: voteType
+    });
+    
+    return transformVoteResponse(response.data);
+  };
 
 // Get filing comments
 export const getFilingComments = async (filingId: string) => {

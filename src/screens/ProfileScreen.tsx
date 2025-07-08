@@ -1,326 +1,358 @@
-import React, { useEffect, useCallback, useState } from 'react';
+import React, { useState } from 'react';
 import {
   View,
-  StyleSheet,
-  FlatList,
-  RefreshControl,
-  ActivityIndicator,
   Text,
+  StyleSheet,
+  ScrollView,
   TouchableOpacity,
+  Switch,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useNavigation } from '@react-navigation/native';
-import { StackNavigationProp } from '@react-navigation/stack';
+import { Icon } from 'react-native-elements';
 import { useDispatch, useSelector } from 'react-redux';
-import { FilingCard } from '../components';
-import { Filing } from '../types';
-import { RootState } from '../store';
-import { fetchFilings, voteFiling } from '../store/slices/filingsSlice';
-import { AppDispatch } from '../store';
-import { colors, typography, spacing } from '../theme';
+import { useNavigation } from '@react-navigation/native';
+import { RootState, AppDispatch } from '../store';
+import { logout } from '../store/slices/authSlice';
+import { colors, typography, spacing, borderRadius } from '../theme';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
-type HomeScreenNavigationProp = StackNavigationProp<any, 'Home'>;
+interface SettingItem {
+  id: string;
+  title: string;
+  subtitle?: string;
+  icon: string;
+  iconType?: string;
+  action?: () => void;
+  hasToggle?: boolean;
+  toggleValue?: boolean;
+  onToggle?: (value: boolean) => void;
+  hasArrow?: boolean;
+  danger?: boolean;
+}
 
-export const HomeScreen: React.FC = () => {
-  const navigation = useNavigation<HomeScreenNavigationProp>();
+export default function ProfileScreen() {
   const dispatch = useDispatch<AppDispatch>();
+  const navigation = useNavigation();
+  const user = useSelector((state: RootState) => state.auth.user);
+  const isProUser = user?.is_pro || false;
   
-  // Redux state with default values
-  const { 
-    filings = [], 
-    isLoading = false, 
-    isRefreshing = false, 
-    hasMore = true, 
-    error = null 
-  } = useSelector((state: RootState) => state.filings || {});
-  
-  const { isAuthenticated = false, user = null } = useSelector((state: RootState) => state.auth || {});
-  
-  // Local state
-  const [page, setPage] = useState(1);
+  // Notification settings (simplified - only push notifications)
+  const [allNotifications, setAllNotifications] = useState(true);
+  const [watchlistOnly, setWatchlistOnly] = useState(false);
 
-  // Debug logging
-  useEffect(() => {
-    console.log('HomeScreen mounted');
-    console.log('Auth state:', { isAuthenticated, user });
-    console.log('Filings state:', { filings, isLoading, error });
-  }, []);
-
-  // Load initial data
-  useEffect(() => {
-    console.log('Auth changed:', isAuthenticated);
-    if (isAuthenticated) {
-      console.log('User is authenticated, loading filings...');
-      loadFilings(1, true);
-    } else {
-      console.log('User is not authenticated');
-    }
-  }, [isAuthenticated]);
-
-  // Load filings with debug logging
-  const loadFilings = useCallback(async (pageNum: number, isRefresh = false) => {
-    console.log('loadFilings called:', { pageNum, isRefresh, isAuthenticated });
-    
-    try {
-      const result = await dispatch(fetchFilings({ page: pageNum, isRefresh })).unwrap();
-      console.log('Filings loaded successfully:', result);
-      
-      if (!isRefresh) {
-        setPage(pageNum);
-      } else {
-        setPage(1);
-      }
-    } catch (error: any) {
-      console.error('Failed to load filings:', error);
-      console.error('Error details:', {
-        message: error.message,
-        stack: error.stack,
-        response: error.response,
-      });
-    }
-  }, [dispatch, isAuthenticated]);
-
-  // Handle refresh
-  const handleRefresh = useCallback(() => {
-    console.log('Refresh triggered');
-    loadFilings(1, true);
-  }, [loadFilings]);
-
-  // Handle load more - with safe length check
-  const handleLoadMore = useCallback(() => {
-    if (!isLoading && hasMore && filings && filings.length > 0) {
-      console.log('Loading more filings...');
-      loadFilings(page + 1);
-    }
-  }, [isLoading, hasMore, page, filings, loadFilings]);
-
-  // Handle filing press
-  const handleFilingPress = useCallback((filing: Filing) => {
-    console.log('Filing pressed:', filing.id);
-    navigation.navigate('FilingDetail', { filingId: filing.id });
-  }, [navigation]);
-
-  // Handle vote
-  const handleVote = useCallback(async (filingId: string, voteType: 'bullish' | 'neutral' | 'bearish') => {
-    console.log('Vote triggered:', { filingId, voteType });
-    
-    if (!isAuthenticated) {
-      console.log('User not authenticated, redirecting to login');
-      navigation.navigate('Login');
-      return;
-    }
-    
-    try {
-      const result = await dispatch(voteFiling({ filingId, voteType })).unwrap();
-      console.log('Vote successful:', result);
-    } catch (error) {
-      console.error('Failed to vote:', error);
-    }
-  }, [dispatch, isAuthenticated, navigation]);
-
-  // Render filing item
-  const renderFiling = useCallback(({ item }: { item: Filing }) => (
-    <FilingCard
-      filing={item}
-      onPress={() => handleFilingPress(item)}
-      onVote={(filingId: string, voteType: 'bullish' | 'neutral' | 'bearish') => handleVote(filingId, voteType)}
-    />
-  ), [handleFilingPress, handleVote]);
-  
-  // Render footer
-  const renderFooter = () => {
-    if (!isLoading || isRefreshing) return null;
-    
-    return (
-      <View style={styles.footer}>
-        <ActivityIndicator size="small" color={colors.primary} />
-      </View>
-    );
-  };
-
-  // Render empty state
-  const renderEmpty = () => {
-    if (isLoading) {
-      console.log('Showing loading state');
-      return (
-        <View style={styles.emptyContainer}>
-          <ActivityIndicator size="large" color={colors.primary} />
-          <Text style={styles.emptyText}>Loading filings...</Text>
-        </View>
-      );
-    }
-    
-    console.log('Showing empty state');
-    return (
-      <View style={styles.emptyContainer}>
-        <Text style={styles.emptyTitle}>No filings yet</Text>
-        <Text style={styles.emptyText}>
-          {isAuthenticated 
-            ? "Check back soon for the latest financial reports"
-            : "Please login to view filings"
+  // Handle logout
+  const handleLogout = () => {
+    Alert.alert(
+      'Logout',
+      'Are you sure you want to logout?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Logout',
+          style: 'destructive',
+          onPress: async () => {
+            await dispatch(logout() as any).unwrap();
           }
-        </Text>
-        {!isAuthenticated && (
-          <TouchableOpacity 
-            style={styles.loginButton}
-            onPress={() => navigation.navigate('Login')}
-          >
-            <Text style={styles.loginButtonText}>Login</Text>
-          </TouchableOpacity>
-        )}
-        {isAuthenticated && (
-          <TouchableOpacity 
-            style={styles.retryButton}
-            onPress={handleRefresh}
-          >
-            <Text style={styles.retryButtonText}>Refresh</Text>
-          </TouchableOpacity>
-        )}
-      </View>
+        }
+      ]
     );
   };
 
-  // Render error state - with safe length check
-  if (error && (!filings || filings.length === 0)) {
-    console.log('Showing error state:', error);
-    return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.errorContainer}>
-          <Text style={styles.errorTitle}>Something went wrong</Text>
-          <Text style={styles.errorText}>{error}</Text>
-          <TouchableOpacity 
-            style={styles.retryButton}
-            onPress={handleRefresh}
-          >
-            <Text style={styles.retryButtonText}>Try Again</Text>
-          </TouchableOpacity>
-        </View>
-      </SafeAreaView>
+  // Handle upgrade to Pro
+  const handleUpgradeToPro = () => {
+    Alert.alert(
+      'Upgrade to Fintellic Pro',
+      'Get unlimited watchlist, advanced analytics, and priority notifications for $39.9/month',
+      [
+        { text: 'Not Now', style: 'cancel' },
+        { text: 'Upgrade', onPress: () => {/* Navigate to payment */} }
+      ]
     );
-  }
+  };
 
-  console.log('Rendering main view with', filings.length, 'filings');
+  // Handle notification toggle
+  const handleNotificationToggle = async (type: 'all' | 'watchlist', value: boolean) => {
+    if (type === 'all') {
+      setAllNotifications(value);
+      if (!value) {
+        setWatchlistOnly(false);
+      }
+      // Save preference
+      await AsyncStorage.setItem('@fintellic_notifications_all', value.toString());
+    } else {
+      setWatchlistOnly(value);
+      if (value) {
+        setAllNotifications(false);
+      }
+      // Save preference
+      await AsyncStorage.setItem('@fintellic_notifications_watchlist', value.toString());
+    }
+  };
+
+  // Profile sections
+  const profileSections: { title: string; items: SettingItem[] }[] = [
+    {
+      title: 'Account',
+      items: [
+        {
+          id: 'user_info',
+          title: user?.full_name || 'User',
+          subtitle: user?.email,
+          icon: 'person',
+          hasArrow: false,
+        },
+        {
+          id: 'subscription',
+          title: isProUser ? 'Fintellic Pro' : 'Free Plan',
+          subtitle: isProUser ? 'Active subscription' : 'Upgrade for more features',
+          icon: 'star',
+          action: !isProUser ? handleUpgradeToPro : undefined,
+          hasArrow: !isProUser,
+        },
+      ],
+    },
+    {
+      title: 'Push Notifications',
+      items: [
+        {
+          id: 'all_notifications',
+          title: 'All Push Notifications',
+          subtitle: 'Get notified about all new filings',
+          icon: 'notifications',
+          hasToggle: true,
+          toggleValue: allNotifications,
+          onToggle: (value) => handleNotificationToggle('all', value),
+        },
+        {
+          id: 'watchlist_notifications',
+          title: 'Watchlist Only',
+          subtitle: 'Only notify for companies you follow',
+          icon: 'star',
+          hasToggle: true,
+          toggleValue: watchlistOnly,
+          onToggle: (value) => handleNotificationToggle('watchlist', value),
+        },
+      ],
+    },
+    {
+      title: 'Account Management',
+      items: [
+        {
+          id: 'change_password',
+          title: 'Change Password',
+          icon: 'lock',
+          action: () => Alert.alert('Coming Soon', 'Password change feature will be available soon'),
+          hasArrow: true,
+        },
+        ...(isProUser ? [{
+          id: 'manage_subscription',
+          title: 'Manage Subscription',
+          icon: 'credit-card',
+          iconType: 'material',
+          action: () => Alert.alert('Coming Soon', 'Subscription management will be available soon'),
+          hasArrow: true,
+        }] : []),
+      ],
+    },
+    {
+      title: 'About',
+      items: [
+        {
+          id: 'version',
+          title: 'App Version',
+          subtitle: '1.0.0',
+          icon: 'info',
+          hasArrow: false,
+        },
+        {
+          id: 'terms',
+          title: 'Terms of Service',
+          icon: 'description',
+          action: () => Alert.alert('Terms', 'Terms of Service'),
+          hasArrow: true,
+        },
+        {
+          id: 'privacy',
+          title: 'Privacy Policy',
+          icon: 'security',
+          action: () => Alert.alert('Privacy', 'Privacy Policy'),
+          hasArrow: true,
+        },
+        {
+          id: 'support',
+          title: 'Support',
+          icon: 'help',
+          action: () => Alert.alert('Support', 'Contact support@fintellic.com'),
+          hasArrow: true,
+        },
+      ],
+    },
+  ];
+
+  // Render setting item
+  const renderSettingItem = (item: SettingItem) => (
+    <TouchableOpacity
+      key={item.id}
+      style={styles.settingItem}
+      onPress={item.action}
+      disabled={!item.action && !item.hasToggle}
+    >
+      <View style={styles.settingItemLeft}>
+        <Icon
+          name={item.icon}
+          type={item.iconType || 'material'}
+          size={24}
+          color={item.danger ? colors.error : colors.textSecondary}
+          style={styles.settingIcon}
+        />
+        <View style={styles.settingTextContainer}>
+          <Text style={[styles.settingTitle, item.danger && styles.dangerText]}>
+            {item.title}
+          </Text>
+          {item.subtitle && (
+            <Text style={styles.settingSubtitle}>{item.subtitle}</Text>
+          )}
+        </View>
+      </View>
+      
+      {item.hasToggle && item.onToggle ? (
+        <Switch
+          value={item.toggleValue}
+          onValueChange={item.onToggle}
+          trackColor={{ false: colors.gray300, true: colors.primary }}
+          thumbColor={colors.white}
+        />
+      ) : item.hasArrow ? (
+        <Icon
+          name="chevron-right"
+          type="material"
+          size={24}
+          color={colors.textSecondary}
+        />
+      ) : null}
+    </TouchableOpacity>
+  );
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Latest Filings</Text>
-        <Text style={styles.subtitle}>5-minute summaries of financial reports</Text>
-      </View>
-      
-      <FlatList
-        data={filings || []}
-        renderItem={renderFiling}
-        keyExtractor={(item) => item.id}
-        contentContainerStyle={styles.listContent}
-        refreshControl={
-          <RefreshControl
-            refreshing={isRefreshing}
-            onRefresh={handleRefresh}
-            tintColor={colors.primary}
-          />
-        }
-        onEndReached={handleLoadMore}
-        onEndReachedThreshold={0.5}
-        ListFooterComponent={renderFooter}
-        ListEmptyComponent={renderEmpty}
-        showsVerticalScrollIndicator={false}
-      />
+      <ScrollView>
+        {/* Pro Badge */}
+        {isProUser && (
+          <View style={styles.proBadge}>
+            <Icon name="star" type="material" size={20} color={colors.warning} />
+            <Text style={styles.proBadgeText}>Pro Member</Text>
+          </View>
+        )}
+
+        {/* Settings Sections */}
+        {profileSections.map((section, index) => (
+          <View key={index} style={styles.section}>
+            <Text style={styles.sectionTitle}>{section.title}</Text>
+            <View style={styles.sectionContent}>
+              {section.items.map(renderSettingItem)}
+            </View>
+          </View>
+        ))}
+
+        {/* Logout Button */}
+        <View style={styles.section}>
+          <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
+            <Icon name="logout" type="material" size={20} color={colors.error} />
+            <Text style={styles.logoutText}>Logout</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Bottom Padding */}
+        <View style={{ height: spacing.xxl }} />
+      </ScrollView>
     </SafeAreaView>
   );
-};
+}
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: colors.backgroundSecondary,
   },
-  header: {
+  proBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.primary,
+    paddingVertical: spacing.sm,
+    marginBottom: spacing.md,
+  },
+  proBadgeText: {
+    color: colors.white,
+    fontSize: typography.fontSize.md,
+    fontFamily: typography.fontFamily.medium,
+    marginLeft: spacing.xs,
+  },
+  section: {
+    marginBottom: spacing.lg,
+  },
+  sectionTitle: {
+    fontSize: typography.fontSize.sm,
+    fontFamily: typography.fontFamily.medium,
+    color: colors.textSecondary,
+    marginHorizontal: spacing.lg,
+    marginBottom: spacing.sm,
+    textTransform: 'uppercase',
+  },
+  sectionContent: {
+    backgroundColor: colors.white,
+    borderTopWidth: 1,
+    borderBottomWidth: 1,
+    borderColor: colors.border,
+  },
+  settingItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.md,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   },
-  title: {
-    fontSize: typography.fontSize.xl,
-    fontWeight: typography.fontWeight.bold,
-    color: colors.text,
-    marginBottom: spacing.xs,
-  },
-  subtitle: {
-    fontSize: typography.fontSize.base,
-    fontWeight: typography.fontWeight.regular,
-    color: colors.textSecondary,
-  },
-  listContent: {
-    paddingBottom: spacing.xl,
-  },
-  footer: {
-    paddingVertical: spacing.lg,
-    alignItems: 'center',
-  },
-  emptyContainer: {
+  settingItemLeft: {
     flex: 1,
-    justifyContent: 'center',
+    flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: spacing.xl,
-    paddingTop: spacing.xxxl * 2,
   },
-  emptyTitle: {
-    fontSize: typography.fontSize.lg,
-    fontWeight: typography.fontWeight.semibold,
-    color: colors.text,
-    marginBottom: spacing.sm,
+  settingIcon: {
+    marginRight: spacing.md,
   },
-  emptyText: {
-    fontSize: typography.fontSize.base,
-    fontWeight: typography.fontWeight.regular,
-    color: colors.textSecondary,
-    textAlign: 'center',
-    marginBottom: spacing.lg,
-  },
-  loginButton: {
-    backgroundColor: colors.primary,
-    paddingHorizontal: spacing.xl,
-    paddingVertical: spacing.md,
-    borderRadius: 8,
-  },
-  loginButtonText: {
-    fontSize: typography.fontSize.base,
-    fontWeight: typography.fontWeight.semibold,
-    color: colors.white,
-  },
-  errorContainer: {
+  settingTextContainer: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: spacing.xl,
   },
-  errorTitle: {
-    fontSize: typography.fontSize.lg,
-    fontWeight: typography.fontWeight.semibold,
+  settingTitle: {
+    fontSize: typography.fontSize.md,
+    fontFamily: typography.fontFamily.regular,
     color: colors.text,
-    marginBottom: spacing.sm,
   },
-  errorText: {
-    fontSize: typography.fontSize.base,
-    fontWeight: typography.fontWeight.regular,
+  settingSubtitle: {
+    fontSize: typography.fontSize.sm,
     color: colors.textSecondary,
-    textAlign: 'center',
-    marginBottom: spacing.lg,
+    marginTop: 2,
   },
-  retryButton: {
-    backgroundColor: colors.primary,
-    paddingHorizontal: spacing.xl,
+  dangerText: {
+    color: colors.error,
+  },
+  logoutButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.white,
     paddingVertical: spacing.md,
-    borderRadius: 8,
-    marginTop: spacing.md,
+    borderTopWidth: 1,
+    borderBottomWidth: 1,
+    borderColor: colors.border,
   },
-  retryButtonText: {
-    fontSize: typography.fontSize.base,
-    fontWeight: typography.fontWeight.semibold,
-    color: colors.white,
+  logoutText: {
+    fontSize: typography.fontSize.md,
+    fontFamily: typography.fontFamily.medium,
+    color: colors.error,
+    marginLeft: spacing.sm,
   },
 });
-
-export default HomeScreen;
