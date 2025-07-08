@@ -22,10 +22,9 @@ export const getFilingById = async (id: string) => {
   return transformFiling(response.data);
 };
 
-// Vote on a filing
 export const voteOnFiling = async (filingId: string, voteType: VoteType) => {
     const response = await apiClient.post(`/filings/${filingId}/vote`, {
-      sentiment: voteType
+      sentiment: voteType  // 在请求体中发送 sentiment
     });
     
     return transformVoteResponse(response.data);
