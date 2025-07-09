@@ -8,13 +8,14 @@ import {
   ScrollView,
   TouchableOpacity,
   Alert,
+  Animated,
 } from 'react-native';
 import { Text, Input, Button } from 'react-native-elements';
 import { useDispatch, useSelector } from 'react-redux';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { AppDispatch, RootState } from '../store';
-import { login } from '../store/slices/authSlice';
+import { login, register } from '../store/slices/authSlice';
 import themeConfig from '../theme';
 
 const { colors, typography, spacing, borderRadius, commonStyles } = themeConfig;
@@ -23,11 +24,22 @@ export default function LoginScreen() {
   const dispatch = useDispatch<AppDispatch>();
   const { isLoading, error } = useSelector((state: RootState) => state.auth);
   
+  // Form state
+  const [isLoginMode, setIsLoginMode] = useState(true);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [username, setUsername] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  
+  // Error state
   const [emailError, setEmailError] = useState('');
   const [passwordError, setPasswordError] = useState('');
+  const [confirmPasswordError, setConfirmPasswordError] = useState('');
+  const [usernameError, setUsernameError] = useState('');
+  
+  // Animation
+  const fadeAnim = useState(new Animated.Value(1))[0];
 
   // Email validation
   const validateEmail = (email: string) => {
@@ -50,7 +62,17 @@ export default function LoginScreen() {
       setPasswordError('Password is required');
       return false;
     }
-    if (password.length < 6) {
+    if (!isLoginMode) {
+      // Stricter validation for registration
+      if (password.length < 8) {
+        setPasswordError('Password must be at least 8 characters');
+        return false;
+      }
+      if (!/(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/.test(password)) {
+        setPasswordError('Password must contain uppercase, lowercase, and number');
+        return false;
+      }
+    } else if (password.length < 6) {
       setPasswordError('Password must be at least 6 characters');
       return false;
     }
@@ -58,19 +80,105 @@ export default function LoginScreen() {
     return true;
   };
 
-  // Handle login
-  const handleLogin = async () => {
-    const isEmailValid = validateEmail(email);
-    const isPasswordValid = validatePassword(password);
+  // Username validation (registration only)
+  const validateUsername = (username: string) => {
+    if (!username.trim()) {
+      setUsernameError('Username is required');
+      return false;
+    }
+    if (username.length < 3) {
+      setUsernameError('Username must be at least 3 characters');
+      return false;
+    }
+    if (!/^[a-zA-Z0-9_]+$/.test(username)) {
+      setUsernameError('Username can only contain letters, numbers, and underscores');
+      return false;
+    }
+    setUsernameError('');
+    return true;
+  };
+
+  // Confirm password validation
+  const validateConfirmPassword = (confirmPassword: string) => {
+    if (!confirmPassword) {
+      setConfirmPasswordError('Please confirm your password');
+      return false;
+    }
+    if (password !== confirmPassword) {
+      setConfirmPasswordError('Passwords do not match');
+      return false;
+    }
+    setConfirmPasswordError('');
+    return true;
+  };
+
+  // Switch between login and register
+  const switchMode = () => {
+    Animated.timing(fadeAnim, {
+      toValue: 0,
+      duration: 150,
+      useNativeDriver: true,
+    }).start(() => {
+      setIsLoginMode(!isLoginMode);
+      // Clear errors when switching
+      setEmailError('');
+      setPasswordError('');
+      setConfirmPasswordError('');
+      setUsernameError('');
+      
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 150,
+        useNativeDriver: true,
+      }).start();
+    });
+  };
+
+  // Handle submit
+  const handleSubmit = async () => {
+    // Validate all fields
+    const validations = [validateEmail(email), validatePassword(password)];
     
-    if (!isEmailValid || !isPasswordValid) {
+    if (!isLoginMode) {
+      validations.push(validateUsername(username));
+      validations.push(validateConfirmPassword(confirmPassword));
+    }
+    
+    if (!validations.every(v => v)) {
       return;
     }
 
     try {
-      await dispatch(login({ email: email, password })).unwrap();
-    } catch (err) {
-      // Error is handled by Redux
+      if (isLoginMode) {
+        await dispatch(login({ email: email.toLowerCase().trim(), password })).unwrap();
+      } else {
+        await dispatch(register({ 
+          email: email.toLowerCase().trim(), 
+          password, 
+          username: username.trim() 
+        })).unwrap();
+        
+        // Show success message
+        Alert.alert(
+          'Registration Successful',
+          'Your account has been created. Welcome to Fintellic!',
+          [{ text: 'OK' }]
+        );
+      }
+    } catch (err: any) {
+      // Error is handled by Redux, but we can show additional alerts for specific cases
+      const errorMessage = err.message || err.response?.data?.detail || 'An error occurred';
+      
+      if (!isLoginMode && errorMessage.includes('already exists')) {
+        Alert.alert(
+          'Registration Failed',
+          'This email is already registered. Please try logging in instead.',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'Login', onPress: () => setIsLoginMode(true) }
+          ]
+        );
+      }
     }
   };
 
@@ -103,28 +211,50 @@ export default function LoginScreen() {
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.keyboardView}
       >
-        <ScrollView
+        <ScrollView 
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
-          {/* Logo and Title */}
+          {/* Header */}
           <View style={styles.headerContainer}>
             <View style={styles.logoContainer}>
-              <Text style={styles.logoText}>F</Text>
+              <Icon name="analytics" size={40} color={colors.white} />
             </View>
             <Text style={styles.title}>Fintellic</Text>
             <Text style={styles.subtitle}>
-              AI-Powered Financial Intelligence
+              {isLoginMode ? 'Welcome back!' : 'Create your account'}
             </Text>
           </View>
 
-          {/* Login Form */}
-          <View style={styles.formContainer}>
-            <Text style={styles.welcomeText}>Welcome back</Text>
-            <Text style={styles.instructionText}>
-              Sign in to access financial reports
-            </Text>
+          {/* Form */}
+          <Animated.View style={[styles.formContainer, { opacity: fadeAnim }]}>
+            {/* Username Input (Registration only) */}
+            {!isLoginMode && (
+              <Input
+                placeholder="Username"
+                value={username}
+                onChangeText={(text) => {
+                  setUsername(text);
+                  if (usernameError) validateUsername(text);
+                }}
+                onBlur={() => validateUsername(username)}
+                autoCapitalize="none"
+                leftIcon={
+                  <Icon
+                    name="person"
+                    size={20}
+                    color={colors.textSecondary}
+                  />
+                }
+                errorMessage={usernameError}
+                inputContainerStyle={[
+                  styles.inputContainer,
+                  usernameError ? styles.inputError : null,
+                ]}
+                inputStyle={styles.input}
+              />
+            )}
 
             {/* Email Input */}
             <Input
@@ -135,9 +265,9 @@ export default function LoginScreen() {
                 if (emailError) validateEmail(text);
               }}
               onBlur={() => validateEmail(email)}
-              autoCapitalize="none"
               keyboardType="email-address"
-              returnKeyType="next"
+              autoCapitalize="none"
+              returnKeyType={isLoginMode ? "next" : "next"}
               leftIcon={
                 <Icon
                   name="email"
@@ -163,8 +293,8 @@ export default function LoginScreen() {
               }}
               onBlur={() => validatePassword(password)}
               secureTextEntry={!showPassword}
-              returnKeyType="done"
-              onSubmitEditing={handleLogin}
+              returnKeyType={isLoginMode ? "done" : "next"}
+              onSubmitEditing={isLoginMode ? handleSubmit : undefined}
               leftIcon={
                 <Icon
                   name="lock"
@@ -192,13 +322,44 @@ export default function LoginScreen() {
               inputStyle={styles.input}
             />
 
-            {/* Forgot Password */}
-            <TouchableOpacity
-              onPress={handleForgotPassword}
-              style={styles.forgotContainer}
-            >
-              <Text style={styles.forgotText}>Forgot Password?</Text>
-            </TouchableOpacity>
+            {/* Confirm Password (Registration only) */}
+            {!isLoginMode && (
+              <Input
+                placeholder="Confirm Password"
+                value={confirmPassword}
+                onChangeText={(text) => {
+                  setConfirmPassword(text);
+                  if (confirmPasswordError) validateConfirmPassword(text);
+                }}
+                onBlur={() => validateConfirmPassword(confirmPassword)}
+                secureTextEntry={!showPassword}
+                returnKeyType="done"
+                onSubmitEditing={handleSubmit}
+                leftIcon={
+                  <Icon
+                    name="lock"
+                    size={20}
+                    color={colors.textSecondary}
+                  />
+                }
+                errorMessage={confirmPasswordError}
+                inputContainerStyle={[
+                  styles.inputContainer,
+                  confirmPasswordError ? styles.inputError : null,
+                ]}
+                inputStyle={styles.input}
+              />
+            )}
+
+            {/* Forgot Password (Login only) */}
+            {isLoginMode && (
+              <TouchableOpacity
+                onPress={handleForgotPassword}
+                style={styles.forgotContainer}
+              >
+                <Text style={styles.forgotText}>Forgot Password?</Text>
+              </TouchableOpacity>
+            )}
 
             {/* Error Message */}
             {error && (
@@ -208,36 +369,37 @@ export default function LoginScreen() {
               </View>
             )}
 
-            {/* Login Button */}
+            {/* Submit Button */}
             <Button
-              title={isLoading ? 'Signing in...' : 'Sign In'}
-              onPress={handleLogin}
-              disabled={isLoading || !email || !password}
+              title={isLoading ? (isLoginMode ? 'Signing in...' : 'Creating account...') : (isLoginMode ? 'Sign In' : 'Create Account')}
+              onPress={handleSubmit}
+              disabled={isLoading}
               loading={isLoading}
               buttonStyle={[
-                styles.loginButton,
-                (!email || !password) && styles.loginButtonDisabled
+                styles.submitButton,
+                isLoading && styles.submitButtonDisabled
               ]}
-              titleStyle={styles.loginButtonText}
+              titleStyle={styles.submitButtonText}
             />
 
-            {/* Sign Up Link */}
-            <View style={styles.signUpContainer}>
-              <Text style={styles.signUpText}>
-                Don't have an account?{' '}
+            {/* Switch Mode Link */}
+            <View style={styles.switchContainer}>
+              <Text style={styles.switchText}>
+                {isLoginMode ? "Don't have an account?" : 'Already have an account?'}
+                {' '}
               </Text>
-              <TouchableOpacity
-                onPress={() => Alert.alert('Sign Up', 'Registration feature coming soon')}
-              >
-                <Text style={styles.signUpLink}>Sign Up</Text>
+              <TouchableOpacity onPress={switchMode} disabled={isLoading}>
+                <Text style={styles.switchLink}>
+                  {isLoginMode ? 'Sign Up' : 'Sign In'}
+                </Text>
               </TouchableOpacity>
             </View>
-          </View>
+          </Animated.View>
 
           {/* Footer */}
           <View style={styles.footer}>
             <Text style={styles.footerText}>
-              By signing in, you agree to our{' '}
+              By {isLoginMode ? 'signing in' : 'creating an account'}, you agree to our{' '}
               <Text style={styles.linkText}>Terms of Service</Text>
               {' and '}
               <Text style={styles.linkText}>Privacy Policy</Text>
@@ -274,48 +436,31 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primary,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: spacing.md,
-  },
-  logoText: {
-    fontSize: 40,
-    fontWeight: typography.fontWeight.bold,
-    color: colors.white,
+    marginBottom: spacing.lg,
   },
   title: {
-    fontSize: typography.fontSize.xxl,
+    fontSize: typography.fontSize.xxxl,
     fontWeight: typography.fontWeight.bold,
     color: colors.text,
     marginBottom: spacing.xs,
   },
   subtitle: {
     fontSize: typography.fontSize.base,
+    fontWeight: typography.fontWeight.regular,
     color: colors.textSecondary,
   },
   formContainer: {
     flex: 1,
-    marginTop: spacing.lg,
-  },
-  welcomeText: {
-    fontSize: typography.fontSize.xl,
-    fontWeight: typography.fontWeight.semibold,
-    color: colors.text,
-    marginBottom: spacing.xs,
-  },
-  instructionText: {
-    fontSize: typography.fontSize.base,
-    color: colors.textSecondary,
-    marginBottom: spacing.xl,
   },
   inputContainer: {
-    borderBottomWidth: 1,
     borderBottomColor: colors.border,
-    paddingHorizontal: 0,
   },
   inputError: {
     borderBottomColor: colors.error,
   },
   input: {
     fontSize: typography.fontSize.base,
+    fontWeight: typography.fontWeight.regular,
     color: colors.text,
     marginLeft: spacing.xs,
   },
@@ -326,61 +471,65 @@ const styles = StyleSheet.create({
   },
   forgotText: {
     fontSize: typography.fontSize.sm,
-    color: colors.primary,
     fontWeight: typography.fontWeight.medium,
+    color: colors.primary,
   },
   errorContainer: {
     flexDirection: 'row',
     alignItems: 'center',
+    backgroundColor: colors.errorLight,
+    padding: spacing.sm,
+    borderRadius: borderRadius.sm,
     marginBottom: spacing.md,
   },
   errorText: {
     fontSize: typography.fontSize.sm,
+    fontWeight: typography.fontWeight.regular,
     color: colors.error,
-    marginLeft: spacing.xxs,
+    marginLeft: spacing.xs,
     flex: 1,
   },
-  loginButton: {
+  submitButton: {
     backgroundColor: colors.primary,
     borderRadius: borderRadius.md,
     paddingVertical: spacing.md,
-    marginTop: spacing.md,
+    marginBottom: spacing.lg,
   },
-  loginButtonDisabled: {
-    backgroundColor: colors.gray400,
+  submitButtonDisabled: {
+    opacity: 0.6,
   },
-  loginButtonText: {
+  submitButtonText: {
     fontSize: typography.fontSize.base,
     fontWeight: typography.fontWeight.semibold,
   },
-  signUpContainer: {
+  switchContainer: {
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    marginTop: spacing.lg,
+    marginBottom: spacing.xl,
   },
-  signUpText: {
-    fontSize: typography.fontSize.sm,
+  switchText: {
+    fontSize: typography.fontSize.base,
+    fontWeight: typography.fontWeight.regular,
     color: colors.textSecondary,
   },
-  signUpLink: {
-    fontSize: typography.fontSize.sm,
+  switchLink: {
+    fontSize: typography.fontSize.base,
+    fontWeight: typography.fontWeight.semibold,
     color: colors.primary,
-    fontWeight: typography.fontWeight.medium,
   },
   footer: {
-    alignItems: 'center',
-    marginTop: spacing.xxl,
-    paddingHorizontal: spacing.md,
+    paddingTop: spacing.lg,
+    paddingBottom: spacing.xl,
   },
   footerText: {
-    fontSize: typography.fontSize.xs,
+    fontSize: typography.fontSize.sm,
+    fontWeight: typography.fontWeight.regular,
     color: colors.textSecondary,
     textAlign: 'center',
-    lineHeight: typography.fontSize.xs * typography.lineHeight.relaxed,
   },
   linkText: {
     color: colors.primary,
-    fontWeight: typography.fontWeight.medium,
+    textDecorationLine: 'underline',
   },
 });

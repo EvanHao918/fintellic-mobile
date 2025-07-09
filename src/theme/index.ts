@@ -17,6 +17,7 @@ export const colors = {
   success: '#10B981',       // Emerald
   warning: '#F59E0B',       // Amber
   error: '#EF4444',         // Red
+  errorLight: '#FEE2E2',    // Light red background - 添加这一行
   info: '#3B82F6',          // Blue
   
   // Filing type colors - Distinguished but harmonious

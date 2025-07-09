@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -7,15 +7,21 @@ import {
   TouchableOpacity,
   Switch,
   Alert,
+  RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Icon } from 'react-native-elements';
+import { Icon, Avatar } from 'react-native-elements';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigation } from '@react-navigation/native';
+import { StackNavigationProp } from '@react-navigation/stack';
 import { RootState, AppDispatch } from '../store';
 import { logout } from '../store/slices/authSlice';
-import { colors, typography, spacing, borderRadius } from '../theme';
+import { colors, typography, spacing, borderRadius, shadows } from '../theme';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import apiClient from '../api/client';
+import { RootStackParamList } from '../types';
+
+type ProfileScreenNavigationProp = StackNavigationProp<RootStackParamList, 'Main'>;
 
 interface SettingItem {
   id: string;
@@ -31,28 +37,91 @@ interface SettingItem {
   danger?: boolean;
 }
 
+interface UserStats {
+  reportsRead: number;
+  watchlistCount: number;
+  joinedDays: number;
+}
+
 export default function ProfileScreen() {
   const dispatch = useDispatch<AppDispatch>();
-  const navigation = useNavigation();
+  const navigation = useNavigation<ProfileScreenNavigationProp>();
   const user = useSelector((state: RootState) => state.auth.user);
-  const isProUser = user?.is_pro || false;
+  const isProUser = user?.is_pro || user?.tier === 'pro';
   
-  // Notification settings (simplified - only push notifications)
+  // State
   const [allNotifications, setAllNotifications] = useState(true);
   const [watchlistOnly, setWatchlistOnly] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [userStats, setUserStats] = useState<UserStats>({
+    reportsRead: 0,
+    watchlistCount: 0,
+    joinedDays: 0,
+  });
+
+  // Load user stats and preferences
+  useEffect(() => {
+    loadUserPreferences();
+    loadUserStats();
+  }, []);
+
+  // Load notification preferences
+  const loadUserPreferences = async () => {
+    try {
+      const allNotif = await AsyncStorage.getItem('@fintellic_notifications_all');
+      const watchlistNotif = await AsyncStorage.getItem('@fintellic_notifications_watchlist');
+      
+      if (allNotif !== null) setAllNotifications(allNotif === 'true');
+      if (watchlistNotif !== null) setWatchlistOnly(watchlistNotif === 'true');
+    } catch (error) {
+      console.error('Error loading preferences:', error);
+    }
+  };
+
+  // Load user statistics
+  const loadUserStats = async () => {
+    try {
+      // Calculate days since joined
+      const joinedDate = new Date(user?.created_at || Date.now());
+      const daysSinceJoined = Math.floor((Date.now() - joinedDate.getTime()) / (1000 * 60 * 60 * 24));
+      
+      // Get watchlist count from AsyncStorage
+      const watchlistData = await AsyncStorage.getItem('@fintellic_watchlist');
+      const watchlist = watchlistData ? JSON.parse(watchlistData) : [];
+      
+      // Get read history count
+      const historyData = await AsyncStorage.getItem('@fintellic_history');
+      const history = historyData ? JSON.parse(historyData) : [];
+      
+      setUserStats({
+        reportsRead: history.length,
+        watchlistCount: watchlist.length,
+        joinedDays: daysSinceJoined,
+      });
+    } catch (error) {
+      console.error('Error loading user stats:', error);
+    }
+  };
+
+  // Handle refresh
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await loadUserStats();
+    setRefreshing(false);
+  };
 
   // Handle logout
   const handleLogout = () => {
     Alert.alert(
-      'Logout',
-      'Are you sure you want to logout?',
+      'Sign Out',
+      'Are you sure you want to sign out?',
       [
         { text: 'Cancel', style: 'cancel' },
         {
-          text: 'Logout',
+          text: 'Sign Out',
           style: 'destructive',
           onPress: async () => {
-            await dispatch(logout() as any).unwrap();
+            await dispatch(logout()).unwrap();
           }
         }
       ]
@@ -61,14 +130,7 @@ export default function ProfileScreen() {
 
   // Handle upgrade to Pro
   const handleUpgradeToPro = () => {
-    Alert.alert(
-      'Upgrade to Fintellic Pro',
-      'Get unlimited watchlist, advanced analytics, and priority notifications for $39.9/month',
-      [
-        { text: 'Not Now', style: 'cancel' },
-        { text: 'Upgrade', onPress: () => {/* Navigate to payment */} }
-      ]
-    );
+    navigation.navigate('Subscription');
   };
 
   // Handle notification toggle
@@ -78,14 +140,12 @@ export default function ProfileScreen() {
       if (!value) {
         setWatchlistOnly(false);
       }
-      // Save preference
       await AsyncStorage.setItem('@fintellic_notifications_all', value.toString());
     } else {
       setWatchlistOnly(value);
       if (value) {
         setAllNotifications(false);
       }
-      // Save preference
       await AsyncStorage.setItem('@fintellic_notifications_watchlist', value.toString());
     }
   };
@@ -93,31 +153,28 @@ export default function ProfileScreen() {
   // Profile sections
   const profileSections: { title: string; items: SettingItem[] }[] = [
     {
-      title: 'Account',
+      title: 'Subscription',
       items: [
-        {
-          id: 'user_info',
-          title: user?.full_name || 'User',
-          subtitle: user?.email,
-          icon: 'person',
-          hasArrow: false,
-        },
         {
           id: 'subscription',
           title: isProUser ? 'Fintellic Pro' : 'Free Plan',
-          subtitle: isProUser ? 'Active subscription' : 'Upgrade for more features',
-          icon: 'star',
-          action: !isProUser ? handleUpgradeToPro : undefined,
-          hasArrow: !isProUser,
+          subtitle: isProUser 
+            ? user?.subscription_expires_at 
+              ? `Expires ${new Date(user.subscription_expires_at).toLocaleDateString()}`
+              : 'Active subscription'
+            : `${3 - (user?.daily_reports_count || 0)} daily reports remaining`,
+          icon: isProUser ? 'star' : 'star-outline',
+          action: () => navigation.navigate('Subscription'),
+          hasArrow: true,
         },
       ],
     },
     {
-      title: 'Push Notifications',
+      title: 'Notifications',
       items: [
         {
           id: 'all_notifications',
-          title: 'All Push Notifications',
+          title: 'All Notifications',
           subtitle: 'Get notified about all new filings',
           icon: 'notifications',
           hasToggle: true,
@@ -127,7 +184,7 @@ export default function ProfileScreen() {
         {
           id: 'watchlist_notifications',
           title: 'Watchlist Only',
-          subtitle: 'Only notify for companies you follow',
+          subtitle: 'Only companies you follow',
           icon: 'star',
           hasToggle: true,
           toggleValue: watchlistOnly,
@@ -136,7 +193,7 @@ export default function ProfileScreen() {
       ],
     },
     {
-      title: 'Account Management',
+      title: 'Account',
       items: [
         {
           id: 'change_password',
@@ -145,45 +202,61 @@ export default function ProfileScreen() {
           action: () => Alert.alert('Coming Soon', 'Password change feature will be available soon'),
           hasArrow: true,
         },
-        ...(isProUser ? [{
-          id: 'manage_subscription',
-          title: 'Manage Subscription',
-          icon: 'credit-card',
-          iconType: 'material',
-          action: () => Alert.alert('Coming Soon', 'Subscription management will be available soon'),
+        {
+          id: 'export_data',
+          title: 'Export My Data',
+          icon: 'download',
+          iconType: 'material-community',
+          action: () => Alert.alert('Export Data', 'Export your reading history and preferences'),
           hasArrow: true,
-        }] : []),
+        },
       ],
     },
     {
-      title: 'About',
+      title: 'Support',
       items: [
         {
-          id: 'version',
-          title: 'App Version',
-          subtitle: '1.0.0',
-          icon: 'info',
-          hasArrow: false,
+          id: 'help',
+          title: 'Help Center',
+          icon: 'help-circle',
+          iconType: 'material-community',
+          action: () => Alert.alert('Help', 'Visit help.fintellic.com'),
+          hasArrow: true,
         },
+        {
+          id: 'feedback',
+          title: 'Send Feedback',
+          icon: 'message-square',
+          iconType: 'feather',
+          action: () => Alert.alert('Feedback', 'We\'d love to hear from you!'),
+          hasArrow: true,
+        },
+        {
+          id: 'rate',
+          title: 'Rate Fintellic',
+          icon: 'star',
+          action: () => Alert.alert('Rate Us', 'Please rate us on the App Store'),
+          hasArrow: true,
+        },
+      ],
+    },
+    {
+      title: 'Legal',
+      items: [
         {
           id: 'terms',
           title: 'Terms of Service',
-          icon: 'description',
-          action: () => Alert.alert('Terms', 'Terms of Service'),
+          icon: 'file-document',
+          iconType: 'material-community',
+          action: () => Alert.alert('Terms', 'View Terms of Service'),
           hasArrow: true,
         },
         {
           id: 'privacy',
           title: 'Privacy Policy',
-          icon: 'security',
-          action: () => Alert.alert('Privacy', 'Privacy Policy'),
-          hasArrow: true,
-        },
-        {
-          id: 'support',
-          title: 'Support',
-          icon: 'help',
-          action: () => Alert.alert('Support', 'Contact support@fintellic.com'),
+          icon: 'shield-check',
+          iconType: 'material-community',
+          action: () => Alert.alert('Privacy', 'View Privacy Policy'),
           hasArrow: true,
         },
       ],
@@ -199,13 +272,14 @@ export default function ProfileScreen() {
       disabled={!item.action && !item.hasToggle}
     >
       <View style={styles.settingItemLeft}>
-        <Icon
-          name={item.icon}
-          type={item.iconType || 'material'}
-          size={24}
-          color={item.danger ? colors.error : colors.textSecondary}
-          style={styles.settingIcon}
-        />
+        <View style={[styles.iconContainer, { backgroundColor: colors.gray100 }]}>
+          <Icon
+            name={item.icon}
+            type={item.iconType || 'material'}
+            size={20}
+            color={item.danger ? colors.error : colors.primary}
+          />
+        </View>
         <View style={styles.settingTextContainer}>
           <Text style={[styles.settingTitle, item.danger && styles.dangerText]}>
             {item.title}
@@ -228,21 +302,77 @@ export default function ProfileScreen() {
           name="chevron-right"
           type="material"
           size={24}
-          color={colors.textSecondary}
+          color={colors.gray400}
         />
       ) : null}
     </TouchableOpacity>
   );
 
+  // Get user initials for avatar
+  const getUserInitials = () => {
+    const name = user?.username || user?.full_name || user?.email;
+    if (name) {
+      return name.substring(0, 2).toUpperCase();
+    }
+    return 'U';
+  };
+
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView>
-        {/* Pro Badge */}
-        {isProUser && (
+      <ScrollView
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
+        showsVerticalScrollIndicator={false}
+      >
+        {/* User Header */}
+        <View style={styles.userHeader}>
+          <Avatar
+            size="large"
+            rounded
+            title={getUserInitials()}
+            containerStyle={styles.avatar}
+            titleStyle={styles.avatarText}
+          />
+          <Text style={styles.userName}>{user?.username || user?.full_name || 'User'}</Text>
+          <Text style={styles.userEmail}>{user?.email}</Text>
+          
+          {/* User Stats */}
+          <View style={styles.statsContainer}>
+            <View style={styles.statItem}>
+              <Text style={styles.statValue}>{userStats.reportsRead}</Text>
+              <Text style={styles.statLabel}>Reports Read</Text>
+            </View>
+            <View style={styles.statDivider} />
+            <View style={styles.statItem}>
+              <Text style={styles.statValue}>{userStats.watchlistCount}</Text>
+              <Text style={styles.statLabel}>Watchlist</Text>
+            </View>
+            <View style={styles.statDivider} />
+            <View style={styles.statItem}>
+              <Text style={styles.statValue}>{userStats.joinedDays}</Text>
+              <Text style={styles.statLabel}>Days Active</Text>
+            </View>
+          </View>
+        </View>
+
+        {/* Pro Badge or Upgrade Banner */}
+        {isProUser ? (
           <View style={styles.proBadge}>
             <Icon name="star" type="material" size={20} color={colors.warning} />
             <Text style={styles.proBadgeText}>Pro Member</Text>
           </View>
+        ) : (
+          <TouchableOpacity style={styles.upgradeBanner} onPress={handleUpgradeToPro}>
+            <View style={styles.upgradeBannerContent}>
+              <Icon name="rocket" type="material-community" size={24} color={colors.primary} />
+              <View style={styles.upgradeBannerText}>
+                <Text style={styles.upgradeBannerTitle}>Upgrade to Pro</Text>
+                <Text style={styles.upgradeBannerSubtitle}>Unlock unlimited access</Text>
+              </View>
+            </View>
+            <Icon name="chevron-right" type="material" size={24} color={colors.primary} />
+          </TouchableOpacity>
         )}
 
         {/* Settings Sections */}
@@ -255,16 +385,20 @@ export default function ProfileScreen() {
           </View>
         ))}
 
-        {/* Logout Button */}
-        <View style={styles.section}>
-          <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
-            <Icon name="logout" type="material" size={20} color={colors.error} />
-            <Text style={styles.logoutText}>Logout</Text>
-          </TouchableOpacity>
+        {/* App Version */}
+        <View style={styles.versionContainer}>
+          <Text style={styles.versionText}>Fintellic v1.0.0</Text>
+          <Text style={styles.versionSubtext}>Made with ❤️ for retail investors</Text>
         </View>
 
+        {/* Logout Button */}
+        <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
+          <Icon name="logout" type="material" size={20} color={colors.error} />
+          <Text style={styles.logoutText}>Sign Out</Text>
+        </TouchableOpacity>
+
         {/* Bottom Padding */}
-        <View style={{ height: spacing.xxl }} />
+        <View style={{ height: spacing.xxxl }} />
       </ScrollView>
     </SafeAreaView>
   );
@@ -274,6 +408,56 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.backgroundSecondary,
+  },
+  userHeader: {
+    alignItems: 'center',
+    paddingVertical: spacing.xl,
+    backgroundColor: colors.white,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  avatar: {
+    backgroundColor: colors.primary,
+    marginBottom: spacing.md,
+  },
+  avatarText: {
+    fontSize: typography.fontSize.xl,
+    fontWeight: typography.fontWeight.bold,
+  },
+  userName: {
+    fontSize: typography.fontSize.xl,
+    fontWeight: typography.fontWeight.semibold,
+    color: colors.text,
+    marginBottom: spacing.xs,
+  },
+  userEmail: {
+    fontSize: typography.fontSize.base,
+    color: colors.textSecondary,
+    marginBottom: spacing.lg,
+  },
+  statsContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingTop: spacing.md,
+  },
+  statItem: {
+    alignItems: 'center',
+    paddingHorizontal: spacing.lg,
+  },
+  statValue: {
+    fontSize: typography.fontSize.xl,
+    fontWeight: typography.fontWeight.bold,
+    color: colors.text,
+  },
+  statLabel: {
+    fontSize: typography.fontSize.sm,
+    color: colors.textSecondary,
+    marginTop: spacing.xxs,
+  },
+  statDivider: {
+    width: 1,
+    height: 30,
+    backgroundColor: colors.border,
   },
   proBadge: {
     flexDirection: 'row',
@@ -285,16 +469,44 @@ const styles = StyleSheet.create({
   },
   proBadgeText: {
     color: colors.white,
-    fontSize: typography.fontSize.md,
-    fontFamily: typography.fontFamily.medium,
+    fontSize: typography.fontSize.base,
+    fontWeight: typography.fontWeight.medium,
     marginLeft: spacing.xs,
+  },
+  upgradeBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: colors.primaryLight + '20',
+    marginHorizontal: spacing.md,
+    marginVertical: spacing.md,
+    padding: spacing.md,
+    borderRadius: borderRadius.lg,
+    borderWidth: 1,
+    borderColor: colors.primary + '30',
+  },
+  upgradeBannerContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  upgradeBannerText: {
+    marginLeft: spacing.md,
+  },
+  upgradeBannerTitle: {
+    fontSize: typography.fontSize.base,
+    fontWeight: typography.fontWeight.semibold,
+    color: colors.text,
+  },
+  upgradeBannerSubtitle: {
+    fontSize: typography.fontSize.sm,
+    color: colors.textSecondary,
   },
   section: {
     marginBottom: spacing.lg,
   },
   sectionTitle: {
     fontSize: typography.fontSize.sm,
-    fontFamily: typography.fontFamily.medium,
+    fontWeight: typography.fontWeight.medium,
     color: colors.textSecondary,
     marginHorizontal: spacing.lg,
     marginBottom: spacing.sm,
@@ -320,15 +532,20 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
   },
-  settingIcon: {
+  iconContainer: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
     marginRight: spacing.md,
   },
   settingTextContainer: {
     flex: 1,
   },
   settingTitle: {
-    fontSize: typography.fontSize.md,
-    fontFamily: typography.fontFamily.regular,
+    fontSize: typography.fontSize.base,
+    fontWeight: typography.fontWeight.regular,
     color: colors.text,
   },
   settingSubtitle: {
@@ -339,19 +556,34 @@ const styles = StyleSheet.create({
   dangerText: {
     color: colors.error,
   },
+  versionContainer: {
+    alignItems: 'center',
+    paddingVertical: spacing.lg,
+  },
+  versionText: {
+    fontSize: typography.fontSize.sm,
+    color: colors.textSecondary,
+  },
+  versionSubtext: {
+    fontSize: typography.fontSize.xs,
+    color: colors.textSecondary,
+    marginTop: spacing.xxs,
+  },
   logoutButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: colors.white,
+    marginHorizontal: spacing.md,
+    marginBottom: spacing.md,
     paddingVertical: spacing.md,
-    borderTopWidth: 1,
-    borderBottomWidth: 1,
-    borderColor: colors.border,
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    borderColor: colors.error + '30',
   },
   logoutText: {
-    fontSize: typography.fontSize.md,
-    fontFamily: typography.fontFamily.medium,
+    fontSize: typography.fontSize.base,
+    fontWeight: typography.fontWeight.medium,
     color: colors.error,
     marginLeft: spacing.sm,
   },

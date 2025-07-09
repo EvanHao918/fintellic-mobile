@@ -2,8 +2,12 @@
 export interface User {
     id: string;
     email: string;
+    username?: string;
     full_name: string;
     is_pro: boolean;
+    tier?: 'free' | 'pro';
+    daily_reports_count?: number;
+    subscription_expires_at?: string | null;
     created_at: string;
     updated_at: string;
   }
@@ -22,7 +26,7 @@ export interface User {
   }
   
   export interface RegisterCredentials extends LoginCredentials {
-    full_name: string;
+    username: string;
   }
   
   // Company related types
@@ -147,10 +151,12 @@ export interface User {
   }
   
   // Navigation types
-  export type RootStackParamList = {
+ // Navigation types
+export type RootStackParamList = {
     Login: undefined;
     Main: undefined;
     FilingDetail: { filingId: string };
+    Subscription: undefined;  // 添加这一行
   };
   
   export type TabParamList = {
@@ -185,10 +191,9 @@ export interface User {
     auth: AuthState;
     filings: any; // Will be defined in filingsSlice
   }
-
+  
   // Visual data types for charts
-// Visual data types for charts
-export interface VisualData {
+  export interface VisualData {
     id: string;
     type: 'trend' | 'comparison' | 'metrics';
     title: string;

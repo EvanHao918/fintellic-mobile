@@ -6,6 +6,7 @@ import { RootState } from '../store';
 import LoginScreen from '../screens/LoginScreen';
 import DrawerNavigator from './DrawerNavigator';
 import FilingDetailScreen from '../screens/FilingDetailScreen';
+import SubscriptionScreen from '../screens/SubscriptionScreen';
 import { RootStackParamList } from '../types';
 
 const Stack = createStackNavigator<RootStackParamList>();
@@ -25,6 +26,14 @@ export default function AppNavigator() {
               name="FilingDetail" 
               component={FilingDetailScreen}
               options={{ headerShown: true }}
+            />
+            <Stack.Screen 
+              name="Subscription" 
+              component={SubscriptionScreen}
+              options={{ 
+                headerShown: true,
+                headerTitle: 'Subscription Plans'
+              }}
             />
           </>
         )}

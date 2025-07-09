@@ -7,302 +7,316 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   RefreshControl,
-  SectionList,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Icon } from 'react-native-elements';
+import { Calendar, DateData } from 'react-native-calendars';
 import { useSelector } from 'react-redux';
 import { RootState } from '../store';
-import { colors, typography, spacing, borderRadius, shadows } from '../theme';
+import { colors, typography, spacing, borderRadius } from '../theme';
 import apiClient from '../api/client';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
-// Types for earnings data
-interface EarningsEvent {
-  ticker: string;
-  company_name: string;
-  earnings_date: string;
-  earnings_time: 'BMO' | 'AMC' | 'TNS'; // Before Market Open / After Market Close / Time Not Specified
-  is_watched: boolean;
-}
-
-interface CalendarDay {
+interface EarningsDay {
   date: string;
-  day: number;
-  isCurrentMonth: boolean;
-  hasEarnings: boolean;
-  earningsCount: number;
+  count: number;
+  companies: Array<{
+    ticker: string;
+    name: string;
+    time: 'BMO' | 'AMC' | 'TBD';
+    eps_estimate?: number;
+    revenue_estimate?: number;
+  }>;
 }
 
-interface WeeklyEarnings {
-  title: string;
-  data: EarningsEvent[];
+interface EarningsCalendarResponse {
+  month: string;
+  year: number;
+  total_earnings: number;
+  earnings_days: EarningsDay[];
 }
 
 export default function CalendarScreen() {
-  const [selectedDate, setSelectedDate] = useState(new Date());
-  const [calendarDays, setCalendarDays] = useState<CalendarDay[]>([]);
-  const [monthlyEarnings, setMonthlyEarnings] = useState<Record<string, EarningsEvent[]>>({});
-  const [weeklyEarnings, setWeeklyEarnings] = useState<WeeklyEarnings[]>([]);
+  const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [earningsData, setEarningsData] = useState<EarningsDay[]>([]);
+  const [markedDates, setMarkedDates] = useState<any>({});
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [viewMode, setViewMode] = useState<'month' | 'week'>('week');
+  const [watchlist, setWatchlist] = useState<string[]>([]);
   
-  // Get user's watchlist from Redux (will be implemented later)
-  // TODO: Add watchlist to User type and implement watchlist state
-  const watchlist: string[] = [];
+  const user = useSelector((state: RootState) => state.auth.user);
 
-  // Generate calendar days for the month view
-  const generateCalendarDays = (date: Date, earnings: Record<string, EarningsEvent[]>) => {
-    const year = date.getFullYear();
-    const month = date.getMonth();
-    const firstDay = new Date(year, month, 1);
-    const lastDay = new Date(year, month + 1, 0);
-    const startDate = new Date(firstDay);
-    startDate.setDate(startDate.getDate() - firstDay.getDay());
-    
-    const days: CalendarDay[] = [];
-    const current = new Date(startDate);
-    
-    for (let i = 0; i < 42; i++) { // 6 weeks * 7 days
-      const dateKey = current.toISOString().split('T')[0];
-      const dayEarnings = earnings[dateKey] || [];
-      
-      days.push({
-        date: dateKey,
-        day: current.getDate(),
-        isCurrentMonth: current.getMonth() === month,
-        hasEarnings: dayEarnings.length > 0,
-        earningsCount: dayEarnings.length,
-      });
-      
-      current.setDate(current.getDate() + 1);
+  // Load watchlist
+  useEffect(() => {
+    loadWatchlist();
+  }, []);
+
+  // Load earnings data
+  useEffect(() => {
+    fetchEarningsCalendar();
+  }, []);
+
+  const loadWatchlist = async () => {
+    try {
+      // First try to get from API if user is logged in
+      if (user) {
+        const response = await apiClient.get('/watchlist');
+        if (response.data && Array.isArray(response.data)) {
+          const tickers = response.data.map((item: any) => 
+            typeof item === 'string' ? item : item.ticker
+          );
+          setWatchlist(tickers);
+          await AsyncStorage.setItem('@fintellic_watchlist', JSON.stringify(tickers));
+        }
+      } else {
+        // Fallback to local storage
+        const saved = await AsyncStorage.getItem('@fintellic_watchlist');
+        if (saved) {
+          setWatchlist(JSON.parse(saved));
+        }
+      }
+    } catch (error) {
+      console.error('Failed to load watchlist:', error);
+      // Fallback to local storage
+      const saved = await AsyncStorage.getItem('@fintellic_watchlist');
+      if (saved) {
+        setWatchlist(JSON.parse(saved));
+      }
     }
-    
-    return days;
   };
 
-  // Fetch earnings calendar data
   const fetchEarningsCalendar = async () => {
     try {
       setIsLoading(true);
       
-      // Fetch monthly earnings
+      // Get current month
+      const now = new Date();
+      const year = now.getFullYear();
+      const month = now.getMonth() + 1;
+      
+      // Fetch monthly calendar
       const monthlyResponse = await apiClient.get('/earnings/calendar/monthly', {
-        params: {
-          year: selectedDate.getFullYear(),
-          month: selectedDate.getMonth() + 1,
-        },
+        params: { year, month }
       });
       
-      // Fetch weekly earnings for "This Week" view
-      const weeklyResponse = await apiClient.get('/earnings/calendar/weekly');
-      
-      // Process monthly data
-      const earningsByDate: Record<string, EarningsEvent[]> = {};
-      monthlyResponse.data.forEach((event: any) => {
-        const date = event.earnings_date.split('T')[0];
-        if (!earningsByDate[date]) {
-          earningsByDate[date] = [];
-        }
-        earningsByDate[date].push({
-          ...event,
-          is_watched: watchlist.includes(event.ticker),
-        });
-      });
-      
-      // Process weekly data
-      const weeklyData: WeeklyEarnings[] = [];
-      const weekDays = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-      
-      weeklyResponse.data.forEach((event: any) => {
-        const eventDate = new Date(event.earnings_date);
-        const dayName = weekDays[eventDate.getDay()];
-        const dateStr = eventDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-        const sectionTitle = `${dayName}, ${dateStr}`;
+      // Check if response has the expected structure
+      if (monthlyResponse.data && monthlyResponse.data.earnings_days) {
+        const earnings = monthlyResponse.data.earnings_days;
+        setEarningsData(earnings);
         
-        let section = weeklyData.find(s => s.title === sectionTitle);
-        if (!section) {
-          section = { title: sectionTitle, data: [] };
-          weeklyData.push(section);
+        // Mark dates on calendar
+        const marked: any = {};
+        earnings.forEach((day: EarningsDay) => {
+          const hasWatchlistCompany = day.companies.some(c => 
+            watchlist.includes(c.ticker)
+          );
+          
+          marked[day.date] = {
+            marked: true,
+            dotColor: hasWatchlistCompany ? colors.primary : colors.textSecondary,
+            customStyles: {
+              container: {
+                backgroundColor: hasWatchlistCompany ? colors.primaryLight : colors.gray100,
+              },
+              text: {
+                color: hasWatchlistCompany ? colors.primary : colors.text,
+                fontWeight: 'bold',
+              },
+            },
+          };
+        });
+        
+        // Mark selected date
+        if (selectedDate) {
+          marked[selectedDate] = {
+            ...marked[selectedDate],
+            selected: true,
+            selectedColor: colors.primary,
+          };
         }
         
-        section.data.push({
-          ...event,
-          is_watched: watchlist.includes(event.ticker),
-        });
-      });
-      
-      setMonthlyEarnings(earningsByDate);
-      setWeeklyEarnings(weeklyData);
-      setCalendarDays(generateCalendarDays(selectedDate, earningsByDate));
+        setMarkedDates(marked);
+      }
     } catch (error) {
       console.error('Failed to fetch earnings calendar:', error);
     } finally {
       setIsLoading(false);
-      setRefreshing(false);
     }
   };
 
-  useEffect(() => {
-    fetchEarningsCalendar();
-  }, [selectedDate]);
-
-  const onRefresh = () => {
+  const onRefresh = async () => {
     setRefreshing(true);
-    fetchEarningsCalendar();
+    await fetchEarningsCalendar();
+    setRefreshing(false);
   };
 
-  // Navigate to previous/next month
-  const navigateMonth = (direction: 'prev' | 'next') => {
-    const newDate = new Date(selectedDate);
-    newDate.setMonth(newDate.getMonth() + (direction === 'next' ? 1 : -1));
-    setSelectedDate(newDate);
+  const onDayPress = (day: DateData) => {
+    setSelectedDate(day.dateString);
   };
 
-  // Render calendar header
-  const renderCalendarHeader = () => (
-    <View style={styles.calendarHeader}>
-      <TouchableOpacity onPress={() => navigateMonth('prev')} style={styles.navButton}>
-        <Icon name="chevron-left" type="material" size={24} color={colors.text} />
-      </TouchableOpacity>
-      <Text style={styles.monthTitle}>
-        {selectedDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
-      </Text>
-      <TouchableOpacity onPress={() => navigateMonth('next')} style={styles.navButton}>
-        <Icon name="chevron-right" type="material" size={24} color={colors.text} />
-      </TouchableOpacity>
-    </View>
-  );
+  const getSelectedDateEarnings = () => {
+    return earningsData.find(day => day.date === selectedDate);
+  };
 
-  // Render month view
-  const renderMonthView = () => (
-    <View>
-      {renderCalendarHeader()}
-      
-      {/* Day labels */}
-      <View style={styles.weekDays}>
-        {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
-          <Text key={day} style={styles.weekDayText}>{day}</Text>
-        ))}
+  const renderEarningItem = (company: any) => {
+    const isWatchlisted = watchlist.includes(company.ticker);
+    
+    return (
+      <View key={company.ticker} style={styles.earningItem}>
+        <View style={styles.earningItemLeft}>
+          <Text style={styles.ticker}>{company.ticker}</Text>
+          <Text style={styles.companyName}>{company.name}</Text>
+          {(company.eps_estimate || company.revenue_estimate) && (
+            <View style={styles.estimates}>
+              {company.eps_estimate && (
+                <Text style={styles.estimateText}>
+                  EPS Est: ${company.eps_estimate}
+                </Text>
+              )}
+              {company.revenue_estimate && (
+                <Text style={styles.estimateText}>
+                  Rev Est: ${(company.revenue_estimate / 1e9).toFixed(1)}B
+                </Text>
+              )}
+            </View>
+          )}
+        </View>
+        
+        <View style={styles.earningItemRight}>
+          <View style={[styles.timeBadge, getTimeBadgeStyle(company.time)]}>
+            <Text style={styles.timeBadgeText}>{company.time}</Text>
+          </View>
+          {isWatchlisted && (
+            <Icon
+              name="star"
+              type="material"
+              size={16}
+              color={colors.warning}
+              style={styles.watchlistIcon}
+            />
+          )}
+        </View>
       </View>
-      
-      {/* Calendar grid */}
-      <View style={styles.calendarGrid}>
-        {calendarDays.map((day, index) => (
-          <TouchableOpacity
-            key={index}
-            style={[
-              styles.calendarDay,
-              !day.isCurrentMonth && styles.otherMonthDay,
-              day.hasEarnings && styles.hasEarningsDay,
-            ]}
-            onPress={() => {
-              if (day.hasEarnings) {
-                // TODO: Show earnings for this day
-              }
-            }}
-          >
-            <Text style={[
-              styles.dayText,
-              !day.isCurrentMonth && styles.otherMonthDayText,
-            ]}>
-              {day.day}
-            </Text>
-            {day.hasEarnings && (
-              <View style={styles.earningsDot}>
-                <Text style={styles.earningsCount}>{day.earningsCount}</Text>
-              </View>
-            )}
-          </TouchableOpacity>
-        ))}
-      </View>
-    </View>
-  );
+    );
+  };
 
-  // Render earnings item
-  const renderEarningsItem = ({ item }: { item: EarningsEvent }) => (
-    <TouchableOpacity style={styles.earningsItem}>
-      <View style={styles.earningsItemLeft}>
-        <Text style={styles.ticker}>{item.ticker}</Text>
-        <Text style={styles.companyName} numberOfLines={1}>{item.company_name}</Text>
-      </View>
-      <View style={styles.earningsItemRight}>
-        <View style={[styles.timeBadge, 
-          item.earnings_time === 'BMO' ? styles.bmoBadge : styles.amcBadge
-        ]}>
-          <Text style={styles.timeText}>{item.earnings_time}</Text>
-        </View>
-        {item.is_watched && (
-          <Icon name="star" type="material" size={20} color={colors.warning} />
-        )}
-      </View>
-    </TouchableOpacity>
-  );
-
-  // Render week view
-  const renderWeekView = () => (
-    <SectionList
-      sections={weeklyEarnings}
-      keyExtractor={(item) => `${item.ticker}-${item.earnings_date}`}
-      renderItem={renderEarningsItem}
-      renderSectionHeader={({ section: { title } }) => (
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>{title}</Text>
-        </View>
-      )}
-      ListEmptyComponent={
-        <View style={styles.emptyContainer}>
-          <Icon name="event-busy" type="material" size={48} color={colors.textSecondary} />
-          <Text style={styles.emptyText}>No earnings scheduled this week</Text>
-        </View>
-      }
-      refreshControl={
-        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-      }
-    />
-  );
+  const getTimeBadgeStyle = (time: string) => {
+    switch (time) {
+      case 'BMO':
+        return { backgroundColor: colors.info };
+      case 'AMC':
+        return { backgroundColor: colors.warning };
+      default:
+        return { backgroundColor: colors.gray400 };
+    }
+  };
 
   if (isLoading) {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={colors.primary} />
-          <Text style={styles.loadingText}>Loading earnings calendar...</Text>
         </View>
       </SafeAreaView>
     );
   }
 
+  const selectedEarnings = getSelectedDateEarnings();
+
   return (
     <SafeAreaView style={styles.container}>
-      {/* View mode toggle */}
-      <View style={styles.viewToggle}>
-        <TouchableOpacity
-          style={[styles.toggleButton, viewMode === 'week' && styles.toggleButtonActive]}
-          onPress={() => setViewMode('week')}
-        >
-          <Text style={[styles.toggleText, viewMode === 'week' && styles.toggleTextActive]}>
-            This Week
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.toggleButton, viewMode === 'month' && styles.toggleButtonActive]}
-          onPress={() => setViewMode('month')}
-        >
-          <Text style={[styles.toggleText, viewMode === 'month' && styles.toggleTextActive]}>
-            Month View
-          </Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* Content */}
       <ScrollView
-        style={styles.content}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
       >
-        {viewMode === 'month' ? renderMonthView() : renderWeekView()}
+        {/* Header */}
+        <View style={styles.header}>
+          <Text style={styles.headerTitle}>Earnings Calendar</Text>
+          <Text style={styles.headerSubtitle}>
+            Upcoming earnings announcements
+          </Text>
+        </View>
+
+        {/* Calendar */}
+        <View style={styles.calendarContainer}>
+          <Calendar
+            current={selectedDate}
+            onDayPress={onDayPress}
+            markedDates={markedDates}
+            markingType="custom"
+            theme={{
+              backgroundColor: colors.white,
+              calendarBackground: colors.white,
+              selectedDayBackgroundColor: colors.primary,
+              selectedDayTextColor: colors.white,
+              todayTextColor: colors.primary,
+              dayTextColor: colors.text,
+              textDisabledColor: colors.gray400,
+              dotColor: colors.primary,
+              monthTextColor: colors.text,
+              textMonthFontWeight: 'bold',
+              textDayFontSize: 14,
+              textMonthFontSize: 16,
+              textDayHeaderFontSize: 12,
+            }}
+          />
+        </View>
+
+        {/* Selected Date Earnings */}
+        <View style={styles.selectedDateContainer}>
+          <Text style={styles.selectedDateTitle}>
+            {new Date(selectedDate).toLocaleDateString('en-US', {
+              weekday: 'long',
+              year: 'numeric',
+              month: 'long',
+              day: 'numeric',
+            })}
+          </Text>
+          
+          {selectedEarnings ? (
+            <>
+              <Text style={styles.earningsCount}>
+                {selectedEarnings.companies.length} companies reporting
+              </Text>
+              
+              <View style={styles.earningsList}>
+                {selectedEarnings.companies.map(renderEarningItem)}
+              </View>
+            </>
+          ) : (
+            <View style={styles.noEarningsContainer}>
+              <Icon
+                name="event-busy"
+                type="material"
+                size={48}
+                color={colors.gray400}
+              />
+              <Text style={styles.noEarningsText}>
+                No earnings scheduled for this date
+              </Text>
+            </View>
+          )}
+        </View>
+
+        {/* Legend */}
+        <View style={styles.legend}>
+          <Text style={styles.legendTitle}>Time Legend</Text>
+          <View style={styles.legendItems}>
+            <View style={styles.legendItem}>
+              <View style={[styles.legendDot, { backgroundColor: colors.info }]} />
+              <Text style={styles.legendText}>BMO - Before Market Open</Text>
+            </View>
+            <View style={styles.legendItem}>
+              <View style={[styles.legendDot, { backgroundColor: colors.warning }]} />
+              <Text style={styles.legendText}>AMC - After Market Close</Text>
+            </View>
+            <View style={styles.legendItem}>
+              <Icon name="star" type="material" size={16} color={colors.warning} />
+              <Text style={styles.legendText}>In your watchlist</Text>
+            </View>
+          </View>
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
@@ -318,173 +332,128 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  loadingText: {
-    marginTop: spacing.md,
-    fontSize: typography.fontSize.md,
-    color: colors.textSecondary,
-  },
-  viewToggle: {
-    flexDirection: 'row',
-    margin: spacing.md,
-    borderRadius: borderRadius.lg,
+  header: {
+    padding: spacing.lg,
     backgroundColor: colors.white,
-    padding: spacing.xs,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
   },
-  toggleButton: {
-    flex: 1,
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.md,
-    borderRadius: borderRadius.md,
+  headerTitle: {
+    fontSize: typography.fontSize.xl,
+    fontWeight: typography.fontWeight.bold,
+    color: colors.text,
   },
-  toggleButtonActive: {
-    backgroundColor: colors.primary,
-  },
-  toggleText: {
-    textAlign: 'center',
-    fontSize: typography.fontSize.sm,
-    fontFamily: typography.fontFamily.medium,
+  headerSubtitle: {
+    fontSize: typography.fontSize.base,
     color: colors.textSecondary,
+    marginTop: spacing.xs,
   },
-  toggleTextActive: {
-    color: colors.white,
+  calendarContainer: {
+    backgroundColor: colors.white,
+    paddingBottom: spacing.md,
   },
-  content: {
-    flex: 1,
+  selectedDateContainer: {
+    padding: spacing.lg,
   },
-  calendarHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
-  },
-  navButton: {
-    padding: spacing.sm,
-  },
-  monthTitle: {
+  selectedDateTitle: {
     fontSize: typography.fontSize.lg,
-    fontFamily: typography.fontFamily.bold,
+    fontWeight: typography.fontWeight.semibold,
     color: colors.text,
-  },
-  weekDays: {
-    flexDirection: 'row',
-    paddingHorizontal: spacing.md,
-    marginBottom: spacing.sm,
-  },
-  weekDayText: {
-    flex: 1,
-    textAlign: 'center',
-    fontSize: typography.fontSize.sm,
-    fontFamily: typography.fontFamily.medium,
-    color: colors.textSecondary,
-  },
-  calendarGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    paddingHorizontal: spacing.md,
-  },
-  calendarDay: {
-    width: '14.28%',
-    aspectRatio: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: spacing.xs,
-  },
-  otherMonthDay: {
-    opacity: 0.3,
-  },
-  hasEarningsDay: {
-    backgroundColor: colors.primaryLight,
-    borderRadius: borderRadius.md,
-  },
-  dayText: {
-    fontSize: typography.fontSize.md,
-    fontFamily: typography.fontFamily.regular,
-    color: colors.text,
-  },
-  otherMonthDayText: {
-    color: colors.textSecondary,
-  },
-  earningsDot: {
-    position: 'absolute',
-    bottom: 2,
-    right: 2,
-    backgroundColor: colors.primary,
-    borderRadius: borderRadius.full,
-    minWidth: 16,
-    height: 16,
-    justifyContent: 'center',
-    alignItems: 'center',
+    marginBottom: spacing.xs,
   },
   earningsCount: {
-    fontSize: typography.fontSize.xs,
-    fontFamily: typography.fontFamily.bold,
-    color: colors.white,
+    fontSize: typography.fontSize.sm,
+    color: colors.textSecondary,
+    marginBottom: spacing.md,
   },
-  sectionHeader: {
-    backgroundColor: colors.backgroundSecondary,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+  earningsList: {
+    backgroundColor: colors.white,
+    borderRadius: borderRadius.lg,
+    overflow: 'hidden',
   },
-  sectionTitle: {
-    fontSize: typography.fontSize.md,
-    fontFamily: typography.fontFamily.bold,
-    color: colors.text,
-  },
-  earningsItem: {
+  earningItem: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.md,
-    backgroundColor: colors.background,
+    padding: spacing.md,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   },
-  earningsItemLeft: {
+  earningItemLeft: {
     flex: 1,
   },
+  earningItemRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
   ticker: {
-    fontSize: typography.fontSize.md,
-    fontFamily: typography.fontFamily.bold,
+    fontSize: typography.fontSize.base,
+    fontWeight: typography.fontWeight.semibold,
     color: colors.text,
   },
   companyName: {
     fontSize: typography.fontSize.sm,
-    fontFamily: typography.fontFamily.regular,
     color: colors.textSecondary,
+    marginTop: 2,
   },
-  earningsItemRight: {
+  estimates: {
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
+    marginTop: spacing.xs,
+  },
+  estimateText: {
+    fontSize: typography.fontSize.xs,
+    color: colors.textSecondary,
+    marginRight: spacing.md,
   },
   timeBadge: {
     paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xs,
+    paddingVertical: spacing.xxs,
     borderRadius: borderRadius.sm,
   },
-  bmoBadge: {
-    backgroundColor: colors.info,
-  },
-  amcBadge: {
-    backgroundColor: colors.warning,
-  },
-  timeText: {
+  timeBadgeText: {
     fontSize: typography.fontSize.xs,
-    fontFamily: typography.fontFamily.bold,
+    fontWeight: typography.fontWeight.medium,
     color: colors.white,
   },
-  emptyContainer: {
-    paddingVertical: spacing.xxl,
+  watchlistIcon: {
+    marginLeft: spacing.sm,
+  },
+  noEarningsContainer: {
+    alignItems: 'center',
+    paddingVertical: spacing.xl,
+  },
+  noEarningsText: {
+    fontSize: typography.fontSize.base,
+    color: colors.textSecondary,
+    marginTop: spacing.md,
+  },
+  legend: {
+    padding: spacing.lg,
+    backgroundColor: colors.white,
+    marginTop: spacing.md,
+    marginBottom: spacing.xl,
+  },
+  legendTitle: {
+    fontSize: typography.fontSize.base,
+    fontWeight: typography.fontWeight.semibold,
+    color: colors.text,
+    marginBottom: spacing.md,
+  },
+  legendItems: {
+    gap: spacing.sm,
+  },
+  legendItem: {
+    flexDirection: 'row',
     alignItems: 'center',
   },
-  emptyText: {
-    marginTop: spacing.md,
-    fontSize: typography.fontSize.md,
-    fontFamily: typography.fontFamily.regular,
+  legendDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    marginRight: spacing.sm,
+  },
+  legendText: {
+    fontSize: typography.fontSize.sm,
     color: colors.textSecondary,
   },
 });

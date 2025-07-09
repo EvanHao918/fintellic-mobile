@@ -4,6 +4,13 @@ import { AuthState, User, LoginCredentials, AuthResponse } from '../../types';
 import { STORAGE_KEYS } from '../../utils/constants';
 import apiClient from '../../api/client';
 
+// Add register credentials interface
+interface RegisterCredentials {
+  email: string;
+  password: string;
+  username: string;
+}
+
 const initialState: AuthState = {
   user: null,
   token: null,
@@ -12,7 +19,7 @@ const initialState: AuthState = {
   error: null,
 };
 
-// Async thunks
+// Login async thunk
 export const login = createAsyncThunk(
   'auth/login',
   async (credentials: LoginCredentials) => {
@@ -30,17 +37,59 @@ export const login = createAsyncThunk(
     await AsyncStorage.setItem(STORAGE_KEYS.AUTH_TOKEN, response.data.access_token);
     await AsyncStorage.setItem(STORAGE_KEYS.USER_INFO, JSON.stringify(response.data.user));
 
+    // Set token to API client
+    apiClient.setAuthToken(response.data.access_token);
+
     return response.data;
   }
 );
 
-export const logout = createAsyncThunk('auth/logout', async () => {
-  await AsyncStorage.multiRemove([
-    STORAGE_KEYS.AUTH_TOKEN,
-    STORAGE_KEYS.USER_INFO,
-  ]);
-});
+// Register async thunk
+export const register = createAsyncThunk(
+  'auth/register',
+  async (credentials: RegisterCredentials) => {
+    // First, register the user
+    const registerResponse = await apiClient.post('/auth/register', {
+      email: credentials.email,
+      password: credentials.password,
+      username: credentials.username,
+    });
 
+    // After successful registration, automatically log them in
+    const formData = new URLSearchParams();
+    formData.append('username', credentials.email);
+    formData.append('password', credentials.password);
+
+    const loginResponse = await apiClient.post<AuthResponse>('/auth/login', formData, {
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+    });
+
+    // Store token
+    await AsyncStorage.setItem(STORAGE_KEYS.AUTH_TOKEN, loginResponse.data.access_token);
+    await AsyncStorage.setItem(STORAGE_KEYS.USER_INFO, JSON.stringify(loginResponse.data.user));
+
+    // Set token to API client
+    apiClient.setAuthToken(loginResponse.data.access_token);
+
+    return loginResponse.data;
+  }
+);
+
+// Logout async thunk
+export const logout = createAsyncThunk('auth/logout', async () => {
+    // Clear stored data
+    await AsyncStorage.multiRemove([
+      STORAGE_KEYS.AUTH_TOKEN,
+      STORAGE_KEYS.USER_INFO,
+    ]);
+    
+    // Clear the auth token from API client
+    apiClient.removeAuthToken();
+  });
+
+// Load stored auth async thunk
 export const loadStoredAuth = createAsyncThunk(
   'auth/loadStoredAuth',
   async () => {
@@ -57,6 +106,7 @@ export const loadStoredAuth = createAsyncThunk(
   }
 );
 
+// Create slice
 const authSlice = createSlice({
   name: 'auth',
   initialState,
@@ -69,7 +119,7 @@ const authSlice = createSlice({
     },
   },
   extraReducers: (builder) => {
-    // Login
+    // Login cases
     builder
       .addCase(login.pending, (state) => {
         state.isLoading = true;
@@ -88,7 +138,26 @@ const authSlice = createSlice({
         state.error = action.error.message || 'Login failed';
       });
 
-    // Logout
+    // Register cases
+    builder
+      .addCase(register.pending, (state) => {
+        state.isLoading = true;
+        state.error = null;
+      })
+      .addCase(register.fulfilled, (state, action) => {
+        state.isLoading = false;
+        state.isAuthenticated = true;
+        state.token = action.payload.access_token;
+        state.user = action.payload.user;
+        state.error = null;
+      })
+      .addCase(register.rejected, (state, action) => {
+        state.isLoading = false;
+        state.isAuthenticated = false;
+        state.error = action.error.message || 'Registration failed';
+      });
+
+    // Logout cases
     builder
       .addCase(logout.fulfilled, (state) => {
         state.user = null;
@@ -97,7 +166,7 @@ const authSlice = createSlice({
         state.error = null;
       });
 
-    // Load stored auth
+    // Load stored auth cases
     builder
       .addCase(loadStoredAuth.fulfilled, (state, action) => {
         if (action.payload) {
