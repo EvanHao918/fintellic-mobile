@@ -7,6 +7,8 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Alert,
+  Platform,
+  Dimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Icon } from 'react-native-elements';
@@ -16,6 +18,8 @@ import { RootState, AppDispatch } from '../store';
 import { updateUser } from '../store/slices/authSlice';
 import { colors, typography, spacing, borderRadius, shadows } from '../theme';
 import apiClient from '../api/client';
+
+const { height: screenHeight } = Dimensions.get('window');
 
 type PlanType = 'monthly' | 'yearly';
 
@@ -69,7 +73,7 @@ export default function SubscriptionScreen() {
 
     Alert.alert(
       'Confirm Upgrade',
-      `Upgrade to Fintellic Pro (${selectedPlan === 'monthly' ? '$19.99/month' : '$199/year'})?`,
+      `Upgrade to Fintellic Pro (${selectedPlan === 'monthly' ? '$39.9/month' : '$399/year'})?`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -129,21 +133,35 @@ export default function SubscriptionScreen() {
     </View>
   );
 
+  // Expo Web specific styles
+  const webStyles = Platform.select({
+    web: {
+      maxHeight: screenHeight - 100,
+      overflowY: 'auto' as any,
+    },
+    default: {},
+  });
+
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView showsVerticalScrollIndicator={false}>
-        {/* Header */}
-        <View style={styles.header}>
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={() => navigation.goBack()}
-          >
-            <Icon name="arrow-back" type="material" size={24} color={colors.text} />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Subscription Plans</Text>
-          <View style={styles.backButton} />
-        </View>
+      {/* Header */}
+      <View style={styles.header}>
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={() => navigation.goBack()}
+        >
+          <Icon name="arrow-back" type="material" size={24} color={colors.text} />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>Subscription Plans</Text>
+        <View style={styles.backButton} />
+      </View>
 
+      {/* Scrollable Content */}
+      <ScrollView 
+        style={[styles.scrollView, webStyles]}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={true}
+      >
         {/* Current Status */}
         {isProUser ? (
           <View style={styles.currentPlanBanner}>
@@ -210,14 +228,14 @@ export default function SubscriptionScreen() {
         {/* Pricing */}
         <View style={styles.pricingContainer}>
           <Text style={styles.priceAmount}>
-            ${selectedPlan === 'monthly' ? '19.99' : '199'}
+            ${selectedPlan === 'monthly' ? '39.9' : '399'}
           </Text>
           <Text style={styles.pricePeriod}>
             {selectedPlan === 'monthly' ? 'per month' : 'per year'}
           </Text>
           {selectedPlan === 'yearly' && (
             <Text style={styles.monthlyEquivalent}>
-              Only $16.58/month
+              Only $33.25/month
             </Text>
           )}
         </View>
@@ -225,7 +243,7 @@ export default function SubscriptionScreen() {
         {/* Features Comparison */}
         <View style={styles.featuresContainer}>
           {/* Free Plan */}
-          <View style={styles.planColumn}>
+          <View style={styles.planCard}>
             <View style={styles.planHeader}>
               <Text style={styles.planName}>Free</Text>
               <Text style={styles.planPrice}>$0</Text>
@@ -236,14 +254,14 @@ export default function SubscriptionScreen() {
           </View>
 
           {/* Pro Plan */}
-          <View style={[styles.planColumn, styles.planColumnPro]}>
+          <View style={[styles.planCard, styles.planCardPro]}>
             <View style={styles.proBadge}>
               <Text style={styles.proBadgeText}>RECOMMENDED</Text>
             </View>
             <View style={styles.planHeader}>
               <Text style={styles.planName}>Pro</Text>
               <Text style={styles.planPrice}>
-                ${selectedPlan === 'monthly' ? '19.99/mo' : '199/yr'}
+                ${selectedPlan === 'monthly' ? '39.9/mo' : '399/yr'}
               </Text>
             </View>
             <View style={styles.featuresList}>
@@ -355,7 +373,7 @@ export default function SubscriptionScreen() {
         </View>
 
         {/* Bottom padding */}
-        <View style={{ height: spacing.xxxl }} />
+        <View style={{ height: spacing.xxxl * 2 }} />
       </ScrollView>
     </SafeAreaView>
   );
@@ -383,6 +401,13 @@ const styles = StyleSheet.create({
     fontSize: typography.fontSize.lg,
     fontWeight: typography.fontWeight.semibold,
     color: colors.text,
+  },
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    flexGrow: 1,
+    paddingBottom: 50,
   },
   currentPlanBanner: {
     flexDirection: 'row',
@@ -481,22 +506,21 @@ const styles = StyleSheet.create({
     marginTop: spacing.xs,
   },
   featuresContainer: {
-    flexDirection: 'row',
-    marginHorizontal: spacing.md,
-    gap: spacing.md,
+    paddingHorizontal: spacing.md,
   },
-  planColumn: {
-    flex: 1,
+  planCard: {
     backgroundColor: colors.white,
     borderRadius: borderRadius.lg,
-    padding: spacing.md,
+    padding: spacing.lg,
     borderWidth: 1,
     borderColor: colors.border,
+    marginBottom: spacing.md,
   },
-  planColumnPro: {
+  planCardPro: {
     borderColor: colors.primary,
     borderWidth: 2,
     position: 'relative',
+    marginTop: spacing.md,
   },
   proBadge: {
     position: 'absolute',
@@ -535,6 +559,7 @@ const styles = StyleSheet.create({
   featureItem: {
     flexDirection: 'row',
     alignItems: 'center',
+    marginBottom: spacing.sm,
   },
   featureText: {
     fontSize: typography.fontSize.sm,
