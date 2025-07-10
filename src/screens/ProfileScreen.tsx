@@ -1,404 +1,370 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  Switch,
+  ActivityIndicator,
   Alert,
-  RefreshControl,
+  Dimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Icon, Avatar } from 'react-native-elements';
-import { useDispatch, useSelector } from 'react-redux';
+import { Icon } from 'react-native-elements';
+import { useSelector, useDispatch } from 'react-redux';
 import { useNavigation } from '@react-navigation/native';
-import { StackNavigationProp } from '@react-navigation/stack';
 import { RootState, AppDispatch } from '../store';
-import { logout } from '../store/slices/authSlice';
+import { updateUser } from '../store/slices/authSlice';
 import { colors, typography, spacing, borderRadius, shadows } from '../theme';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import apiClient from '../api/client';
-import { RootStackParamList } from '../types';
 
-type ProfileScreenNavigationProp = StackNavigationProp<RootStackParamList, 'Main'>;
+const { height: screenHeight } = Dimensions.get('window');
 
-interface SettingItem {
-  id: string;
-  title: string;
-  subtitle?: string;
-  icon: string;
-  iconType?: string;
-  action?: () => void;
-  hasToggle?: boolean;
-  toggleValue?: boolean;
-  onToggle?: (value: boolean) => void;
-  hasArrow?: boolean;
-  danger?: boolean;
+type PlanType = 'monthly' | 'yearly';
+
+interface PlanFeature {
+  text: string;
+  included: boolean;
 }
 
-interface UserStats {
-  reportsRead: number;
-  watchlistCount: number;
-  joinedDays: number;
-}
-
-export default function ProfileScreen() {
+export default function SubscriptionScreen() {
+  const navigation = useNavigation();
   const dispatch = useDispatch<AppDispatch>();
-  const navigation = useNavigation<ProfileScreenNavigationProp>();
   const user = useSelector((state: RootState) => state.auth.user);
-  const isProUser = user?.is_pro || user?.tier === 'pro';
+  const [selectedPlan, setSelectedPlan] = useState<PlanType>('monthly');
+  const [isLoading, setIsLoading] = useState(false);
   
-  // State
-  const [allNotifications, setAllNotifications] = useState(true);
-  const [watchlistOnly, setWatchlistOnly] = useState(false);
-  const [refreshing, setRefreshing] = useState(false);
-  const [userStats, setUserStats] = useState<UserStats>({
-    reportsRead: 0,
-    watchlistCount: 0,
-    joinedDays: 0,
-  });
+  const isProUser = user?.is_pro || user?.tier === 'pro';
 
-  // Load user stats and preferences
-  useEffect(() => {
-    loadUserPreferences();
-    loadUserStats();
-  }, []);
+  // Plan features comparison
+  const freeFeatures: PlanFeature[] = [
+    { text: '3 reports per day', included: true },
+    { text: 'Basic AI summaries', included: true },
+    { text: 'View S&P 500 filings', included: true },
+    { text: 'Community sentiment', included: true },
+    { text: 'Unlimited report access', included: false },
+    { text: 'Advanced analytics', included: false },
+    { text: 'Priority notifications', included: false },
+    { text: 'Export to PDF', included: false },
+    { text: 'Ad-free experience', included: false },
+    { text: 'Pro community access', included: false },
+  ];
 
-  // Load notification preferences
-  const loadUserPreferences = async () => {
-    try {
-      const allNotif = await AsyncStorage.getItem('@fintellic_notifications_all');
-      const watchlistNotif = await AsyncStorage.getItem('@fintellic_notifications_watchlist');
-      
-      if (allNotif !== null) setAllNotifications(allNotif === 'true');
-      if (watchlistNotif !== null) setWatchlistOnly(watchlistNotif === 'true');
-    } catch (error) {
-      console.error('Error loading preferences:', error);
+  const proFeatures: PlanFeature[] = [
+    { text: 'Unlimited report access', included: true },
+    { text: 'Advanced AI analytics', included: true },
+    { text: 'Real-time notifications', included: true },
+    { text: 'Export reports to PDF', included: true },
+    { text: 'Ad-free experience', included: true },
+    { text: 'Pro community access', included: true },
+    { text: 'Priority support', included: true },
+    { text: 'Early access to features', included: true },
+    { text: 'Custom watchlist (unlimited)', included: true },
+    { text: 'Historical data access', included: true },
+  ];
+
+  // Handle upgrade
+  const handleUpgrade = async () => {
+    if (isProUser) {
+      Alert.alert('Already Pro', 'You already have an active Pro subscription!');
+      return;
     }
-  };
 
-  // Load user statistics
-  const loadUserStats = async () => {
-    try {
-      // Calculate days since joined
-      const joinedDate = new Date(user?.created_at || Date.now());
-      const daysSinceJoined = Math.floor((Date.now() - joinedDate.getTime()) / (1000 * 60 * 60 * 24));
-      
-      // Get watchlist count from AsyncStorage
-      const watchlistData = await AsyncStorage.getItem('@fintellic_watchlist');
-      const watchlist = watchlistData ? JSON.parse(watchlistData) : [];
-      
-      // Get read history count
-      const historyData = await AsyncStorage.getItem('@fintellic_history');
-      const history = historyData ? JSON.parse(historyData) : [];
-      
-      setUserStats({
-        reportsRead: history.length,
-        watchlistCount: watchlist.length,
-        joinedDays: daysSinceJoined,
-      });
-    } catch (error) {
-      console.error('Error loading user stats:', error);
-    }
-  };
-
-  // Handle refresh
-  const onRefresh = async () => {
-    setRefreshing(true);
-    await loadUserStats();
-    setRefreshing(false);
-  };
-
-  // Handle logout
-  const handleLogout = () => {
     Alert.alert(
-      'Sign Out',
-      'Are you sure you want to sign out?',
+      'Confirm Upgrade',
+      `Upgrade to Fintellic Pro (${selectedPlan === 'monthly' ? '$19.99/month' : '$199/year'})?`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
-          text: 'Sign Out',
-          style: 'destructive',
+          text: 'Upgrade',
           onPress: async () => {
-            await dispatch(logout()).unwrap();
-          }
-        }
+            setIsLoading(true);
+            try {
+              // Mock upgrade API call
+              const response = await apiClient.post('/users/me/upgrade-mock', {
+                plan: selectedPlan,
+              });
+              
+              // Update user state
+              dispatch(updateUser(response.data.user));
+              
+              Alert.alert(
+                'Success!',
+                'Welcome to Fintellic Pro! Enjoy unlimited access to all features.',
+                [
+                  {
+                    text: 'OK',
+                    onPress: () => navigation.goBack(),
+                  },
+                ]
+              );
+            } catch (error: any) {
+              Alert.alert(
+                'Error',
+                error.response?.data?.detail || 'Failed to upgrade. Please try again.'
+              );
+            } finally {
+              setIsLoading(false);
+            }
+          },
+        },
       ]
     );
   };
 
-  // Handle upgrade to Pro
-  const handleUpgradeToPro = () => {
-    navigation.navigate('Subscription');
-  };
-
-  // Handle notification toggle
-  const handleNotificationToggle = async (type: 'all' | 'watchlist', value: boolean) => {
-    if (type === 'all') {
-      setAllNotifications(value);
-      if (!value) {
-        setWatchlistOnly(false);
-      }
-      await AsyncStorage.setItem('@fintellic_notifications_all', value.toString());
-    } else {
-      setWatchlistOnly(value);
-      if (value) {
-        setAllNotifications(false);
-      }
-      await AsyncStorage.setItem('@fintellic_notifications_watchlist', value.toString());
-    }
-  };
-
-  // Profile sections
-  const profileSections: { title: string; items: SettingItem[] }[] = [
-    {
-      title: 'Subscription',
-      items: [
-        {
-          id: 'subscription',
-          title: isProUser ? 'Fintellic Pro' : 'Free Plan',
-          subtitle: isProUser 
-            ? user?.subscription_expires_at 
-              ? `Expires ${new Date(user.subscription_expires_at).toLocaleDateString()}`
-              : 'Active subscription'
-            : `${3 - (user?.daily_reports_count || 0)} daily reports remaining`,
-          icon: isProUser ? 'star' : 'star-outline',
-          action: () => navigation.navigate('Subscription'),
-          hasArrow: true,
-        },
-      ],
-    },
-    {
-      title: 'Notifications',
-      items: [
-        {
-          id: 'all_notifications',
-          title: 'All Notifications',
-          subtitle: 'Get notified about all new filings',
-          icon: 'notifications',
-          hasToggle: true,
-          toggleValue: allNotifications,
-          onToggle: (value) => handleNotificationToggle('all', value),
-        },
-        {
-          id: 'watchlist_notifications',
-          title: 'Watchlist Only',
-          subtitle: 'Only companies you follow',
-          icon: 'star',
-          hasToggle: true,
-          toggleValue: watchlistOnly,
-          onToggle: (value) => handleNotificationToggle('watchlist', value),
-        },
-      ],
-    },
-    {
-      title: 'Account',
-      items: [
-        {
-          id: 'change_password',
-          title: 'Change Password',
-          icon: 'lock',
-          action: () => Alert.alert('Coming Soon', 'Password change feature will be available soon'),
-          hasArrow: true,
-        },
-        {
-          id: 'export_data',
-          title: 'Export My Data',
-          icon: 'download',
-          iconType: 'material-community',
-          action: () => Alert.alert('Export Data', 'Export your reading history and preferences'),
-          hasArrow: true,
-        },
-      ],
-    },
-    {
-      title: 'Support',
-      items: [
-        {
-          id: 'help',
-          title: 'Help Center',
-          icon: 'help-circle',
-          iconType: 'material-community',
-          action: () => Alert.alert('Help', 'Visit help.fintellic.com'),
-          hasArrow: true,
-        },
-        {
-          id: 'feedback',
-          title: 'Send Feedback',
-          icon: 'message-square',
-          iconType: 'feather',
-          action: () => Alert.alert('Feedback', 'We\'d love to hear from you!'),
-          hasArrow: true,
-        },
-        {
-          id: 'rate',
-          title: 'Rate Fintellic',
-          icon: 'star',
-          action: () => Alert.alert('Rate Us', 'Please rate us on the App Store'),
-          hasArrow: true,
-        },
-      ],
-    },
-    {
-      title: 'Legal',
-      items: [
-        {
-          id: 'terms',
-          title: 'Terms of Service',
-          icon: 'file-document',
-          iconType: 'material-community',
-          action: () => Alert.alert('Terms', 'View Terms of Service'),
-          hasArrow: true,
-        },
-        {
-          id: 'privacy',
-          title: 'Privacy Policy',
-          icon: 'shield-check',
-          iconType: 'material-community',
-          action: () => Alert.alert('Privacy', 'View Privacy Policy'),
-          hasArrow: true,
-        },
-      ],
-    },
-  ];
-
-  // Render setting item
-  const renderSettingItem = (item: SettingItem) => (
-    <TouchableOpacity
-      key={item.id}
-      style={styles.settingItem}
-      onPress={item.action}
-      disabled={!item.action && !item.hasToggle}
-    >
-      <View style={styles.settingItemLeft}>
-        <View style={[styles.iconContainer, { backgroundColor: colors.gray100 }]}>
-          <Icon
-            name={item.icon}
-            type={item.iconType || 'material'}
-            size={20}
-            color={item.danger ? colors.error : colors.primary}
-          />
-        </View>
-        <View style={styles.settingTextContainer}>
-          <Text style={[styles.settingTitle, item.danger && styles.dangerText]}>
-            {item.title}
-          </Text>
-          {item.subtitle && (
-            <Text style={styles.settingSubtitle}>{item.subtitle}</Text>
-          )}
-        </View>
-      </View>
-      
-      {item.hasToggle && item.onToggle ? (
-        <Switch
-          value={item.toggleValue}
-          onValueChange={item.onToggle}
-          trackColor={{ false: colors.gray300, true: colors.primary }}
-          thumbColor={colors.white}
-        />
-      ) : item.hasArrow ? (
-        <Icon
-          name="chevron-right"
-          type="material"
-          size={24}
-          color={colors.gray400}
-        />
-      ) : null}
-    </TouchableOpacity>
+  // Render feature item
+  const renderFeature = (feature: PlanFeature, index: number) => (
+    <View key={index} style={styles.featureItem}>
+      <Icon
+        name={feature.included ? 'check-circle' : 'cancel'}
+        type="material"
+        size={20}
+        color={feature.included ? colors.success : colors.gray400}
+      />
+      <Text
+        style={[
+          styles.featureText,
+          !feature.included && styles.featureTextDisabled,
+        ]}
+      >
+        {feature.text}
+      </Text>
+    </View>
   );
 
-  // Get user initials for avatar
-  const getUserInitials = () => {
-    const name = user?.username || user?.full_name || user?.email;
-    if (name) {
-      return name.substring(0, 2).toUpperCase();
-    }
-    return 'U';
-  };
-
   return (
-    <SafeAreaView style={styles.container}>
-      <ScrollView
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-        }
+    <SafeAreaView style={styles.container} edges={['top']}>
+      {/* Fixed Header */}
+      <View style={styles.header}>
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={() => navigation.goBack()}
+        >
+          <Icon name="arrow-back" type="material" size={24} color={colors.text} />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>Subscription Plans</Text>
+        <View style={styles.backButton} />
+      </View>
+
+      {/* Scrollable Content */}
+      <ScrollView 
+        style={styles.scrollView}
+        contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
+        bounces={true}
       >
-        {/* User Header */}
-        <View style={styles.userHeader}>
-          <Avatar
-            size="large"
-            rounded
-            title={getUserInitials()}
-            containerStyle={styles.avatar}
-            titleStyle={styles.avatarText}
-          />
-          <Text style={styles.userName}>{user?.username || user?.full_name || 'User'}</Text>
-          <Text style={styles.userEmail}>{user?.email}</Text>
-          
-          {/* User Stats */}
-          <View style={styles.statsContainer}>
-            <View style={styles.statItem}>
-              <Text style={styles.statValue}>{userStats.reportsRead}</Text>
-              <Text style={styles.statLabel}>Reports Read</Text>
+        {/* Current Status */}
+        {isProUser ? (
+          <View style={styles.currentPlanBanner}>
+            <Icon name="star" type="material" size={24} color={colors.warning} />
+            <View style={styles.currentPlanText}>
+              <Text style={styles.currentPlanTitle}>You're a Pro Member!</Text>
+              <Text style={styles.currentPlanSubtitle}>
+                Expires: {user?.subscription_expires_at 
+                  ? new Date(user.subscription_expires_at).toLocaleDateString()
+                  : 'Never'}
+              </Text>
             </View>
-            <View style={styles.statDivider} />
-            <View style={styles.statItem}>
-              <Text style={styles.statValue}>{userStats.watchlistCount}</Text>
-              <Text style={styles.statLabel}>Watchlist</Text>
+          </View>
+        ) : (
+          <View style={styles.limitWarning}>
+            <Icon name="info" type="material" size={20} color={colors.primary} />
+            <Text style={styles.limitText}>
+              You've used {user?.daily_reports_count || 0} of 3 daily reports
+            </Text>
+          </View>
+        )}
+
+        {/* Plan Selection */}
+        <View style={styles.planToggle}>
+          <TouchableOpacity
+            style={[
+              styles.planOption,
+              selectedPlan === 'monthly' && styles.planOptionActive,
+            ]}
+            onPress={() => setSelectedPlan('monthly')}
+          >
+            <Text
+              style={[
+                styles.planOptionText,
+                selectedPlan === 'monthly' && styles.planOptionTextActive,
+              ]}
+            >
+              Monthly
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[
+              styles.planOption,
+              selectedPlan === 'yearly' && styles.planOptionActive,
+            ]}
+            onPress={() => setSelectedPlan('yearly')}
+          >
+            <Text
+              style={[
+                styles.planOptionText,
+                selectedPlan === 'yearly' && styles.planOptionTextActive,
+              ]}
+            >
+              Yearly
+            </Text>
+            {selectedPlan === 'yearly' && (
+              <View style={styles.saveBadge}>
+                <Text style={styles.saveBadgeText}>Save 17%</Text>
+              </View>
+            )}
+          </TouchableOpacity>
+        </View>
+
+        {/* Pricing */}
+        <View style={styles.pricingContainer}>
+          <Text style={styles.priceAmount}>
+            ${selectedPlan === 'monthly' ? '19.99' : '199'}
+          </Text>
+          <Text style={styles.pricePeriod}>
+            {selectedPlan === 'monthly' ? 'per month' : 'per year'}
+          </Text>
+          {selectedPlan === 'yearly' && (
+            <Text style={styles.monthlyEquivalent}>
+              Only $16.58/month
+            </Text>
+          )}
+        </View>
+
+        {/* Features Comparison - 改为垂直布局以避免横向滚动问题 */}
+        <View style={styles.featuresContainer}>
+          {/* Free Plan */}
+          <View style={styles.planCard}>
+            <View style={styles.planHeader}>
+              <Text style={styles.planName}>Free</Text>
+              <Text style={styles.planPrice}>$0</Text>
             </View>
-            <View style={styles.statDivider} />
-            <View style={styles.statItem}>
-              <Text style={styles.statValue}>{userStats.joinedDays}</Text>
-              <Text style={styles.statLabel}>Days Active</Text>
+            <View style={styles.featuresList}>
+              {freeFeatures.map((feature, index) => renderFeature(feature, index))}
+            </View>
+          </View>
+
+          {/* Pro Plan */}
+          <View style={[styles.planCard, styles.planCardPro]}>
+            <View style={styles.proBadge}>
+              <Text style={styles.proBadgeText}>RECOMMENDED</Text>
+            </View>
+            <View style={styles.planHeader}>
+              <Text style={styles.planName}>Pro</Text>
+              <Text style={styles.planPrice}>
+                ${selectedPlan === 'monthly' ? '19.99/mo' : '199/yr'}
+              </Text>
+            </View>
+            <View style={styles.featuresList}>
+              {proFeatures.map((feature, index) => renderFeature(feature, index))}
             </View>
           </View>
         </View>
 
-        {/* Pro Badge or Upgrade Banner */}
-        {isProUser ? (
-          <View style={styles.proBadge}>
-            <Icon name="star" type="material" size={20} color={colors.warning} />
-            <Text style={styles.proBadgeText}>Pro Member</Text>
-          </View>
-        ) : (
-          <TouchableOpacity style={styles.upgradeBanner} onPress={handleUpgradeToPro}>
-            <View style={styles.upgradeBannerContent}>
-              <Icon name="rocket" type="material-community" size={24} color={colors.primary} />
-              <View style={styles.upgradeBannerText}>
-                <Text style={styles.upgradeBannerTitle}>Upgrade to Pro</Text>
-                <Text style={styles.upgradeBannerSubtitle}>Unlock unlimited access</Text>
-              </View>
-            </View>
-            <Icon name="chevron-right" type="material" size={24} color={colors.primary} />
+        {/* Upgrade Button */}
+        {!isProUser && (
+          <TouchableOpacity
+            style={styles.upgradeButton}
+            onPress={handleUpgrade}
+            disabled={isLoading}
+          >
+            {isLoading ? (
+              <ActivityIndicator color="white" />
+            ) : (
+              <>
+                <Text style={styles.upgradeButtonText}>
+                  Upgrade to Pro
+                </Text>
+                <Icon
+                  name="arrow-forward"
+                  type="material"
+                  size={20}
+                  color="white"
+                  style={{ marginLeft: spacing.xs }}
+                />
+              </>
+            )}
           </TouchableOpacity>
         )}
 
-        {/* Settings Sections */}
-        {profileSections.map((section, index) => (
-          <View key={index} style={styles.section}>
-            <Text style={styles.sectionTitle}>{section.title}</Text>
-            <View style={styles.sectionContent}>
-              {section.items.map(renderSettingItem)}
-            </View>
-          </View>
-        ))}
+        {/* Cancel Anytime */}
+        <Text style={styles.cancelText}>
+          Cancel anytime. No questions asked.
+        </Text>
 
-        {/* App Version */}
-        <View style={styles.versionContainer}>
-          <Text style={styles.versionText}>Fintellic v1.0.0</Text>
-          <Text style={styles.versionSubtext}>Made with ❤️ for retail investors</Text>
+        {/* Testimonials */}
+        <View style={styles.testimonialsContainer}>
+          <Text style={styles.testimonialsTitle}>What Pro Users Say</Text>
+          
+          <View style={styles.testimonial}>
+            <View style={styles.testimonialHeader}>
+              <View style={styles.stars}>
+                {[1, 2, 3, 4, 5].map((star) => (
+                  <Icon
+                    key={star}
+                    name="star"
+                    type="material"
+                    size={16}
+                    color={colors.warning}
+                  />
+                ))}
+              </View>
+              <Text style={styles.testimonialAuthor}>Sarah K.</Text>
+            </View>
+            <Text style={styles.testimonialText}>
+              "The unlimited access is game-changing. I can research any company without worrying about limits."
+            </Text>
+          </View>
+
+          <View style={styles.testimonial}>
+            <View style={styles.testimonialHeader}>
+              <View style={styles.stars}>
+                {[1, 2, 3, 4, 5].map((star) => (
+                  <Icon
+                    key={star}
+                    name="star"
+                    type="material"
+                    size={16}
+                    color={colors.warning}
+                  />
+                ))}
+              </View>
+              <Text style={styles.testimonialAuthor}>Michael R.</Text>
+            </View>
+            <Text style={styles.testimonialText}>
+              "The real-time notifications help me stay ahead of the market. Worth every penny!"
+            </Text>
+          </View>
         </View>
 
-        {/* Logout Button */}
-        <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
-          <Icon name="logout" type="material" size={20} color={colors.error} />
-          <Text style={styles.logoutText}>Sign Out</Text>
-        </TouchableOpacity>
+        {/* FAQ */}
+        <View style={styles.faqContainer}>
+          <Text style={styles.faqTitle}>Frequently Asked Questions</Text>
+          
+          <View style={styles.faqItem}>
+            <Text style={styles.faqQuestion}>Can I cancel anytime?</Text>
+            <Text style={styles.faqAnswer}>
+              Yes! You can cancel your subscription anytime from your profile settings.
+            </Text>
+          </View>
 
-        {/* Bottom Padding */}
-        <View style={{ height: spacing.xxxl }} />
+          <View style={styles.faqItem}>
+            <Text style={styles.faqQuestion}>What happens to my data if I cancel?</Text>
+            <Text style={styles.faqAnswer}>
+              Your data remains accessible. You'll revert to the free plan with its limitations.
+            </Text>
+          </View>
+
+          <View style={styles.faqItem}>
+            <Text style={styles.faqQuestion}>Do you offer refunds?</Text>
+            <Text style={styles.faqAnswer}>
+              We offer a 7-day money-back guarantee if you're not satisfied.
+            </Text>
+          </View>
+        </View>
+
+        {/* Bottom padding */}
+        <View style={{ height: spacing.xxxl * 2 }} />
       </ScrollView>
     </SafeAreaView>
   );
@@ -407,184 +373,273 @@ export default function ProfileScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.backgroundSecondary,
+    backgroundColor: colors.background,
   },
-  userHeader: {
+  header: {
+    flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: spacing.xl,
+    justifyContent: 'space-between',
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.md,
     backgroundColor: colors.white,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   },
-  avatar: {
-    backgroundColor: colors.primary,
-    marginBottom: spacing.md,
+  backButton: {
+    width: 40,
   },
-  avatarText: {
-    fontSize: typography.fontSize.xl,
-    fontWeight: typography.fontWeight.bold,
-  },
-  userName: {
-    fontSize: typography.fontSize.xl,
+  headerTitle: {
+    fontSize: typography.fontSize.lg,
     fontWeight: typography.fontWeight.semibold,
     color: colors.text,
-    marginBottom: spacing.xs,
   },
-  userEmail: {
-    fontSize: typography.fontSize.base,
-    color: colors.textSecondary,
-    marginBottom: spacing.lg,
+  scrollView: {
+    flex: 1,
   },
-  statsContainer: {
+  scrollContent: {
+    flexGrow: 1,
+  },
+  currentPlanBanner: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingTop: spacing.md,
-  },
-  statItem: {
-    alignItems: 'center',
-    paddingHorizontal: spacing.lg,
-  },
-  statValue: {
-    fontSize: typography.fontSize.xl,
-    fontWeight: typography.fontWeight.bold,
-    color: colors.text,
-  },
-  statLabel: {
-    fontSize: typography.fontSize.sm,
-    color: colors.textSecondary,
-    marginTop: spacing.xxs,
-  },
-  statDivider: {
-    width: 1,
-    height: 30,
-    backgroundColor: colors.border,
-  },
-  proBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
     backgroundColor: colors.primary,
-    paddingVertical: spacing.sm,
-    marginBottom: spacing.md,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+    margin: spacing.md,
+    borderRadius: borderRadius.lg,
   },
-  proBadgeText: {
-    color: colors.white,
+  currentPlanText: {
+    marginLeft: spacing.md,
+  },
+  currentPlanTitle: {
     fontSize: typography.fontSize.base,
-    fontWeight: typography.fontWeight.medium,
-    marginLeft: spacing.xs,
+    fontWeight: typography.fontWeight.semibold,
+    color: colors.white,
   },
-  upgradeBanner: {
+  currentPlanSubtitle: {
+    fontSize: typography.fontSize.sm,
+    color: colors.white,
+    opacity: 0.8,
+  },
+  limitWarning: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
     backgroundColor: colors.primaryLight + '20',
-    marginHorizontal: spacing.md,
-    marginVertical: spacing.md,
-    padding: spacing.md,
-    borderRadius: borderRadius.lg,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    margin: spacing.md,
+    borderRadius: borderRadius.md,
     borderWidth: 1,
     borderColor: colors.primary + '30',
   },
-  upgradeBannerContent: {
+  limitText: {
+    fontSize: typography.fontSize.sm,
+    color: colors.primary,
+    marginLeft: spacing.sm,
+  },
+  planToggle: {
     flexDirection: 'row',
+    backgroundColor: colors.gray100,
+    marginHorizontal: spacing.md,
+    marginTop: spacing.md,
+    borderRadius: borderRadius.lg,
+    padding: spacing.xs,
+  },
+  planOption: {
+    flex: 1,
+    paddingVertical: spacing.sm,
     alignItems: 'center',
+    borderRadius: borderRadius.md,
   },
-  upgradeBannerText: {
-    marginLeft: spacing.md,
+  planOptionActive: {
+    backgroundColor: colors.white,
+    ...shadows.sm,
   },
-  upgradeBannerTitle: {
+  planOptionText: {
     fontSize: typography.fontSize.base,
+    color: colors.textSecondary,
+  },
+  planOptionTextActive: {
+    color: colors.text,
+    fontWeight: typography.fontWeight.semibold,
+  },
+  saveBadge: {
+    position: 'absolute',
+    top: -8,
+    right: 10,
+    backgroundColor: colors.success,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 2,
+    borderRadius: borderRadius.sm,
+  },
+  saveBadgeText: {
+    fontSize: typography.fontSize.xs,
+    fontWeight: typography.fontWeight.semibold,
+    color: colors.white,
+  },
+  pricingContainer: {
+    alignItems: 'center',
+    paddingVertical: spacing.xl,
+  },
+  priceAmount: {
+    fontSize: 48,
+    fontWeight: typography.fontWeight.bold,
+    color: colors.text,
+  },
+  pricePeriod: {
+    fontSize: typography.fontSize.base,
+    color: colors.textSecondary,
+  },
+  monthlyEquivalent: {
+    fontSize: typography.fontSize.sm,
+    color: colors.success,
+    marginTop: spacing.xs,
+  },
+  featuresContainer: {
+    paddingHorizontal: spacing.md,
+  },
+  planCard: {
+    backgroundColor: colors.white,
+    borderRadius: borderRadius.lg,
+    padding: spacing.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    marginBottom: spacing.md,
+  },
+  planCardPro: {
+    borderColor: colors.primary,
+    borderWidth: 2,
+    position: 'relative',
+    marginTop: spacing.md,
+  },
+  proBadge: {
+    position: 'absolute',
+    top: -12,
+    alignSelf: 'center',
+    backgroundColor: colors.primary,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xxs,
+    borderRadius: borderRadius.sm,
+  },
+  proBadgeText: {
+    fontSize: typography.fontSize.xs,
+    fontWeight: typography.fontWeight.bold,
+    color: colors.white,
+  },
+  planHeader: {
+    alignItems: 'center',
+    paddingBottom: spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+    marginBottom: spacing.md,
+  },
+  planName: {
+    fontSize: typography.fontSize.lg,
     fontWeight: typography.fontWeight.semibold,
     color: colors.text,
   },
-  upgradeBannerSubtitle: {
+  planPrice: {
     fontSize: typography.fontSize.sm,
-    color: colors.textSecondary,
-  },
-  section: {
-    marginBottom: spacing.lg,
-  },
-  sectionTitle: {
-    fontSize: typography.fontSize.sm,
-    fontWeight: typography.fontWeight.medium,
-    color: colors.textSecondary,
-    marginHorizontal: spacing.lg,
-    marginBottom: spacing.sm,
-    textTransform: 'uppercase',
-  },
-  sectionContent: {
-    backgroundColor: colors.white,
-    borderTopWidth: 1,
-    borderBottomWidth: 1,
-    borderColor: colors.border,
-  },
-  settingItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  settingItemLeft: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  iconContainer: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: spacing.md,
-  },
-  settingTextContainer: {
-    flex: 1,
-  },
-  settingTitle: {
-    fontSize: typography.fontSize.base,
-    fontWeight: typography.fontWeight.regular,
-    color: colors.text,
-  },
-  settingSubtitle: {
-    fontSize: typography.fontSize.sm,
-    color: colors.textSecondary,
-    marginTop: 2,
-  },
-  dangerText: {
-    color: colors.error,
-  },
-  versionContainer: {
-    alignItems: 'center',
-    paddingVertical: spacing.lg,
-  },
-  versionText: {
-    fontSize: typography.fontSize.sm,
-    color: colors.textSecondary,
-  },
-  versionSubtext: {
-    fontSize: typography.fontSize.xs,
     color: colors.textSecondary,
     marginTop: spacing.xxs,
   },
-  logoutButton: {
+  featuresList: {
+    gap: spacing.sm,
+  },
+  featureItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.white,
-    marginHorizontal: spacing.md,
-    marginBottom: spacing.md,
-    paddingVertical: spacing.md,
-    borderRadius: borderRadius.md,
-    borderWidth: 1,
-    borderColor: colors.error + '30',
   },
-  logoutText: {
+  featureText: {
+    fontSize: typography.fontSize.sm,
+    color: colors.text,
+    marginLeft: spacing.xs,
+    flex: 1,
+  },
+  featureTextDisabled: {
+    color: colors.gray400,
+    textDecorationLine: 'line-through',
+  },
+  upgradeButton: {
+    flexDirection: 'row',
+    backgroundColor: colors.primary,
+    marginHorizontal: spacing.md,
+    marginTop: spacing.xl,
+    paddingVertical: spacing.md,
+    borderRadius: borderRadius.lg,
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...shadows.md,
+  },
+  upgradeButtonText: {
+    fontSize: typography.fontSize.base,
+    fontWeight: typography.fontWeight.semibold,
+    color: colors.white,
+  },
+  cancelText: {
+    fontSize: typography.fontSize.sm,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    marginTop: spacing.md,
+  },
+  testimonialsContainer: {
+    marginTop: spacing.xxl,
+    paddingHorizontal: spacing.md,
+  },
+  testimonialsTitle: {
+    fontSize: typography.fontSize.lg,
+    fontWeight: typography.fontWeight.semibold,
+    color: colors.text,
+    marginBottom: spacing.md,
+  },
+  testimonial: {
+    backgroundColor: colors.white,
+    padding: spacing.md,
+    borderRadius: borderRadius.lg,
+    marginBottom: spacing.md,
+    ...shadows.sm,
+  },
+  testimonialHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: spacing.sm,
+  },
+  stars: {
+    flexDirection: 'row',
+  },
+  testimonialAuthor: {
+    fontSize: typography.fontSize.sm,
+    fontWeight: typography.fontWeight.medium,
+    color: colors.textSecondary,
+  },
+  testimonialText: {
+    fontSize: typography.fontSize.sm,
+    color: colors.text,
+    lineHeight: 20,
+  },
+  faqContainer: {
+    marginTop: spacing.xl,
+    paddingHorizontal: spacing.md,
+  },
+  faqTitle: {
+    fontSize: typography.fontSize.lg,
+    fontWeight: typography.fontWeight.semibold,
+    color: colors.text,
+    marginBottom: spacing.md,
+  },
+  faqItem: {
+    marginBottom: spacing.md,
+  },
+  faqQuestion: {
     fontSize: typography.fontSize.base,
     fontWeight: typography.fontWeight.medium,
-    color: colors.error,
-    marginLeft: spacing.sm,
+    color: colors.text,
+    marginBottom: spacing.xs,
+  },
+  faqAnswer: {
+    fontSize: typography.fontSize.sm,
+    color: colors.textSecondary,
+    lineHeight: 20,
   },
 });

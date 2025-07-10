@@ -12,66 +12,60 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Icon } from 'react-native-elements';
-import { useDispatch, useSelector } from 'react-redux';
-import { RootState, AppDispatch } from '../store';
-import { colors, typography, spacing, borderRadius, shadows } from '../theme';
+import { useSelector } from 'react-redux';
+import { RootState } from '../store';
+import { colors, typography, spacing, borderRadius } from '../theme';
 import apiClient from '../api/client';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { STORAGE_KEYS } from '../utils/constants';
 
-// Types
+// Updated Types based on new API
 interface WatchedCompany {
   ticker: string;
   name: string;
   sector?: string;
+  industry?: string;
+  is_sp500: boolean;
+  is_nasdaq100: boolean;
+  indices: string[];
+  added_at: string;
   last_filing?: {
     filing_type: string;
     filing_date: string;
     sentiment?: string;
   };
-  upcoming_earnings?: string;
+}
+
+interface CompanySearchResult {
+  ticker: string;
+  name: string;
+  sector?: string;
+  is_sp500: boolean;
+  is_nasdaq100: boolean;
+  indices: string[];
+  is_watchlisted: boolean;
 }
 
 export default function WatchlistScreen() {
-  const dispatch = useDispatch<AppDispatch>();
   const user = useSelector((state: RootState) => state.auth.user);
-  const isProUser = user?.is_pro || false;
   
   const [watchlist, setWatchlist] = useState<WatchedCompany[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [showSearch, setShowSearch] = useState(false);
-  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [searchResults, setSearchResults] = useState<CompanySearchResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
-  
-  // Free user limit
-  const WATCHLIST_LIMIT_FREE = 5;
-  const canAddMore = isProUser || watchlist.length < WATCHLIST_LIMIT_FREE;
+  const [watchlistCount, setWatchlistCount] = useState(0);
 
   // Load watchlist
   const loadWatchlist = async () => {
     try {
       setIsLoading(true);
-      const response = await apiClient.get('/watchlist');
+      const response = await apiClient.get('/watchlist/');
       setWatchlist(response.data || []);
-      
-      // Also save to local storage for offline access
-      await AsyncStorage.setItem(
-        '@fintellic_watchlist',
-        JSON.stringify(response.data || [])
-      );
+      setWatchlistCount(response.data?.length || 0);
     } catch (error) {
       console.error('Failed to load watchlist:', error);
-      // Try to load from local storage
-      try {
-        const localData = await AsyncStorage.getItem('@fintellic_watchlist');
-        if (localData) {
-          setWatchlist(JSON.parse(localData));
-        }
-      } catch (localError) {
-        console.error('Failed to load local watchlist:', localError);
-      }
+      Alert.alert('Error', 'Failed to load watchlist');
     } finally {
       setIsLoading(false);
       setRefreshing(false);
@@ -87,7 +81,7 @@ export default function WatchlistScreen() {
     loadWatchlist();
   };
 
-  // Search companies
+  // Search companies using new endpoint
   const searchCompanies = async (query: string) => {
     if (!query.trim()) {
       setSearchResults([]);
@@ -96,8 +90,8 @@ export default function WatchlistScreen() {
 
     setIsSearching(true);
     try {
-      const response = await apiClient.get('/companies/search', {
-        params: { q: query }
+      const response = await apiClient.get('/watchlist/search', {
+        params: { q: query, limit: 20 }
       });
       setSearchResults(response.data || []);
     } catch (error) {
@@ -108,38 +102,25 @@ export default function WatchlistScreen() {
   };
 
   // Add to watchlist
-  const addToWatchlist = async (ticker: string, companyName: string) => {
-    if (!canAddMore) {
-      Alert.alert(
-        'Watchlist Limit',
-        `Free users can watch up to ${WATCHLIST_LIMIT_FREE} companies. Upgrade to Pro for unlimited watchlist.`,
-        [
-          { text: 'Cancel', style: 'cancel' },
-          { text: 'Upgrade to Pro', onPress: () => {/* Navigate to upgrade */} }
-        ]
-      );
-      return;
-    }
-
+  const addToWatchlist = async (ticker: string) => {
     try {
-      await apiClient.post(`/watchlist/${ticker}`);
+      const response = await apiClient.post(`/watchlist/${ticker}`);
+      Alert.alert('Success', response.data.message);
       
-      // Add to local state
-      const newCompany: WatchedCompany = {
-        ticker,
-        name: companyName,
-      };
-      setWatchlist([...watchlist, newCompany]);
-      
-      // Clear search
-      setShowSearch(false);
-      setSearchQuery('');
-      setSearchResults([]);
-      
-      // Refresh to get full data
+      // Update local state
       loadWatchlist();
-    } catch (error) {
-      Alert.alert('Error', 'Failed to add company to watchlist');
+      
+      // Update search results to reflect watchlist status
+      setSearchResults(searchResults.map(company => 
+        company.ticker === ticker 
+          ? { ...company, is_watchlisted: true }
+          : company
+      ));
+    } catch (error: any) {
+      Alert.alert(
+        'Error',
+        error.response?.data?.detail || 'Failed to add to watchlist'
+      );
     }
   };
 
@@ -147,7 +128,7 @@ export default function WatchlistScreen() {
   const removeFromWatchlist = async (ticker: string) => {
     Alert.alert(
       'Remove from Watchlist',
-      `Are you sure you want to stop watching ${ticker}?`,
+      `Are you sure you want to remove ${ticker} from your watchlist?`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -155,10 +136,14 @@ export default function WatchlistScreen() {
           style: 'destructive',
           onPress: async () => {
             try {
-              await apiClient.delete(`/watchlist/${ticker}`);
-              setWatchlist(watchlist.filter(c => c.ticker !== ticker));
-            } catch (error) {
-              Alert.alert('Error', 'Failed to remove company from watchlist');
+              const response = await apiClient.delete(`/watchlist/${ticker}`);
+              Alert.alert('Success', response.data.message);
+              loadWatchlist();
+            } catch (error: any) {
+              Alert.alert(
+                'Error',
+                error.response?.data?.detail || 'Failed to remove from watchlist'
+              );
             }
           }
         }
@@ -166,87 +151,71 @@ export default function WatchlistScreen() {
     );
   };
 
-  // Get sentiment color
-  const getSentimentColor = (sentiment?: string) => {
-    switch (sentiment) {
-      case 'bullish': return colors.bullish;
-      case 'bearish': return colors.bearish;
-      default: return colors.neutral;
-    }
+  // Render watchlist item
+  const renderWatchlistItem = ({ item }: { item: WatchedCompany }) => {
+    const indicesText = item.indices.join(' • ');
+    
+    return (
+      <TouchableOpacity style={styles.watchlistItem}>
+        <View style={styles.companyInfo}>
+          <View style={styles.companyHeader}>
+            <Text style={styles.ticker}>{item.ticker}</Text>
+            <View style={styles.indicesBadge}>
+              <Text style={styles.indicesText}>{indicesText}</Text>
+            </View>
+          </View>
+          <Text style={styles.companyName}>{item.name}</Text>
+          {item.sector && (
+            <Text style={styles.sector}>{item.sector}</Text>
+          )}
+          {item.last_filing && (
+            <View style={styles.filingInfo}>
+              <Icon name="description" type="material" size={14} color={colors.textSecondary} />
+              <Text style={styles.filingText}>
+                {item.last_filing.filing_type} • {new Date(item.last_filing.filing_date).toLocaleDateString()}
+              </Text>
+            </View>
+          )}
+        </View>
+        <TouchableOpacity
+          style={styles.removeButton}
+          onPress={() => removeFromWatchlist(item.ticker)}
+        >
+          <Icon name="remove-circle-outline" type="material" size={24} color={colors.error} />
+        </TouchableOpacity>
+      </TouchableOpacity>
+    );
   };
 
-  // Render watchlist item
-  const renderWatchlistItem = ({ item }: { item: WatchedCompany }) => (
-    <TouchableOpacity style={styles.watchlistItem}>
-      <View style={styles.itemLeft}>
-        <View style={styles.tickerContainer}>
-          <Text style={styles.ticker}>{item.ticker}</Text>
+  // Render search result
+  const renderSearchResult = ({ item }: { item: CompanySearchResult }) => {
+    const indicesText = item.indices.join(' • ');
+    
+    return (
+      <TouchableOpacity 
+        style={styles.searchResultItem}
+        onPress={() => !item.is_watchlisted && addToWatchlist(item.ticker)}
+        disabled={item.is_watchlisted}
+      >
+        <View style={styles.companyInfo}>
+          <View style={styles.companyHeader}>
+            <Text style={styles.ticker}>{item.ticker}</Text>
+            <View style={styles.indicesBadge}>
+              <Text style={styles.indicesText}>{indicesText}</Text>
+            </View>
+          </View>
+          <Text style={styles.companyName}>{item.name}</Text>
           {item.sector && (
             <Text style={styles.sector}>{item.sector}</Text>
           )}
         </View>
-        <Text style={styles.companyName} numberOfLines={1}>
-          {item.name}
-        </Text>
-        
-        {item.last_filing && (
-          <View style={styles.filingInfo}>
-            <View style={[styles.filingBadge, { backgroundColor: colors.primary }]}>
-              <Text style={styles.filingBadgeText}>{item.last_filing.filing_type}</Text>
-            </View>
-            <Text style={styles.filingDate}>
-              {new Date(item.last_filing.filing_date).toLocaleDateString()}
-            </Text>
-            {item.last_filing.sentiment && (
-              <View style={[
-                styles.sentimentDot,
-                { backgroundColor: getSentimentColor(item.last_filing.sentiment) }
-              ]} />
-            )}
+        {item.is_watchlisted ? (
+          <View style={styles.watchedBadge}>
+            <Icon name="check" type="material" size={16} color={colors.success} />
+            <Text style={styles.watchedText}>Watching</Text>
           </View>
-        )}
-        
-        {item.upcoming_earnings && (
-          <View style={styles.earningsInfo}>
-            <Icon name="event" type="material" size={14} color={colors.warning} />
-            <Text style={styles.earningsText}>
-              Earnings: {new Date(item.upcoming_earnings).toLocaleDateString()}
-            </Text>
-          </View>
-        )}
-      </View>
-      
-      <TouchableOpacity
-        style={styles.removeButton}
-        onPress={() => removeFromWatchlist(item.ticker)}
-      >
-        <Icon name="close" type="material" size={20} color={colors.error} />
-      </TouchableOpacity>
-    </TouchableOpacity>
-  );
-
-  // Render search result
-  const renderSearchResult = ({ item }: { item: any }) => {
-    const isWatched = watchlist.some(w => w.ticker === item.ticker);
-    
-    return (
-      <TouchableOpacity
-        style={styles.searchResult}
-        onPress={() => {
-          if (!isWatched) {
-            addToWatchlist(item.ticker, item.name);
-          }
-        }}
-        disabled={isWatched}
-      >
-        <View style={styles.itemLeft}>
-          <Text style={styles.ticker}>{item.ticker}</Text>
-          <Text style={styles.companyName} numberOfLines={1}>{item.name}</Text>
-        </View>
-        {isWatched ? (
-          <Text style={styles.watchedText}>Watching</Text>
         ) : (
-          <Icon name="add" type="material" size={24} color={colors.primary} />
+          <Icon name="add-circle-outline" type="material" size={24} color={colors.primary} />
         )}
       </TouchableOpacity>
     );
@@ -258,7 +227,7 @@ export default function WatchlistScreen() {
       <Icon name="star-border" type="material" size={64} color={colors.textSecondary} />
       <Text style={styles.emptyTitle}>No Companies in Watchlist</Text>
       <Text style={styles.emptyText}>
-        Add companies to get notified about their earnings and filings
+        Add S&P 500 or NASDAQ 100 companies to track their filings
       </Text>
       <TouchableOpacity
         style={styles.addButton}
@@ -288,23 +257,20 @@ export default function WatchlistScreen() {
         <View>
           <Text style={styles.headerTitle}>My Watchlist</Text>
           <Text style={styles.headerSubtitle}>
-            {watchlist.length} {watchlist.length === 1 ? 'company' : 'companies'}
-            {!isProUser && ` (${watchlist.length}/${WATCHLIST_LIMIT_FREE})`}
+            {watchlistCount} {watchlistCount === 1 ? 'company' : 'companies'}
           </Text>
         </View>
-        {canAddMore && (
-          <TouchableOpacity
-            style={styles.addIconButton}
-            onPress={() => setShowSearch(!showSearch)}
-          >
-            <Icon 
-              name={showSearch ? "close" : "add"} 
-              type="material" 
-              size={24} 
-              color={colors.primary} 
-            />
-          </TouchableOpacity>
-        )}
+        <TouchableOpacity
+          style={styles.addIconButton}
+          onPress={() => setShowSearch(!showSearch)}
+        >
+          <Icon 
+            name={showSearch ? "close" : "add"} 
+            type="material" 
+            size={24} 
+            color={colors.primary} 
+          />
+        </TouchableOpacity>
       </View>
 
       {/* Search */}
@@ -314,7 +280,7 @@ export default function WatchlistScreen() {
             <Icon name="search" type="material" size={20} color={colors.textSecondary} />
             <TextInput
               style={styles.searchInput}
-              placeholder="Search by ticker or company name"
+              placeholder="Search S&P 500 or NASDAQ 100 companies"
               value={searchQuery}
               onChangeText={(text) => {
                 setSearchQuery(text);
@@ -323,6 +289,11 @@ export default function WatchlistScreen() {
               autoCapitalize="characters"
               autoCorrect={false}
             />
+            {searchQuery.length > 0 && (
+              <TouchableOpacity onPress={() => setSearchQuery('')}>
+                <Icon name="close" type="material" size={20} color={colors.textSecondary} />
+              </TouchableOpacity>
+            )}
           </View>
           
           {isSearching ? (
@@ -333,6 +304,7 @@ export default function WatchlistScreen() {
               renderItem={renderSearchResult}
               keyExtractor={(item) => item.ticker}
               style={styles.searchResults}
+              keyboardShouldPersistTaps="handled"
             />
           ) : searchQuery.length > 0 ? (
             <Text style={styles.noResults}>No companies found</Text>
@@ -351,17 +323,6 @@ export default function WatchlistScreen() {
         }
         contentContainerStyle={watchlist.length === 0 ? styles.emptyListContainer : undefined}
       />
-
-      {/* Pro upgrade prompt */}
-      {!isProUser && watchlist.length >= WATCHLIST_LIMIT_FREE && (
-        <TouchableOpacity style={styles.upgradePrompt}>
-          <Icon name="star" type="material" size={20} color={colors.warning} />
-          <Text style={styles.upgradeText}>
-            Upgrade to Pro for unlimited watchlist
-          </Text>
-          <Icon name="chevron-right" type="material" size={20} color={colors.white} />
-        </TouchableOpacity>
-      )}
     </SafeAreaView>
   );
 }
@@ -386,6 +347,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     padding: spacing.lg,
+    backgroundColor: colors.white,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   },
@@ -403,7 +365,6 @@ const styles = StyleSheet.create({
     padding: spacing.sm,
   },
   searchContainer: {
-    padding: spacing.md,
     backgroundColor: colors.white,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
@@ -414,6 +375,8 @@ const styles = StyleSheet.create({
     backgroundColor: colors.backgroundSecondary,
     borderRadius: borderRadius.md,
     paddingHorizontal: spacing.md,
+    marginHorizontal: spacing.lg,
+    marginVertical: spacing.md,
     height: 44,
   },
   searchInput: {
@@ -423,44 +386,37 @@ const styles = StyleSheet.create({
     color: colors.text,
   },
   searchLoading: {
-    marginTop: spacing.md,
+    marginVertical: spacing.md,
   },
   searchResults: {
-    maxHeight: 200,
-    marginTop: spacing.sm,
-  },
-  searchResult: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: spacing.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    maxHeight: 300,
+    marginBottom: spacing.md,
   },
   noResults: {
     textAlign: 'center',
-    marginTop: spacing.md,
     color: colors.textSecondary,
     fontSize: typography.fontSize.sm,
-  },
-  watchedText: {
-    fontSize: typography.fontSize.sm,
-    color: colors.textSecondary,
-    fontStyle: 'italic',
+    marginVertical: spacing.md,
   },
   watchlistItem: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    padding: spacing.md,
+    padding: spacing.lg,
     backgroundColor: colors.white,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   },
-  itemLeft: {
+  searchResultItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+    backgroundColor: colors.white,
+  },
+  companyInfo: {
     flex: 1,
   },
-  tickerContainer: {
+  companyHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: spacing.xs,
@@ -469,62 +425,54 @@ const styles = StyleSheet.create({
     fontSize: typography.fontSize.lg,
     fontFamily: typography.fontFamily.bold,
     color: colors.text,
+    marginRight: spacing.sm,
   },
-  sector: {
-    fontSize: typography.fontSize.xs,
-    color: colors.textSecondary,
-    marginLeft: spacing.sm,
-    backgroundColor: colors.backgroundSecondary,
-    paddingHorizontal: spacing.xs,
+  indicesBadge: {
+    backgroundColor: colors.primaryLight,
+    paddingHorizontal: spacing.sm,
     paddingVertical: 2,
     borderRadius: borderRadius.sm,
   },
+  indicesText: {
+    fontSize: typography.fontSize.xs,
+    color: colors.primary,
+    fontFamily: typography.fontFamily.medium,
+  },
   companyName: {
+    fontSize: typography.fontSize.md,
+    color: colors.text,
+    marginBottom: spacing.xs,
+  },
+  sector: {
     fontSize: typography.fontSize.sm,
     color: colors.textSecondary,
-    marginBottom: spacing.sm,
   },
   filingInfo: {
     flexDirection: 'row',
     alignItems: 'center',
     marginTop: spacing.xs,
   },
-  filingBadge: {
-    paddingHorizontal: spacing.xs,
-    paddingVertical: 2,
-    borderRadius: borderRadius.sm,
-  },
-  filingBadgeText: {
-    fontSize: typography.fontSize.xs,
-    fontFamily: typography.fontFamily.bold,
-    color: colors.white,
-  },
-  filingDate: {
-    fontSize: typography.fontSize.xs,
+  filingText: {
+    fontSize: typography.fontSize.sm,
     color: colors.textSecondary,
-    marginLeft: spacing.xs,
-  },
-  sentimentDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    marginLeft: spacing.xs,
-  },
-  earningsInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: spacing.xs,
-  },
-  earningsText: {
-    fontSize: typography.fontSize.xs,
-    color: colors.warning,
     marginLeft: spacing.xs,
   },
   removeButton: {
     padding: spacing.sm,
   },
-  emptyListContainer: {
-    flex: 1,
+  watchedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.gray100,  // 使用已定义的颜色
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+    borderRadius: borderRadius.md,
+  },
+  watchedText: {
+    fontSize: typography.fontSize.sm,
+    color: colors.success,
+    marginLeft: spacing.xs,
+    fontFamily: typography.fontFamily.medium,
   },
   emptyContainer: {
     flex: 1,
@@ -536,45 +484,30 @@ const styles = StyleSheet.create({
     fontSize: typography.fontSize.lg,
     fontFamily: typography.fontFamily.bold,
     color: colors.text,
-    marginTop: spacing.md,
+    marginTop: spacing.lg,
     marginBottom: spacing.sm,
   },
   emptyText: {
     fontSize: typography.fontSize.md,
     color: colors.textSecondary,
     textAlign: 'center',
-    marginBottom: spacing.lg,
+    marginBottom: spacing.xl,
   },
   addButton: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: colors.primary,
     paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.sm,
+    paddingVertical: spacing.md,
     borderRadius: borderRadius.md,
   },
   addButtonText: {
     color: colors.white,
     fontSize: typography.fontSize.md,
     fontFamily: typography.fontFamily.medium,
-    marginLeft: spacing.xs,
-  },
-  upgradePrompt: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.primary,
-    padding: spacing.md,
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-  },
-  upgradeText: {
-    flex: 1,
-    color: colors.white,
-    fontSize: typography.fontSize.sm,
-    fontFamily: typography.fontFamily.medium,
     marginLeft: spacing.sm,
+  },
+  emptyListContainer: {
+    flexGrow: 1,
   },
 });
