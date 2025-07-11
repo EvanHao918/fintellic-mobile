@@ -15,34 +15,30 @@ export const authAPI = {
     formData.append('username', credentials.email);
     formData.append('password', credentials.password);
     
-    const response = await apiClient.post<AuthResponse>('/auth/login', formData, {
+    return await apiClient.post<AuthResponse>('/auth/login', formData, {
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
       },
     });
-    return response.data;
   },
 
   register: async (data: { email: string; password: string; full_name: string }) => {
-    const response = await apiClient.post<AuthResponse>('/auth/register', data);
-    return response.data;
+    return await apiClient.post<AuthResponse>('/auth/register', data);
   },
 
   getCurrentUser: async () => {
-    const response = await apiClient.get<User>('/auth/me');
-    return response.data;
+    return await apiClient.get<User>('/auth/me');
   },
 
   refreshToken: async (token: string) => {
-    const response = await apiClient.post<AuthResponse>('/auth/refresh', { token });
-    return response.data;
+    return await apiClient.post<AuthResponse>('/auth/refresh', { token });
   },
 };
 
 // Filings endpoints
 export const filingsAPI = {
   getList: async (skip: number = 0, limit: number = 20) => {
-    const response = await apiClient.get<{
+    return await apiClient.get<{
       items: Filing[];
       total: number;
       page: number;
@@ -50,43 +46,36 @@ export const filingsAPI = {
     }>('/filings/', {
       params: { skip, limit },
     });
-    return response.data;
   },
 
   getById: async (id: string) => {
-    const response = await apiClient.get<Filing>(`/filings/${id}`);
-    return response.data;
+    return await apiClient.get<Filing>(`/filings/${id}`);
   },
 
   vote: async (id: string, voteType: string) => {
-    const response = await apiClient.post(`/filings/${id}/vote`, null, {
+    return await apiClient.post(`/filings/${id}/vote`, null, {
       params: { vote_type: voteType },
     });
-    return response.data;
   },
 
   getPopular: async (period: string = 'week') => {
-    const response = await apiClient.get<Filing[]>(`/filings/popular/${period}`);
-    return response.data;
+    return await apiClient.get<Filing[]>(`/filings/popular/${period}`);
   },
 };
 
 // Companies endpoints
 export const companiesAPI = {
   getList: async () => {
-    const response = await apiClient.get<Company[]>('/companies/');
-    return response.data;
+    return await apiClient.get<Company[]>('/companies/');
   },
 
   getById: async (id: string) => {
-    const response = await apiClient.get<Company>(`/companies/${id}`);
-    return response.data;
+    return await apiClient.get<Company>(`/companies/${id}`);
   },
 
   search: async (query: string) => {
-    const response = await apiClient.get<Company[]>('/companies/search', {
+    return await apiClient.get<Company[]>('/companies/search', {
       params: { q: query },
     });
-    return response.data;
   },
 };

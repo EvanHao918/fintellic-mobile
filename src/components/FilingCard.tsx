@@ -41,10 +41,28 @@ export default function FilingCard({
     label: filing.filing_type,
   };
   
-  // Get sentiment configuration
+  // Get sentiment configuration with emoji mapping
+  const getSentimentEmoji = (tone: string) => {
+    switch (tone) {
+      case 'bullish':
+        return '😊';
+      case 'bearish':
+        return '😟';
+      case 'neutral':
+      default:
+        return '😐';
+    }
+  };
+  
   const sentimentConfig = filing.management_tone 
-    ? sentiments[filing.management_tone]
-    : sentiments.neutral;
+    ? {
+        ...sentiments[filing.management_tone],
+        emoji: getSentimentEmoji(filing.management_tone)
+      }
+    : {
+        ...sentiments.neutral,
+        emoji: getSentimentEmoji('neutral')
+      };
 
   // Format date
   const formatDate = (dateString: string) => {
@@ -68,10 +86,19 @@ export default function FilingCard({
     }
   };
 
-  // Handle press animation
+  // Extract event type for 8-K filings
+  const eventType = filing.filing_type === '8-K' && filing.event_type 
+    ? filing.event_type 
+    : null;
+
+  // Extract important tags
+  const tags = filing.key_insights?.slice(0, 3);
+
+  // Handle press animations
   const handlePressIn = () => {
     Animated.spring(scaleAnim, {
       toValue: 0.98,
+      speed: 50,
       useNativeDriver: true,
     }).start();
   };
@@ -79,41 +106,15 @@ export default function FilingCard({
   const handlePressOut = () => {
     Animated.spring(scaleAnim, {
       toValue: 1,
+      speed: 50,
       useNativeDriver: true,
     }).start();
   };
 
-  // Format tags from key insights
-  const formatTags = () => {
-    if (!filing.key_insights || filing.key_insights.length === 0) return null;
-    
-    // Extract key words from insights or use pre-defined tags
-    const tags = filing.key_insights.slice(0, 4).map(insight => {
-      // Simple extraction - in production, this would be more sophisticated
-      const words = insight.split(' ');
-      return '#' + words.find(w => w.length > 5 && !w.includes('%')) || '#Update';
-    });
-    
-    return tags;
-  };
-
-  // Get event type for 8-K
-  const getEventType = () => {
-    if (filing.filing_type === '8-K' && filing.key_insights && filing.key_insights.length > 0) {
-      // Extract from first insight or AI summary
-      return 'Material Event';
-    }
-    return null;
-  };
-
-  const tags = formatTags();
-  const eventType = getEventType();
-  const totalVotes = voteCounts.bullish + voteCounts.neutral + voteCounts.bearish;
-
   return (
     <Animated.View style={[styles.container, { transform: [{ scale: scaleAnim }] }]}>
       <TouchableOpacity
-        activeOpacity={1}
+        activeOpacity={0.9}
         onPress={() => onPress(filing)}
         onPressIn={handlePressIn}
         onPressOut={handlePressOut}
@@ -157,7 +158,7 @@ export default function FilingCard({
             {/* Management Tone */}
             {filing.management_tone && (
               <View style={styles.toneSection}>
-                <Text style={styles.toneEmoji}>{sentimentConfig.emoji}</Text>
+                <Text style={styles.toneEmoji}>{getSentimentEmoji(filing.management_tone)}</Text>
                 <Text style={styles.toneLabel}>Management Tone: </Text>
                 <Text style={[styles.toneValue, { color: sentimentConfig.color }]}>
                   {sentimentConfig.label}
@@ -373,15 +374,13 @@ const styles = StyleSheet.create({
     fontSize: typography.fontSize.sm,
     color: colors.primary,
     marginRight: spacing.sm,
-    marginBottom: spacing.xxs,
+    marginBottom: spacing.xs,
   },
   
   // Footer Styles
   footer: {
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
     padding: spacing.md,
-    backgroundColor: colors.backgroundSecondary,
+    paddingTop: 0,
   },
   voteQuestion: {
     fontSize: typography.fontSize.sm,
@@ -395,42 +394,45 @@ const styles = StyleSheet.create({
   },
   voteButton: {
     flex: 1,
-    flexDirection: 'row',
+    flexDirection: 'column',
     alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: spacing.xs,
-    paddingHorizontal: spacing.sm,
-    borderRadius: borderRadius.md,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.white,
-    marginHorizontal: spacing.xxs,
+    paddingVertical: spacing.sm,
+    marginHorizontal: spacing.xs,
+    borderRadius: borderRadius.sm,
+    backgroundColor: colors.backgroundSecondary,
   },
   voteButtonActive: {
-    backgroundColor: colors.primary,
+    backgroundColor: colors.primary + '20',
+    borderWidth: 1,
     borderColor: colors.primary,
   },
   voteEmoji: {
-    fontSize: typography.fontSize.md,
-    marginRight: spacing.xxs,
+    fontSize: typography.fontSize.xl,
+    marginBottom: spacing.xs,
   },
   voteLabel: {
-    fontSize: typography.fontSize.sm,
-    color: colors.text,
-    marginRight: spacing.xs,
+    fontSize: typography.fontSize.xs,
+    color: colors.textSecondary,
+    marginBottom: spacing.xs,
   },
   voteLabelActive: {
-    color: colors.white,
+    color: colors.primary,
+    fontWeight: typography.fontWeight.semibold,
   },
   voteCount: {
     fontSize: typography.fontSize.sm,
-    color: colors.textSecondary,
-    fontWeight: typography.fontWeight.medium,
+    fontWeight: typography.fontWeight.bold,
+    color: colors.text,
   },
+  
+  // Comments Section
   commentsSection: {
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingTop: spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
   },
   commentsLeft: {
     flexDirection: 'row',
@@ -443,6 +445,6 @@ const styles = StyleSheet.create({
   },
   membersOnly: {
     fontSize: typography.fontSize.sm,
-    color: colors.textSecondary,
+    color: colors.gray400,
   },
 });

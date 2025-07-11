@@ -135,8 +135,10 @@ export interface User {
     user_vote?: VoteType | null;
     view_count?: number;
     comment_count?: number;
+    view_limit_info?: ViewLimitInfo;  // Add this line
     created_at: string;
     updated_at: string;
+    
   }
   
   // Comment related types
@@ -149,10 +151,17 @@ export interface User {
     created_at: string;
     updated_at: string;
   }
+
+  export interface ViewLimitInfo {
+    views_remaining: number;
+    is_pro: boolean;
+    views_today: number;
+    daily_limit?: number;
+  }
   
   // Navigation types
  // Navigation types
-export type RootStackParamList = {
+  export type RootStackParamList = {
     Login: undefined;
     Main: undefined;
     FilingDetail: { filingId: string };

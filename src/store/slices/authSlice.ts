@@ -34,13 +34,13 @@ export const login = createAsyncThunk(
     });
 
     // Store token
-    await AsyncStorage.setItem(STORAGE_KEYS.AUTH_TOKEN, response.data.access_token);
-    await AsyncStorage.setItem(STORAGE_KEYS.USER_INFO, JSON.stringify(response.data.user));
+    await AsyncStorage.setItem(STORAGE_KEYS.AUTH_TOKEN, response.access_token);
+    await AsyncStorage.setItem(STORAGE_KEYS.USER_INFO, JSON.stringify(response.user));
 
     // Set token to API client
-    apiClient.setAuthToken(response.data.access_token);
+    apiClient.setAuthToken(response.access_token);
 
-    return response.data;
+    return response;
   }
 );
 
@@ -67,13 +67,13 @@ export const register = createAsyncThunk(
     });
 
     // Store token
-    await AsyncStorage.setItem(STORAGE_KEYS.AUTH_TOKEN, loginResponse.data.access_token);
-    await AsyncStorage.setItem(STORAGE_KEYS.USER_INFO, JSON.stringify(loginResponse.data.user));
+    await AsyncStorage.setItem(STORAGE_KEYS.AUTH_TOKEN, loginResponse.access_token);
+    await AsyncStorage.setItem(STORAGE_KEYS.USER_INFO, JSON.stringify(loginResponse.user));
 
     // Set token to API client
-    apiClient.setAuthToken(loginResponse.data.access_token);
+    apiClient.setAuthToken(loginResponse.access_token);
 
-    return loginResponse.data;
+    return loginResponse;
   }
 );
 

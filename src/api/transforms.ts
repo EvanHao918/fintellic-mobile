@@ -1,7 +1,7 @@
 // src/api/transforms.ts
 // Centralized data transformation functions for API responses
 
-import { Filing, FilingType, ManagementTone, ProcessingStatus, Company } from '../types';
+import { Filing, FilingType, ManagementTone, ProcessingStatus, Company, ViewLimitInfo } from '../types';
 import { cleanAISummary, cleanTags } from '../utils/textHelpers';
 
 // Transform backend company to frontend format
@@ -70,6 +70,12 @@ export const transformFiling = (backendFiling: any): Filing => {
     // Metadata
     view_count: backendFiling.view_count || 0,
     comment_count: backendFiling.comment_count || 0,
+    view_limit_info: backendFiling.view_limit_info ? {
+      views_remaining: backendFiling.view_limit_info.views_remaining,
+      is_pro: backendFiling.view_limit_info.is_pro,
+      views_today: backendFiling.view_limit_info.views_today,
+      daily_limit: backendFiling.view_limit_info.daily_limit,
+    } : undefined,
     created_at: backendFiling.created_at || backendFiling.filing_date,
     updated_at: backendFiling.updated_at || backendFiling.filing_date,
     

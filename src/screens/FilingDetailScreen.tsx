@@ -23,6 +23,7 @@ import { Filing, Comment, RootStackParamList } from '../types';
 import { getFilingById, voteOnFiling, getFilingComments, postComment } from '../api/filings';
 import { AdaptiveChart } from '../components/charts';
 import { VisualData } from '../types';
+import UpgradePromptModal from '../components/UpgradePromptModal';
 
 // Route types
 type FilingDetailScreenRouteProp = RouteProp<RootStackParamList, 'FilingDetail'>;
@@ -51,6 +52,8 @@ export default function FilingDetailScreen() {
   const [isSubmittingComment, setIsSubmittingComment] = useState(false);
   const [isVoting, setIsVoting] = useState(false);
   const [userVote, setUserVote] = useState<'bullish' | 'neutral' | 'bearish' | null>(null);
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const [limitInfo, setLimitInfo] = useState<{ views_today: number; daily_limit: number } | null>(null);
 
   // Load filing details and comments
   const loadFilingDetails = async () => {
@@ -69,9 +72,16 @@ export default function FilingDetailScreen() {
         console.log('No comments yet');
       }
       
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error loading filing details:', error);
-      Alert.alert('Error', 'Failed to load filing details');
+      
+      // Check if it's a daily limit error
+      if (error.isLimitError) {
+        setLimitInfo(error.limitInfo);
+        setShowUpgradeModal(true);
+      } else {
+        Alert.alert('Error', 'Failed to load filing details');
+      }
     } finally {
       setIsLoading(false);
     }
@@ -346,6 +356,7 @@ export default function FilingDetailScreen() {
   // Prepare sections for FlatList
   const sections = [
     { id: 'company', type: 'company' },
+    filing.view_limit_info && !filing.view_limit_info.is_pro ? { id: 'viewLimit', type: 'viewLimit' } : null,
     { id: 'summary', type: 'summary' },
     filing.management_tone ? { id: 'tone', type: 'tone' } : null,
     filing.key_insights && filing.key_insights.length > 0 ? { id: 'insights', type: 'insights' } : null,
@@ -374,6 +385,50 @@ export default function FilingDetailScreen() {
             {filing.event_type && (
               <Text style={styles.eventType}>Event: {filing.event_type}</Text>
             )}
+          </View>
+        );
+
+      case 'viewLimit':
+        if (!filing.view_limit_info) return null;
+        
+        const remainingViews = filing.view_limit_info.views_remaining;
+        const isLastView = remainingViews === 0;
+        const isSecondToLast = remainingViews === 1;
+        
+        return (
+          <View style={[styles.viewLimitBanner, isLastView && styles.viewLimitBannerUrgent]}>
+            <View style={styles.viewLimitContent}>
+              <View style={styles.viewLimitIconContainer}>
+                <Icon 
+                  name={isLastView ? "warning" : "visibility"} 
+                  size={24} 
+                  color={isLastView ? colors.error : colors.primary} 
+                />
+              </View>
+              <View style={styles.viewLimitTextContainer}>
+                <Text style={[styles.viewLimitTitle, isLastView && styles.viewLimitTitleUrgent]}>
+                  {isLastView 
+                    ? "Daily Limit Reached" 
+                    : `${remainingViews} Free ${remainingViews === 1 ? 'View' : 'Views'} Remaining Today`}
+                </Text>
+                <Text style={styles.viewLimitSubtitle}>
+                  {isLastView 
+                    ? "Upgrade to Pro for unlimited access to all filings" 
+                    : isSecondToLast
+                    ? "This is your second to last free view today"
+                    : "Free users can view 3 filings per day"}
+                </Text>
+              </View>
+            </View>
+            <TouchableOpacity 
+              style={[styles.upgradeButton, isLastView && styles.upgradeButtonUrgent]}
+              onPress={() => navigation.navigate('Subscription')}
+            >
+              <Text style={styles.upgradeButtonText}>
+                {isLastView ? "Upgrade Now" : "Go Pro"}
+              </Text>
+              <Icon name="arrow-forward" size={16} color={colors.white} />
+            </TouchableOpacity>
           </View>
         );
 
@@ -622,6 +677,17 @@ export default function FilingDetailScreen() {
           style={styles.flatList}
         />
       )}
+
+      {/* Upgrade Prompt Modal */}
+      <UpgradePromptModal
+        visible={showUpgradeModal}
+        onClose={() => {
+          setShowUpgradeModal(false);
+          navigation.goBack(); // Go back when modal is closed
+        }}
+        viewsToday={limitInfo?.views_today}
+        dailyLimit={limitInfo?.daily_limit}
+      />
     </View>
   );
 }
@@ -740,6 +806,64 @@ const styles = StyleSheet.create({
     fontSize: typography.fontSize.sm,
     color: colors.primary,
     marginTop: spacing.xs,
+  },
+
+  // View Limit Banner
+  viewLimitBanner: {
+    backgroundColor: colors.primary + '10',
+    marginHorizontal: spacing.md,
+    marginVertical: spacing.sm,
+    padding: spacing.md,
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    borderColor: colors.primary + '30',
+  },
+  viewLimitBannerUrgent: {
+    backgroundColor: colors.error + '10',
+    borderColor: colors.error + '30',
+  },
+  viewLimitContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: spacing.sm,
+  },
+  viewLimitIconContainer: {
+    marginRight: spacing.md,
+  },
+  viewLimitTextContainer: {
+    flex: 1,
+  },
+  viewLimitTitle: {
+    fontSize: typography.fontSize.md,
+    fontWeight: typography.fontWeight.semibold,
+    color: colors.text,
+    marginBottom: spacing.xs,
+  },
+  viewLimitTitleUrgent: {
+    color: colors.error,
+  },
+  viewLimitSubtitle: {
+    fontSize: typography.fontSize.sm,
+    color: colors.textSecondary,
+    lineHeight: 18,
+  },
+  upgradeButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.primary,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm,
+    borderRadius: borderRadius.md,
+    alignSelf: 'flex-start',
+  },
+  upgradeButtonUrgent: {
+    backgroundColor: colors.error,
+  },
+  upgradeButtonText: {
+    color: colors.white,
+    fontSize: typography.fontSize.sm,
+    fontWeight: typography.fontWeight.semibold,
+    marginRight: spacing.xs,
   },
   
   // Section
