@@ -3,6 +3,14 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { API_BASE_URL, STORAGE_KEYS } from '../utils/constants';
 import { Platform } from 'react-native';
 
+interface LimitError {
+  isLimitError: boolean;
+  limitInfo?: {
+    views_today: number;
+    daily_limit: number;
+  };
+}
+
 class ApiClient {
   private client: AxiosInstance;
 
@@ -63,21 +71,18 @@ class ApiClient {
           url: error.config?.url,
         });
         
-        // Handle 403 errors specifically for daily limit
+        // Handle 403 errors specially for daily limit
         if (error.response?.status === 403) {
           const errorData = error.response?.data?.detail;
           
-          // Check if it's a daily limit error
+          // Check if this is a daily limit error
           if (errorData && typeof errorData === 'object' && errorData.error === 'DAILY_LIMIT_REACHED') {
-            // Create a custom error with the limit info
-            const limitError = new Error(errorData.message || 'Daily limit reached');
-            (limitError as any).isLimitError = true;
-            (limitError as any).limitInfo = {
-              views_today: errorData.views_today,
-              daily_limit: errorData.daily_limit,
-              upgrade_url: errorData.upgrade_url,
+            const limitError: any = new Error(errorData.message || 'Daily limit reached. Upgrade to Pro for unlimited access.');
+            limitError.isLimitError = true;
+            limitError.limitInfo = {
+              views_today: errorData.views_today || 3,
+              daily_limit: errorData.daily_limit || 3
             };
-            (limitError as any).response = error.response;
             return Promise.reject(limitError);
           }
         }
@@ -99,38 +104,35 @@ class ApiClient {
         }
 
         // Format error message
-        const message = error.response?.data?.detail?.message ||  // For structured 403 errors
-                       error.response?.data?.detail || 
+        const message = error.response?.data?.detail || 
                        error.response?.data?.message || 
                        error.message || 
                        'Network request failed';
 
-        const customError = new Error(message);
-        (customError as any).response = error.response;
-        return Promise.reject(customError);
+        return Promise.reject(new Error(message));
       }
     );
   }
 
-  // HTTP methods - 注意：现在直接返回 data
+  // HTTP methods - IMPORTANT: Now returning response.data directly
   async get<T = any>(url: string, config?: any): Promise<T> {
     const response = await this.client.get<T>(url, config);
-    return response.data;
+    return response.data; // Return data directly
   }
 
   async post<T = any>(url: string, data?: any, config?: any): Promise<T> {
     const response = await this.client.post<T>(url, data, config);
-    return response.data;
+    return response.data; // Return data directly
   }
 
   async put<T = any>(url: string, data?: any, config?: any): Promise<T> {
     const response = await this.client.put<T>(url, data, config);
-    return response.data;
+    return response.data; // Return data directly
   }
 
   async delete<T = any>(url: string, config?: any): Promise<T> {
     const response = await this.client.delete<T>(url, config);
-    return response.data;
+    return response.data; // Return data directly
   }
 
   // Set auth token manually (useful after login)

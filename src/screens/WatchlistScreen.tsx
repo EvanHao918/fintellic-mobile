@@ -60,9 +60,10 @@ export default function WatchlistScreen() {
   const loadWatchlist = async () => {
     try {
       setIsLoading(true);
-      const response = await apiClient.get('/watchlist/');
-      setWatchlist(response.data || []);
-      setWatchlistCount(response.data?.length || 0);
+      // API client now returns data directly
+      const data = await apiClient.get<WatchedCompany[]>('/watchlist/');
+      setWatchlist(data || []);
+      setWatchlistCount(data?.length || 0);
     } catch (error) {
       console.error('Failed to load watchlist:', error);
       Alert.alert('Error', 'Failed to load watchlist');
@@ -90,10 +91,11 @@ export default function WatchlistScreen() {
 
     setIsSearching(true);
     try {
-      const response = await apiClient.get('/watchlist/search', {
+      // API client now returns data directly
+      const data = await apiClient.get<CompanySearchResult[]>('/watchlist/search', {
         params: { q: query, limit: 20 }
       });
-      setSearchResults(response.data || []);
+      setSearchResults(data || []);
     } catch (error) {
       console.error('Search failed:', error);
     } finally {
@@ -104,8 +106,9 @@ export default function WatchlistScreen() {
   // Add to watchlist
   const addToWatchlist = async (ticker: string) => {
     try {
-      const response = await apiClient.post(`/watchlist/${ticker}`);
-      Alert.alert('Success', response.data.message);
+      // API client now returns data directly
+      const data = await apiClient.post<{ message: string }>(`/watchlist/${ticker}`);
+      Alert.alert('Success', data.message);
       
       // Update local state
       loadWatchlist();
@@ -119,7 +122,7 @@ export default function WatchlistScreen() {
     } catch (error: any) {
       Alert.alert(
         'Error',
-        error.response?.data?.detail || 'Failed to add to watchlist'
+        error.message || 'Failed to add to watchlist'
       );
     }
   };
@@ -136,13 +139,14 @@ export default function WatchlistScreen() {
           style: 'destructive',
           onPress: async () => {
             try {
-              const response = await apiClient.delete(`/watchlist/${ticker}`);
-              Alert.alert('Success', response.data.message);
+              // API client now returns data directly
+              const data = await apiClient.delete<{ message: string }>(`/watchlist/${ticker}`);
+              Alert.alert('Success', data.message);
               loadWatchlist();
             } catch (error: any) {
               Alert.alert(
                 'Error',
-                error.response?.data?.detail || 'Failed to remove from watchlist'
+                error.message || 'Failed to remove from watchlist'
               );
             }
           }

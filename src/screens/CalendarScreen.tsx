@@ -51,18 +51,20 @@ export default function CalendarScreen() {
     loadWatchlist();
   }, []);
 
-  // Load earnings data
+  // Load earnings data when watchlist is loaded
   useEffect(() => {
-    fetchEarningsCalendar();
-  }, []);
+    if (watchlist.length >= 0) { // Load even if watchlist is empty
+      fetchEarningsCalendar();
+    }
+  }, [watchlist]);
 
   const loadWatchlist = async () => {
     try {
       // First try to get from API if user is logged in
       if (user) {
-        const response = await apiClient.get('/watchlist');
-        if (response.data && Array.isArray(response.data)) {
-          const tickers = response.data.map((item: any) => 
+        const watchlistData = await apiClient.get<any[]>('/watchlist');
+        if (watchlistData && Array.isArray(watchlistData)) {
+          const tickers = watchlistData.map((item: any) => 
             typeof item === 'string' ? item : item.ticker
           );
           setWatchlist(tickers);
@@ -94,14 +96,14 @@ export default function CalendarScreen() {
       const year = now.getFullYear();
       const month = now.getMonth() + 1;
       
-      // Fetch monthly calendar
-      const monthlyResponse = await apiClient.get('/earnings/calendar/monthly', {
+      // Fetch monthly calendar - API client now returns data directly
+      const calendarData = await apiClient.get<EarningsCalendarResponse>('/earnings/calendar/monthly', {
         params: { year, month }
       });
       
       // Check if response has the expected structure
-      if (monthlyResponse.data && monthlyResponse.data.earnings_days) {
-        const earnings = monthlyResponse.data.earnings_days;
+      if (calendarData && calendarData.earnings_days) {
+        const earnings = calendarData.earnings_days;
         setEarningsData(earnings);
         
         // Mark dates on calendar
@@ -146,6 +148,7 @@ export default function CalendarScreen() {
 
   const onRefresh = async () => {
     setRefreshing(true);
+    await loadWatchlist();
     await fetchEarningsCalendar();
     setRefreshing(false);
   };
@@ -175,39 +178,32 @@ export default function CalendarScreen() {
               )}
               {company.revenue_estimate && (
                 <Text style={styles.estimateText}>
-                  Rev Est: ${(company.revenue_estimate / 1e9).toFixed(1)}B
+                  Rev Est: ${company.revenue_estimate}B
                 </Text>
               )}
             </View>
           )}
         </View>
-        
         <View style={styles.earningItemRight}>
-          <View style={[styles.timeBadge, getTimeBadgeStyle(company.time)]}>
-            <Text style={styles.timeBadgeText}>{company.time}</Text>
+          <View style={[styles.timeBadge, getTimeStyle(company.time)]}>
+            <Text style={styles.timeText}>{company.time}</Text>
           </View>
           {isWatchlisted && (
-            <Icon
-              name="star"
-              type="material"
-              size={16}
-              color={colors.warning}
-              style={styles.watchlistIcon}
-            />
+            <Icon name="star" type="material" size={20} color={colors.warning} />
           )}
         </View>
       </View>
     );
   };
 
-  const getTimeBadgeStyle = (time: string) => {
+  const getTimeStyle = (time: string) => {
     switch (time) {
       case 'BMO':
         return { backgroundColor: colors.info };
       case 'AMC':
         return { backgroundColor: colors.warning };
       default:
-        return { backgroundColor: colors.gray400 };
+        return { backgroundColor: colors.textSecondary };
     }
   };
 
@@ -216,6 +212,7 @@ export default function CalendarScreen() {
       <SafeAreaView style={styles.container}>
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={colors.primary} />
+          <Text style={styles.loadingText}>Loading earnings calendar...</Text>
         </View>
       </SafeAreaView>
     );
@@ -234,34 +231,36 @@ export default function CalendarScreen() {
         <View style={styles.header}>
           <Text style={styles.headerTitle}>Earnings Calendar</Text>
           <Text style={styles.headerSubtitle}>
-            Upcoming earnings announcements
+            Track upcoming earnings announcements
           </Text>
         </View>
 
         {/* Calendar */}
-        <View style={styles.calendarContainer}>
-          <Calendar
-            current={selectedDate}
-            onDayPress={onDayPress}
-            markedDates={markedDates}
-            markingType="custom"
-            theme={{
-              backgroundColor: colors.white,
-              calendarBackground: colors.white,
-              selectedDayBackgroundColor: colors.primary,
-              selectedDayTextColor: colors.white,
-              todayTextColor: colors.primary,
-              dayTextColor: colors.text,
-              textDisabledColor: colors.gray400,
-              dotColor: colors.primary,
-              monthTextColor: colors.text,
-              textMonthFontWeight: 'bold',
-              textDayFontSize: 14,
-              textMonthFontSize: 16,
-              textDayHeaderFontSize: 12,
-            }}
-          />
-        </View>
+        <Calendar
+          current={selectedDate}
+          onDayPress={onDayPress}
+          markedDates={markedDates}
+          theme={{
+            backgroundColor: colors.white,
+            calendarBackground: colors.white,
+            textSectionTitleColor: colors.textSecondary,
+            selectedDayBackgroundColor: colors.primary,
+            selectedDayTextColor: colors.white,
+            todayTextColor: colors.primary,
+            dayTextColor: colors.text,
+            textDisabledColor: colors.gray300,
+            dotColor: colors.primary,
+            selectedDotColor: colors.white,
+            arrowColor: colors.primary,
+            monthTextColor: colors.text,
+            textDayFontFamily: typography.fontFamily.regular,
+            textMonthFontFamily: typography.fontFamily.semibold,
+            textDayHeaderFontFamily: typography.fontFamily.medium,
+            textDayFontSize: 14,
+            textMonthFontSize: 16,
+            textDayHeaderFontSize: 12,
+          }}
+        />
 
         {/* Selected Date Earnings */}
         <View style={styles.selectedDateContainer}>
@@ -274,7 +273,7 @@ export default function CalendarScreen() {
             })}
           </Text>
           
-          {selectedEarnings ? (
+          {selectedEarnings && selectedEarnings.companies.length > 0 ? (
             <>
               <Text style={styles.earningsCount}>
                 {selectedEarnings.companies.length} companies reporting
@@ -332,6 +331,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
+  loadingText: {
+    marginTop: spacing.md,
+    fontSize: typography.fontSize.md,
+    color: colors.textSecondary,
+  },
   header: {
     padding: spacing.lg,
     backgroundColor: colors.white,
@@ -340,26 +344,24 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     fontSize: typography.fontSize.xl,
-    fontWeight: typography.fontWeight.bold,
+    fontFamily: typography.fontFamily.bold,
     color: colors.text,
   },
   headerSubtitle: {
-    fontSize: typography.fontSize.base,
+    fontSize: typography.fontSize.sm,
     color: colors.textSecondary,
     marginTop: spacing.xs,
   },
-  calendarContainer: {
-    backgroundColor: colors.white,
-    paddingBottom: spacing.md,
-  },
   selectedDateContainer: {
     padding: spacing.lg,
+    backgroundColor: colors.white,
+    marginTop: spacing.sm,
   },
   selectedDateTitle: {
     fontSize: typography.fontSize.lg,
-    fontWeight: typography.fontWeight.semibold,
+    fontFamily: typography.fontFamily.semibold,
     color: colors.text,
-    marginBottom: spacing.xs,
+    marginBottom: spacing.sm,
   },
   earningsCount: {
     fontSize: typography.fontSize.sm,
@@ -367,17 +369,16 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md,
   },
   earningsList: {
-    backgroundColor: colors.white,
-    borderRadius: borderRadius.lg,
-    overflow: 'hidden',
+    gap: spacing.sm,
   },
   earningItem: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     padding: spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    backgroundColor: colors.backgroundSecondary,
+    borderRadius: borderRadius.md,
+    marginBottom: spacing.sm,
   },
   earningItemLeft: {
     flex: 1,
@@ -385,57 +386,55 @@ const styles = StyleSheet.create({
   earningItemRight: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: spacing.sm,
   },
   ticker: {
-    fontSize: typography.fontSize.base,
-    fontWeight: typography.fontWeight.semibold,
+    fontSize: typography.fontSize.md,
+    fontFamily: typography.fontFamily.semibold,
     color: colors.text,
   },
   companyName: {
     fontSize: typography.fontSize.sm,
     color: colors.textSecondary,
-    marginTop: 2,
+    marginTop: spacing.xxs,
   },
   estimates: {
     flexDirection: 'row',
+    gap: spacing.sm,
     marginTop: spacing.xs,
   },
   estimateText: {
     fontSize: typography.fontSize.xs,
-    color: colors.textSecondary,
-    marginRight: spacing.md,
+    color: colors.primary,
   },
   timeBadge: {
     paddingHorizontal: spacing.sm,
     paddingVertical: spacing.xxs,
     borderRadius: borderRadius.sm,
   },
-  timeBadgeText: {
+  timeText: {
     fontSize: typography.fontSize.xs,
-    fontWeight: typography.fontWeight.medium,
     color: colors.white,
-  },
-  watchlistIcon: {
-    marginLeft: spacing.sm,
+    fontFamily: typography.fontFamily.medium,
   },
   noEarningsContainer: {
     alignItems: 'center',
-    paddingVertical: spacing.xl,
+    padding: spacing.xl,
   },
   noEarningsText: {
-    fontSize: typography.fontSize.base,
+    fontSize: typography.fontSize.md,
     color: colors.textSecondary,
     marginTop: spacing.md,
+    textAlign: 'center',
   },
   legend: {
     padding: spacing.lg,
     backgroundColor: colors.white,
-    marginTop: spacing.md,
-    marginBottom: spacing.xl,
+    marginTop: spacing.sm,
   },
   legendTitle: {
-    fontSize: typography.fontSize.base,
-    fontWeight: typography.fontWeight.semibold,
+    fontSize: typography.fontSize.md,
+    fontFamily: typography.fontFamily.semibold,
     color: colors.text,
     marginBottom: spacing.md,
   },
@@ -445,12 +444,12 @@ const styles = StyleSheet.create({
   legendItem: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: spacing.sm,
   },
   legendDot: {
     width: 12,
     height: 12,
     borderRadius: 6,
-    marginRight: spacing.sm,
   },
   legendText: {
     fontSize: typography.fontSize.sm,

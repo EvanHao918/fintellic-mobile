@@ -54,10 +54,13 @@ export default function FilingDetailScreen() {
   const [userVote, setUserVote] = useState<'bullish' | 'neutral' | 'bearish' | null>(null);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [limitInfo, setLimitInfo] = useState<{ views_today: number; daily_limit: number } | null>(null);
+  const [error403, setError403] = useState(false);
 
   // Load filing details and comments
   const loadFilingDetails = async () => {
     try {
+      setError403(false);
+      
       // Load filing details using the API function
       const filingData = await getFilingById(filingId);
       setFiling(filingData);
@@ -77,6 +80,7 @@ export default function FilingDetailScreen() {
       
       // Check if it's a daily limit error
       if (error.isLimitError) {
+        setError403(true);
         setLimitInfo(error.limitInfo);
         setShowUpgradeModal(true);
       } else {
@@ -338,6 +342,60 @@ export default function FilingDetailScreen() {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color={colors.primary} />
+      </View>
+    );
+  }
+
+  // Handle 403 error - show upgrade prompt instead of "Filing not found"
+  if (error403 && !filing) {
+    return (
+      <View style={styles.container}>
+        {/* Header */}
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+            <Icon name="arrow-back" size={24} color={colors.text} />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Daily Limit Reached</Text>
+          <View style={styles.headerRight} />
+        </View>
+
+        <View style={styles.limitReachedContainer}>
+          <Icon name="lock" size={80} color={colors.primary} style={styles.limitIcon} />
+          
+          <Text style={styles.limitTitle}>Daily Limit Reached</Text>
+          <Text style={styles.limitText}>
+            You've reached your daily limit of {limitInfo?.daily_limit || 3} free reports.
+          </Text>
+          <Text style={styles.limitSubtext}>
+            Upgrade to Pro for unlimited access to all financial reports, advanced features, and exclusive insights.
+          </Text>
+          
+          <TouchableOpacity 
+            style={styles.limitUpgradeButton}
+            onPress={() => navigation.navigate('Subscription')}
+          >
+            <Text style={styles.limitUpgradeButtonText}>Upgrade to Pro</Text>
+            <Icon name="arrow-forward" size={20} color={colors.white} />
+          </TouchableOpacity>
+          
+          <TouchableOpacity 
+            style={styles.limitBackButton}
+            onPress={() => navigation.goBack()}
+          >
+            <Text style={styles.limitBackButtonText}>Go Back</Text>
+          </TouchableOpacity>
+        </View>
+        
+        {/* Also show the modal */}
+        <UpgradePromptModal
+          visible={showUpgradeModal}
+          onClose={() => {
+            setShowUpgradeModal(false);
+            navigation.goBack();
+          }}
+          viewsToday={limitInfo?.views_today}
+          dailyLimit={limitInfo?.daily_limit}
+        />
       </View>
     );
   }
@@ -735,6 +793,59 @@ const styles = StyleSheet.create({
     fontSize: typography.fontSize.md,
     color: colors.primary,
     textDecorationLine: 'underline',
+  },
+  
+  // Daily Limit Reached Screen
+  limitReachedContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: spacing.xl,
+  },
+  limitIcon: {
+    marginBottom: spacing.xl,
+  },
+  limitTitle: {
+    fontSize: typography.fontSize.xxl,
+    fontWeight: typography.fontWeight.bold,
+    color: colors.text,
+    marginBottom: spacing.md,
+  },
+  limitText: {
+    fontSize: typography.fontSize.lg,
+    color: colors.text,
+    textAlign: 'center',
+    marginBottom: spacing.sm,
+  },
+  limitSubtext: {
+    fontSize: typography.fontSize.md,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    marginBottom: spacing.xl,
+    paddingHorizontal: spacing.lg,
+  },
+  limitUpgradeButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.primary,
+    paddingHorizontal: spacing.xl,
+    paddingVertical: spacing.md,
+    borderRadius: borderRadius.md,
+    marginBottom: spacing.md,
+  },
+  limitUpgradeButtonText: {
+    color: colors.white,
+    fontSize: typography.fontSize.lg,
+    fontWeight: typography.fontWeight.semibold,
+    marginRight: spacing.sm,
+  },
+  limitBackButton: {
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm,
+  },
+  limitBackButtonText: {
+    color: colors.primary,
+    fontSize: typography.fontSize.md,
   },
   
   // Header
