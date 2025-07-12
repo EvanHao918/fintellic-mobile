@@ -38,7 +38,11 @@ export default function FilingDetailScreen() {
   const authState = useSelector((state: RootState) => state.auth);
   const user = authState?.user || null;
   const token = authState?.token || null;
-  const isProUser = user?.is_pro || false;
+  const isProUser = user?.tier === 'pro';
+  console.log('FilingDetailScreen - User object:', user);
+  console.log('FilingDetailScreen - isProUser:', isProUser);
+  console.log('FilingDetailScreen - user?.tier:', user?.tier);
+  
   
   // Get filing ID from route params
   const { filingId } = route.params;

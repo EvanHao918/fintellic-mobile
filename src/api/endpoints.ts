@@ -15,30 +15,41 @@ export const authAPI = {
     formData.append('username', credentials.email);
     formData.append('password', credentials.password);
     
-    return await apiClient.post<AuthResponse>('/auth/login', formData, {
+    const response = await apiClient.post<AuthResponse>('/auth/login', formData, {
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
       },
     });
+    return response; // Already returns .data due to ApiClient changes
   },
 
   register: async (data: { email: string; password: string; full_name: string }) => {
-    return await apiClient.post<AuthResponse>('/auth/register', data);
+    const response = await apiClient.post<AuthResponse>('/auth/register', data);
+    return response;
   },
 
+  // FIXED: Changed from '/auth/me' to '/users/me'
   getCurrentUser: async () => {
-    return await apiClient.get<User>('/auth/me');
+    const response = await apiClient.get<User>('/users/me');
+    return response;
   },
 
   refreshToken: async (token: string) => {
-    return await apiClient.post<AuthResponse>('/auth/refresh', { token });
+    const response = await apiClient.post<AuthResponse>('/auth/refresh', { token });
+    return response;
+  },
+
+  // Add upgrade endpoint to auth API for convenience
+  upgradeToProMock: async (plan: string) => {
+    const response = await apiClient.post('/users/me/upgrade-mock', { plan });
+    return response;
   },
 };
 
 // Filings endpoints
 export const filingsAPI = {
   getList: async (skip: number = 0, limit: number = 20) => {
-    return await apiClient.get<{
+    const response = await apiClient.get<{
       items: Filing[];
       total: number;
       page: number;
@@ -46,36 +57,66 @@ export const filingsAPI = {
     }>('/filings/', {
       params: { skip, limit },
     });
+    return response;
   },
 
   getById: async (id: string) => {
-    return await apiClient.get<Filing>(`/filings/${id}`);
+    const response = await apiClient.get<Filing>(`/filings/${id}`);
+    return response;
   },
 
   vote: async (id: string, voteType: string) => {
-    return await apiClient.post(`/filings/${id}/vote`, null, {
+    const response = await apiClient.post(`/filings/${id}/vote`, null, {
       params: { vote_type: voteType },
     });
+    return response;
   },
 
   getPopular: async (period: string = 'week') => {
-    return await apiClient.get<Filing[]>(`/filings/popular/${period}`);
+    const response = await apiClient.get<Filing[]>(`/filings/popular/${period}`);
+    return response;
   },
 };
 
 // Companies endpoints
 export const companiesAPI = {
   getList: async () => {
-    return await apiClient.get<Company[]>('/companies/');
+    const response = await apiClient.get<Company[]>('/companies/');
+    return response;
   },
 
   getById: async (id: string) => {
-    return await apiClient.get<Company>(`/companies/${id}`);
+    const response = await apiClient.get<Company>(`/companies/${id}`);
+    return response;
   },
 
   search: async (query: string) => {
-    return await apiClient.get<Company[]>('/companies/search', {
+    const response = await apiClient.get<Company[]>('/companies/search', {
       params: { q: query },
     });
+    return response;
+  },
+};
+
+// User endpoints
+export const userAPI = {
+  getCurrentUser: async () => {
+    const response = await apiClient.get<User>('/users/me');
+    return response;
+  },
+
+  updateProfile: async (data: Partial<User>) => {
+    const response = await apiClient.put<User>('/users/me', data);
+    return response;
+  },
+
+  upgradeToProMock: async (plan: string) => {
+    const response = await apiClient.post('/users/me/upgrade-mock', { plan });
+    return response;
+  },
+
+  getSubscription: async () => {
+    const response = await apiClient.get('/users/me/subscription');
+    return response;
   },
 };

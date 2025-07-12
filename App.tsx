@@ -8,8 +8,17 @@ import { loadStoredAuth } from './src/store/slices/authSlice';
 
 export default function App() {
   useEffect(() => {
+    console.log('🚀 App starting, dispatching loadStoredAuth...');
+    
     // Load stored authentication on app start
-    store.dispatch(loadStoredAuth() as any);
+    store.dispatch(loadStoredAuth() as any)
+      .then((result: any) => {
+        console.log('📱 loadStoredAuth result:', result);
+        console.log('🔍 Current auth state after load:', store.getState().auth);
+      })
+      .catch((error: any) => {
+        console.error('❌ loadStoredAuth error:', error);
+      });
   }, []);
 
   return (

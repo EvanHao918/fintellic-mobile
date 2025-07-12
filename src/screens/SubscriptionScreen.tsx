@@ -35,7 +35,8 @@ export default function SubscriptionScreen() {
   const [selectedPlan, setSelectedPlan] = useState<PlanType>('monthly');
   const [isLoading, setIsLoading] = useState(false);
   
-  const isProUser = user?.is_pro || user?.tier === 'pro';
+  // Fix Pro user detection based on tier only
+  const isProUser = user?.tier === 'pro';
 
   // Plan features comparison
   const freeFeatures: PlanFeature[] = [
@@ -64,53 +65,56 @@ export default function SubscriptionScreen() {
     { text: 'Historical data access', included: true },
   ];
 
-  // Handle upgrade
+  // Handle upgrade - Direct upgrade without Alert for testing
   const handleUpgrade = async () => {
+    console.log('🚀 Upgrade button clicked!'); // Debug line
+    console.log('🔍 isProUser:', isProUser); // Debug line
+    console.log('🔍 user?.tier:', user?.tier); // Debug line
+    
     if (isProUser) {
-      Alert.alert('Already Pro', 'You already have an active Pro subscription!');
+      console.log('⚠️ User is already Pro'); // Debug line
       return;
     }
 
-    Alert.alert(
-      'Confirm Upgrade',
-      `Upgrade to Fintellic Pro (${selectedPlan === 'monthly' ? '$39.9/month' : '$399/year'})?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Upgrade',
-          onPress: async () => {
-            setIsLoading(true);
-            try {
-              // Mock upgrade API call
-              const response = await apiClient.post('/users/me/upgrade-mock', {
-                plan: selectedPlan,
-              });
-              
-              // Update user state
-              dispatch(updateUser(response.data.user));
-              
-              Alert.alert(
-                'Success!',
-                'Welcome to Fintellic Pro! Enjoy unlimited access to all features.',
-                [
-                  {
-                    text: 'OK',
-                    onPress: () => navigation.goBack(),
-                  },
-                ]
-              );
-            } catch (error: any) {
-              Alert.alert(
-                'Error',
-                error.response?.data?.detail || 'Failed to upgrade. Please try again.'
-              );
-            } finally {
-              setIsLoading(false);
-            }
-          },
-        },
-      ]
-    );
+    console.log('🔄 Starting direct upgrade (skipping Alert)...'); // Debug line
+    setIsLoading(true);
+    
+    try {
+      console.log('📡 Making API call...'); // Debug line
+      
+      // Direct upgrade API call
+      const response = await apiClient.post('/users/me/upgrade-mock', {
+        plan: selectedPlan,
+      });
+      
+      console.log('📦 API response received:', response); // Debug line
+      
+      // Check if response has the expected structure
+      if (response && response.user) {
+        console.log('✅ Updating user in Redux with response.user'); // Debug line
+        dispatch(updateUser(response.user));
+      } else {
+        console.log('🔄 No user in response, fetching user info...'); // Debug line
+        const userResponse = await apiClient.get('/users/me');
+        console.log('👤 Fresh user data:', userResponse); // Debug line
+        dispatch(updateUser(userResponse));
+      }
+      
+      console.log('🎉 Upgrade completed successfully!'); // Debug line
+      
+      // Navigate back to show the updated UI
+      navigation.goBack();
+      
+    } catch (error: any) {
+      console.error('❌ Upgrade error:', error); // Debug line
+      console.error('Error details:', {
+        message: error.message,
+        response: error.response?.data,
+        status: error.response?.status
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   // Render feature item

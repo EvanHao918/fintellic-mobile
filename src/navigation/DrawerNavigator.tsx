@@ -32,6 +32,11 @@ function CustomDrawerContent(props: DrawerContentComponentProps) {
   const navigation = useNavigation();
   const user = useSelector((state: RootState) => state.auth.user);
 
+  // Debug logging
+  console.log('DrawerNavigator - User object:', user);
+  console.log('DrawerNavigator - user?.tier:', user?.tier);
+  console.log('DrawerNavigator - user?.is_pro:', user?.is_pro);
+
   const handleLogout = () => {
     // Dispatch the logout thunk action
     dispatch(logout() as any);
@@ -45,7 +50,7 @@ function CustomDrawerContent(props: DrawerContentComponentProps) {
         <Text style={styles.appName}>Fintellic</Text>
         <Text style={styles.userName}>{user?.full_name || 'User'}</Text>
         <View style={styles.membershipBadge}>
-          {user?.is_pro ? (
+          {user?.tier === 'pro' ? (
             <>
               <Icon name="star" type="material" size={16} color={colors.warning} />
               <Text style={styles.membershipText}>Pro Member</Text>
