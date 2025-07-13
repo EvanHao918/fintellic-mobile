@@ -1,7 +1,18 @@
 // src/api/filings.ts
 import apiClient from './client';
-import { Filing, VoteType, Comment } from '../types';
-import { transformFiling, transformFilingList, transformVoteResponse, transformComment } from './transforms';
+import { 
+  Filing, 
+  VoteType, 
+  Comment, 
+  CommentVoteResponse,
+  CommentListResponse 
+} from '../types';
+import { 
+  transformFiling, 
+  transformFilingList, 
+  transformVoteResponse, 
+  transformComment 
+} from './transforms';
 
 // Get filings list with pagination
 export const getFilings = async (page: number = 1, limit: number = 20) => {
@@ -30,21 +41,77 @@ export const voteOnFiling = async (filingId: string, voteType: VoteType) => {
     return transformVoteResponse(response);
 };
 
-// Get filing comments
-export const getFilingComments = async (filingId: string) => {
+// Get filing comments - returns Comment array for backward compatibility
+export const getFilingComments = async (filingId: string): Promise<Comment[]> => {
   const response = await apiClient.get(`/filings/${filingId}/comments`);
-  // Handle paginated response structure: {total: number, items: Comment[]}
-  const comments = response.items || response || [];
-  return comments.map(transformComment);
+  
+  // Handle different response structures
+  const data = response.data || response;
+  const items = data.items || data || [];
+  
+  return items.map(transformComment);
 };
 
-// Post a comment
-export const postComment = async (filingId: string, content: string) => {
+// Get filing comments with pagination - new function that returns full response
+export const getFilingCommentsWithPagination = async (
+  filingId: string, 
+  skip: number = 0, 
+  limit: number = 20
+): Promise<CommentListResponse> => {
+  const response = await apiClient.get(`/filings/${filingId}/comments`, {
+    params: { skip, limit }
+  });
+  
+  const data = response.data || response;
+  const items = data.items || [];
+  
+  return {
+    total: data.total || items.length,
+    items: items.map(transformComment)
+  };
+};
+
+// Post a comment with optional reply
+export const postComment = async (
+  filingId: string, 
+  content: string,
+  replyToCommentId?: number
+): Promise<Comment> => {
   const response = await apiClient.post(`/filings/${filingId}/comments`, {
+    content: content.trim(),
+    reply_to_comment_id: replyToCommentId
+  });
+  
+  return transformComment(response.data || response);
+};
+
+// Vote on a comment
+export const voteComment = async (
+  commentId: string,
+  voteType: 'upvote' | 'downvote' | 'none'
+): Promise<CommentVoteResponse> => {
+  const response = await apiClient.post(
+    `/comments/${commentId}/vote`,
+    { vote_type: voteType }
+  );
+  return response.data || response;
+};
+
+// Update a comment
+export const updateComment = async (
+  commentId: string,
+  content: string
+): Promise<Comment> => {
+  const response = await apiClient.put(`/comments/${commentId}`, {
     content: content.trim()
   });
   
-  return transformComment(response);
+  return transformComment(response.data || response);
+};
+
+// Delete a comment
+export const deleteComment = async (commentId: string): Promise<void> => {
+  await apiClient.delete(`/comments/${commentId}`);
 };
 
 // Search filings
@@ -76,4 +143,10 @@ export const getCompanyFilings = async (ticker: string, limit: number = 10) => {
   });
   
   return transformFilingList(response);
+};
+
+// Check filing access (for free tier limits)
+export const checkFilingAccess = async (filingId: string) => {
+  const response = await apiClient.get(`/filings/check-access/${filingId}`);
+  return response.data;
 };

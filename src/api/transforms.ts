@@ -118,15 +118,30 @@ export const transformVoteResponse = (response: any) => {
 };
 
 // Transform comment
-// Transform comment - 在 src/api/transforms.ts 中更新这个函数
+// 替换原有的 transformComment 函数
 export const transformComment = (comment: any) => {
     return {
-      id: comment.id,
-      filing_id: comment.filing_id,
-      user_id: comment.user_id,
-      user_name: comment.username || comment.user_name || 'Anonymous',  // Map username to user_name
-      content: comment.content,
+      id: String(comment.id),
+      filing_id: String(comment.filing_id),
+      user_id: String(comment.user_id),
+      username: comment.username || comment.user_name || 'Anonymous',
+      user_name: comment.username || comment.user_name || 'Anonymous', // backward compatibility
+      user_tier: comment.user_tier || 'free',
+      content: comment.content || '',
       created_at: comment.created_at,
-      updated_at: comment.updated_at,
+      updated_at: comment.updated_at || comment.created_at,
+      is_editable: Boolean(comment.is_editable),
+      // New voting fields
+      upvotes: comment.upvotes || 0,
+      downvotes: comment.downvotes || 0,
+      net_votes: comment.net_votes || 0,
+      user_vote: comment.user_vote || 0,
+      // Reply information
+      reply_to: comment.reply_to ? {
+        comment_id: comment.reply_to.comment_id,
+        user_id: comment.reply_to.user_id,
+        username: comment.reply_to.username,
+        content_preview: comment.reply_to.content_preview
+      } : undefined
     };
   };

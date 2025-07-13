@@ -138,18 +138,60 @@ export interface User {
     view_limit_info?: ViewLimitInfo;  // Add this line
     created_at: string;
     updated_at: string;
-    
+  }
+
+  // Comment reply information
+  export interface ReplyInfo {
+    comment_id: number;
+    user_id: number;
+    username: string;
+    content_preview: string;
   }
   
-  // Comment related types
+  // Comment related types - Updated with voting and reply features
   export interface Comment {
     id: string;
     filing_id: string;
     user_id: string;
-    user_name: string;
+    username: string;
+    user_name?: string; // Keep for backward compatibility
+    user_tier: 'free' | 'pro';
     content: string;
     created_at: string;
     updated_at: string;
+    is_editable: boolean;
+    // New fields for voting and reply
+    upvotes: number;
+    downvotes: number;
+    net_votes: number;
+    user_vote: number; // -1, 0, or 1
+    reply_to?: ReplyInfo;
+  }
+
+  // Comment creation request
+  export interface CommentCreate {
+    content: string;
+    reply_to_comment_id?: number;
+  }
+
+  // Comment vote request
+  export interface CommentVoteRequest {
+    vote_type: 'upvote' | 'downvote' | 'none';
+  }
+
+  // Comment vote response
+  export interface CommentVoteResponse {
+    comment_id: number;
+    upvotes: number;
+    downvotes: number;
+    net_votes: number;
+    user_vote: number;
+  }
+
+  // Comment list response
+  export interface CommentListResponse {
+    total: number;
+    items: Comment[];
   }
 
   export interface ViewLimitInfo {
@@ -160,12 +202,11 @@ export interface User {
   }
   
   // Navigation types
- // Navigation types
   export type RootStackParamList = {
     Login: undefined;
     Main: undefined;
     FilingDetail: { filingId: string };
-    Subscription: undefined;  // 添加这一行
+    Subscription: undefined;
   };
   
   export type TabParamList = {

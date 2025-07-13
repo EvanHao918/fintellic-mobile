@@ -22,6 +22,7 @@ import { colors, typography, spacing, borderRadius, shadows } from '../theme';
 import { Filing, Comment, RootStackParamList } from '../types';
 import { getFilingById, voteOnFiling, getFilingComments, postComment } from '../api/filings';
 import { AdaptiveChart } from '../components/charts';
+import { CommentItem } from '../components';
 import { VisualData } from '../types';
 import UpgradePromptModal from '../components/UpgradePromptModal';
 
@@ -59,6 +60,7 @@ export default function FilingDetailScreen() {
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [limitInfo, setLimitInfo] = useState<{ views_today: number; daily_limit: number } | null>(null);
   const [error403, setError403] = useState(false);
+  const [replyingTo, setReplyingTo] = useState<Comment | null>(null);
 
   // Load filing details and comments
   const loadFilingDetails = async () => {
@@ -127,6 +129,18 @@ export default function FilingDetailScreen() {
     }
   };
 
+  // Handle reply
+  const handleReply = (comment: Comment) => {
+    setReplyingTo(comment);
+    // Focus on comment input with @mention
+    setNewComment(`@${comment.username} `);
+  };
+
+  const handleCancelReply = () => {
+    setReplyingTo(null);
+    setNewComment('');
+  };
+
   // Handle comment submission
   const handleSubmitComment = async () => {
     if (!isProUser) {
@@ -139,9 +153,21 @@ export default function FilingDetailScreen() {
     try {
       setIsSubmittingComment(true);
       
-      const newCommentData = await postComment(filingId, newComment.trim());
+      // Remove @mention from comment if replying
+      let commentContent = newComment.trim();
+      if (replyingTo) {
+        commentContent = commentContent.replace(`@${replyingTo.username} `, '');
+      }
+      
+      const newCommentData = await postComment(
+        filingId, 
+        commentContent,
+        replyingTo ? parseInt(replyingTo.id) : undefined
+      );
+      
       setComments([newCommentData, ...comments]);
       setNewComment('');
+      setReplyingTo(null);
       
       // Update comment count
       if (filing) {
@@ -156,6 +182,26 @@ export default function FilingDetailScreen() {
       Alert.alert('Error', error.response?.data?.detail || 'Failed to post comment');
     } finally {
       setIsSubmittingComment(false);
+    }
+  };
+
+  // Handle comment update
+  const handleCommentUpdate = (updatedComment: Comment) => {
+    setComments(prevComments => 
+      prevComments.map(c => c.id === updatedComment.id ? updatedComment : c)
+    );
+  };
+
+  // Handle comment delete
+  const handleCommentDelete = (commentId: string) => {
+    setComments(prevComments => prevComments.filter(c => c.id !== commentId));
+    
+    // Update comment count
+    if (filing) {
+      setFiling({
+        ...filing,
+        comment_count: Math.max(0, (filing.comment_count || 0) - 1)
+      });
     }
   };
 
@@ -628,12 +674,25 @@ export default function FilingDetailScreen() {
               💬 Comments ({filing.comment_count || 0})
             </Text>
             
+            {/* Reply indicator */}
+            {replyingTo && (
+              <View style={styles.replyIndicator}>
+                <Icon name="reply" size={16} color={colors.primary} />
+                <Text style={styles.replyingToText}>
+                  Replying to @{replyingTo.username}
+                </Text>
+                <TouchableOpacity onPress={handleCancelReply}>
+                  <Icon name="close" size={20} color={colors.textSecondary} />
+                </TouchableOpacity>
+              </View>
+            )}
+            
             {/* Comment Input */}
             {isProUser ? (
               <View style={styles.commentInputContainer}>
                 <TextInput
                   style={styles.commentInput}
-                  placeholder="Add a comment..."
+                  placeholder={replyingTo ? "Write your reply..." : "Add a comment..."}
                   placeholderTextColor={colors.textSecondary}
                   value={newComment}
                   onChangeText={setNewComment}
@@ -651,7 +710,9 @@ export default function FilingDetailScreen() {
                   {isSubmittingComment ? (
                     <ActivityIndicator size="small" color={colors.white} />
                   ) : (
-                    <Text style={styles.submitButtonText}>Post</Text>
+                    <Text style={styles.submitButtonText}>
+                      {replyingTo ? 'Reply' : 'Post'}
+                    </Text>
                   )}
                 </TouchableOpacity>
               </View>
@@ -667,17 +728,14 @@ export default function FilingDetailScreen() {
             {/* Comments List */}
             {comments.length > 0 ? (
               comments.map((comment) => (
-                <View key={comment.id} style={styles.commentItem}>
-                  <View style={styles.commentHeader}>
-                    <Text style={styles.commentAuthor}>
-                    {comment.user_name || 'Anonymous'}
-                    </Text>
-                    <Text style={styles.commentDate}>
-                      {formatDate(comment.created_at)}
-                    </Text>
-                  </View>
-                  <Text style={styles.commentContent}>{comment.content}</Text>
-                </View>
+                <CommentItem
+                  key={comment.id}
+                  comment={comment}
+                  currentUserId={user?.id}
+                  onReply={handleReply}
+                  onUpdate={handleCommentUpdate}
+                  onDelete={handleCommentDelete}
+                />
               ))
             ) : (
               <Text style={styles.noComments}>
@@ -1086,6 +1144,21 @@ const styles = StyleSheet.create({
   },
   
   // Comments
+  replyIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.primary + '10',
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: borderRadius.md,
+    marginBottom: spacing.md,
+  },
+  replyingToText: {
+    fontSize: typography.fontSize.sm,
+    color: colors.primary,
+    marginLeft: spacing.sm,
+    flex: 1,
+  },
   commentInputContainer: {
     backgroundColor: colors.backgroundSecondary,
     borderRadius: borderRadius.md,
@@ -1128,32 +1201,6 @@ const styles = StyleSheet.create({
     fontSize: typography.fontSize.md,
     color: colors.primary,
     marginLeft: spacing.sm,
-  },
-  
-  commentItem: {
-    backgroundColor: colors.backgroundSecondary,
-    padding: spacing.md,
-    borderRadius: borderRadius.md,
-    marginBottom: spacing.sm,
-  },
-  commentHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: spacing.xs,
-  },
-  commentAuthor: {
-    fontSize: typography.fontSize.sm,
-    fontWeight: typography.fontWeight.semibold,
-    color: colors.text,
-  },
-  commentDate: {
-    fontSize: typography.fontSize.xs,
-    color: colors.textSecondary,
-  },
-  commentContent: {
-    fontSize: typography.fontSize.md,
-    color: colors.text,
-    lineHeight: 20,
   },
   
   noComments: {
