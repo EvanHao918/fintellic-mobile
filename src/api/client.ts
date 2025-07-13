@@ -65,10 +65,18 @@ class ApiClient {
     this.client.interceptors.response.use(
       (response) => response,
       async (error) => {
+        // Don't log CORS errors as API errors
+        if (error.message && error.message.includes('CORS')) {
+          console.error('CORS Error detected:', error.message);
+          // For CORS errors, return the original error
+          return Promise.reject(error);
+        }
+        
         console.error('API Error:', {
           status: error.response?.status,
           data: error.response?.data,
           url: error.config?.url,
+          message: error.message,
         });
         
         // Handle 403 errors specially for daily limit
@@ -103,13 +111,20 @@ class ApiClient {
           // or navigate to login screen
         }
 
-        // Format error message
-        const message = error.response?.data?.detail || 
-                       error.response?.data?.message || 
-                       error.message || 
-                       'Network request failed';
-
-        return Promise.reject(new Error(message));
+        // Return the original error with response data if available
+        if (error.response) {
+          // The request was made and the server responded with a status code
+          // that falls out of the range of 2xx
+          return Promise.reject(error);
+        } else if (error.request) {
+          // The request was made but no response was received
+          console.error('No response received:', error.request);
+          return Promise.reject(error);
+        } else {
+          // Something happened in setting up the request that triggered an Error
+          console.error('Request setup error:', error.message);
+          return Promise.reject(error);
+        }
       }
     );
   }

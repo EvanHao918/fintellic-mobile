@@ -670,7 +670,7 @@ export default function FilingDetailScreen() {
                 <View key={comment.id} style={styles.commentItem}>
                   <View style={styles.commentHeader}>
                     <Text style={styles.commentAuthor}>
-                      {comment.user_name}
+                    {comment.user_name || 'Anonymous'}
                     </Text>
                     <Text style={styles.commentDate}>
                       {formatDate(comment.created_at)}

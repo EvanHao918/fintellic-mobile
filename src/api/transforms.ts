@@ -118,14 +118,15 @@ export const transformVoteResponse = (response: any) => {
 };
 
 // Transform comment
+// Transform comment - 在 src/api/transforms.ts 中更新这个函数
 export const transformComment = (comment: any) => {
-  return {
-    id: comment.id,
-    filing_id: comment.filing_id,
-    user_id: comment.user_id,
-    user_name: comment.user?.full_name || comment.user_name || 'Anonymous',
-    content: comment.content,
-    created_at: comment.created_at,
-    updated_at: comment.updated_at,
+    return {
+      id: comment.id,
+      filing_id: comment.filing_id,
+      user_id: comment.user_id,
+      user_name: comment.username || comment.user_name || 'Anonymous',  // Map username to user_name
+      content: comment.content,
+      created_at: comment.created_at,
+      updated_at: comment.updated_at,
+    };
   };
-};

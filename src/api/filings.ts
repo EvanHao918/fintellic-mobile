@@ -24,16 +24,18 @@ export const getFilingById = async (id: string) => {
 
 export const voteOnFiling = async (filingId: string, voteType: VoteType) => {
     const response = await apiClient.post(`/filings/${filingId}/vote`, {
-      sentiment: voteType  // 在请求体中发送 sentiment
+      sentiment: voteType  // Send sentiment in request body
     });
     
     return transformVoteResponse(response);
-  };
+};
 
 // Get filing comments
 export const getFilingComments = async (filingId: string) => {
-  const response = await apiClient.get<Comment[]>(`/filings/${filingId}/comments`);
-  return (response || []).map(transformComment);
+  const response = await apiClient.get(`/filings/${filingId}/comments`);
+  // Handle paginated response structure: {total: number, items: Comment[]}
+  const comments = response.items || response || [];
+  return comments.map(transformComment);
 };
 
 // Post a comment
