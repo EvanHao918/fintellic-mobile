@@ -9,6 +9,7 @@ import {
   Alert,
   ActivityIndicator,
   RefreshControl,
+  Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Icon } from 'react-native-elements';
@@ -55,6 +56,11 @@ export default function WatchlistScreen() {
   const [searchResults, setSearchResults] = useState<CompanySearchResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [watchlistCount, setWatchlistCount] = useState(0);
+  
+  // Add state for delete confirmation modal
+  const [deleteModalVisible, setDeleteModalVisible] = useState(false);
+  const [tickerToDelete, setTickerToDelete] = useState<string>('');
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // Load watchlist
   const loadWatchlist = async () => {
@@ -127,32 +133,41 @@ export default function WatchlistScreen() {
     }
   };
 
-  // Remove from watchlist
+  // Remove from watchlist - opens confirmation modal
   const removeFromWatchlist = async (ticker: string) => {
-    Alert.alert(
-      'Remove from Watchlist',
-      `Are you sure you want to remove ${ticker} from your watchlist?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Remove',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              // API client now returns data directly
-              const data = await apiClient.delete<{ message: string }>(`/watchlist/${ticker}`);
-              Alert.alert('Success', data.message);
-              loadWatchlist();
-            } catch (error: any) {
-              Alert.alert(
-                'Error',
-                error.message || 'Failed to remove from watchlist'
-              );
-            }
-          }
-        }
-      ]
-    );
+    console.log('RemoveFromWatchlist called for ticker:', ticker);
+    setTickerToDelete(ticker);
+    setDeleteModalVisible(true);
+  };
+
+  // Handle actual deletion after confirmation
+  const confirmDelete = async () => {
+    console.log('Confirming delete for:', tickerToDelete);
+    setIsDeleting(true);
+    
+    try {
+      const data = await apiClient.delete<{ message: string }>(`/watchlist/${tickerToDelete}`);
+      console.log('Delete successful:', data);
+      
+      // Close modal
+      setDeleteModalVisible(false);
+      setTickerToDelete('');
+      
+      // Show success message if Alert is available
+      if (Alert && Alert.alert) {
+        Alert.alert('Success', data.message || 'Company removed from watchlist');
+      }
+      
+      // Reload the watchlist
+      loadWatchlist();
+    } catch (error: any) {
+      console.error('Failed to remove from watchlist:', error);
+      if (Alert && Alert.alert) {
+        Alert.alert('Error', error.message || 'Failed to remove from watchlist');
+      }
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
   // Render watchlist item
@@ -327,6 +342,48 @@ export default function WatchlistScreen() {
         }
         contentContainerStyle={watchlist.length === 0 ? styles.emptyListContainer : undefined}
       />
+
+      {/* Delete Confirmation Modal */}
+      <Modal
+        animationType="fade"
+        transparent={true}
+        visible={deleteModalVisible}
+        onRequestClose={() => setDeleteModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Remove from Watchlist</Text>
+            <Text style={styles.modalMessage}>
+              Are you sure you want to remove {tickerToDelete} from your watchlist?
+            </Text>
+            
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.cancelButton]}
+                onPress={() => {
+                  setDeleteModalVisible(false);
+                  setTickerToDelete('');
+                }}
+                disabled={isDeleting}
+              >
+                <Text style={styles.cancelButtonText}>Cancel</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                style={[styles.modalButton, styles.deleteButton]}
+                onPress={confirmDelete}
+                disabled={isDeleting}
+              >
+                {isDeleting ? (
+                  <ActivityIndicator size="small" color={colors.white} />
+                ) : (
+                  <Text style={styles.deleteButtonText}>Remove</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -467,7 +524,7 @@ const styles = StyleSheet.create({
   watchedBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.gray100,  // 使用已定义的颜色
+    backgroundColor: colors.gray100,
     paddingHorizontal: spacing.sm,
     paddingVertical: spacing.xs,
     borderRadius: borderRadius.md,
@@ -513,5 +570,68 @@ const styles = StyleSheet.create({
   },
   emptyListContainer: {
     flexGrow: 1,
+  },
+  // Modal styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContent: {
+    backgroundColor: colors.white,
+    borderRadius: borderRadius.lg,
+    padding: spacing.xl,
+    width: '80%',
+    maxWidth: 400,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  modalTitle: {
+    fontSize: typography.fontSize.lg,
+    fontFamily: typography.fontFamily.semibold,
+    color: colors.text,
+    marginBottom: spacing.md,
+    textAlign: 'center',
+  },
+  modalMessage: {
+    fontSize: typography.fontSize.md,
+    color: colors.textSecondary,
+    marginBottom: spacing.xl,
+    textAlign: 'center',
+    lineHeight: typography.fontSize.md * 1.5,
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: spacing.md,
+  },
+  modalButton: {
+    flex: 1,
+    paddingVertical: spacing.md,
+    borderRadius: borderRadius.md,
+    alignItems: 'center',
+  },
+  cancelButton: {
+    backgroundColor: colors.gray100,
+  },
+  cancelButtonText: {
+    color: colors.text,
+    fontSize: typography.fontSize.md,
+    fontFamily: typography.fontFamily.medium,
+  },
+  deleteButton: {
+    backgroundColor: colors.error,
+  },
+  deleteButtonText: {
+    color: colors.white,
+    fontSize: typography.fontSize.md,
+    fontFamily: typography.fontFamily.medium,
   },
 });

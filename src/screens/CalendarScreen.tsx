@@ -58,6 +58,45 @@ export default function CalendarScreen() {
     }
   }, [watchlist]);
 
+  // Update marked dates when selected date changes - FIX for blue highlight
+  useEffect(() => {
+    if (earningsData.length > 0) {
+      const marked: any = {};
+      
+      // Mark all earnings dates
+      earningsData.forEach((day: EarningsDay) => {
+        const hasWatchlistCompany = day.companies.some(c => 
+          watchlist.includes(c.ticker)
+        );
+        
+        marked[day.date] = {
+          marked: true,
+          dotColor: hasWatchlistCompany ? colors.primary : colors.textSecondary,
+          customStyles: {
+            container: {
+              backgroundColor: hasWatchlistCompany ? colors.primaryLight : colors.gray100,
+            },
+            text: {
+              color: hasWatchlistCompany ? colors.primary : colors.text,
+              fontWeight: 'bold',
+            },
+          },
+        };
+      });
+      
+      // Mark the currently selected date
+      if (selectedDate) {
+        marked[selectedDate] = {
+          ...marked[selectedDate],
+          selected: true,
+          selectedColor: colors.primary,
+        };
+      }
+      
+      setMarkedDates(marked);
+    }
+  }, [selectedDate, earningsData, watchlist]);
+
   const loadWatchlist = async () => {
     try {
       // First try to get from API if user is logged in
@@ -91,7 +130,7 @@ export default function CalendarScreen() {
     try {
       setIsLoading(true);
       
-      // Get current month
+      // Get current month - Fix timezone issue by using local date
       const now = new Date();
       const year = now.getFullYear();
       const month = now.getMonth() + 1;
@@ -157,8 +196,26 @@ export default function CalendarScreen() {
     setSelectedDate(day.dateString);
   };
 
+  // Fixed function to handle timezone issues
   const getSelectedDateEarnings = () => {
+    // Simply match the date string directly
     return earningsData.find(day => day.date === selectedDate);
+  };
+
+  // Fixed date display function to avoid timezone issues
+  const formatSelectedDate = (dateString: string) => {
+    // Parse the date components to avoid timezone conversion
+    const [year, month, day] = dateString.split('-').map(num => parseInt(num));
+    
+    // Create date using local timezone
+    const date = new Date(year, month - 1, day);
+    
+    return date.toLocaleDateString('en-US', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+    });
   };
 
   const renderEarningItem = (company: any) => {
@@ -262,15 +319,10 @@ export default function CalendarScreen() {
           }}
         />
 
-        {/* Selected Date Earnings */}
+        {/* Selected Date Earnings - Fixed date display */}
         <View style={styles.selectedDateContainer}>
           <Text style={styles.selectedDateTitle}>
-            {new Date(selectedDate).toLocaleDateString('en-US', {
-              weekday: 'long',
-              year: 'numeric',
-              month: 'long',
-              day: 'numeric',
-            })}
+            {formatSelectedDate(selectedDate)}
           </Text>
           
           {selectedEarnings && selectedEarnings.companies.length > 0 ? (
