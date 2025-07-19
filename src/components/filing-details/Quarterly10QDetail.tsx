@@ -126,13 +126,14 @@ const Quarterly10QDetail: React.FC<Quarterly10QDetailProps> = ({ filing }) => {
     </View>
   );
 
-  // 条目2: 核心业绩 & 预期对比卡（重点功能）
+  // 条目2: 核心业绩 & 预期对比卡（重点功能）- 修复版本
   const renderPerformanceVsExpectations = () => {
-    const expectations = filing.expectations_comparison || {
-      revenue: { expected: 13200, actual: 13650, beat: true },
-      eps: { expected: 1.82, actual: 1.93, beat: true },
-      guidance: { previous: 'Mid-single digit growth', updated: 'High-single digit growth', raised: true },
-    };
+    // 如果没有真实数据，不显示这个section
+    if (!filing.expectations_comparison) {
+      return null;
+    }
+
+    const expectations = filing.expectations_comparison;
 
     const getBeatMissIcon = (beat: boolean) => ({
       icon: beat ? 'thumb-up' : 'thumb-down',
@@ -152,70 +153,74 @@ const Quarterly10QDetail: React.FC<Quarterly10QDetailProps> = ({ filing }) => {
         </View>
 
         {/* Revenue vs Expectations */}
-        <View style={styles.expectationCard}>
-          <View style={styles.expectationHeader}>
-            <Text style={styles.expectationTitle}>Revenue</Text>
-            <View style={[styles.beatMissBadge, { backgroundColor: getBeatMissIcon(expectations.revenue.beat).color + '20' }]}>
-              <Icon name={getBeatMissIcon(expectations.revenue.beat).icon} size={16} color={getBeatMissIcon(expectations.revenue.beat).color} />
-              <Text style={[styles.beatMissText, { color: getBeatMissIcon(expectations.revenue.beat).color }]}>
-                {getBeatMissIcon(expectations.revenue.beat).text}
+        {expectations.revenue && (
+          <View style={styles.expectationCard}>
+            <View style={styles.expectationHeader}>
+              <Text style={styles.expectationTitle}>Revenue</Text>
+              <View style={[styles.beatMissBadge, { backgroundColor: getBeatMissIcon(expectations.revenue.beat).color + '20' }]}>
+                <Icon name={getBeatMissIcon(expectations.revenue.beat).icon} size={16} color={getBeatMissIcon(expectations.revenue.beat).color} />
+                <Text style={[styles.beatMissText, { color: getBeatMissIcon(expectations.revenue.beat).color }]}>
+                  {getBeatMissIcon(expectations.revenue.beat).text}
+                </Text>
+              </View>
+            </View>
+            
+            <View style={styles.expectationMetrics}>
+              <View style={styles.expectationItem}>
+                <Text style={styles.expectationLabel}>Expected</Text>
+                <Text style={styles.expectationValue}>{formatCurrency(expectations.revenue.expected * 1000000)}</Text>
+              </View>
+              <Icon name="arrow-forward" size={20} color={colors.textSecondary} />
+              <View style={styles.expectationItem}>
+                <Text style={styles.expectationLabel}>Actual</Text>
+                <Text style={[styles.expectationValue, styles.actualValue]}>
+                  {formatCurrency(expectations.revenue.actual * 1000000)}
+                </Text>
+              </View>
+            </View>
+            
+            <View style={styles.expectationDiff}>
+              <Text style={styles.expectationDiffText}>
+                Difference: {formatCurrency((expectations.revenue.actual - expectations.revenue.expected) * 1000000)} 
+                ({((expectations.revenue.actual / expectations.revenue.expected - 1) * 100).toFixed(1)}%)
               </Text>
             </View>
           </View>
-          
-          <View style={styles.expectationMetrics}>
-            <View style={styles.expectationItem}>
-              <Text style={styles.expectationLabel}>Expected</Text>
-              <Text style={styles.expectationValue}>{formatCurrency(expectations.revenue.expected * 1000000)}</Text>
-            </View>
-            <Icon name="arrow-forward" size={20} color={colors.textSecondary} />
-            <View style={styles.expectationItem}>
-              <Text style={styles.expectationLabel}>Actual</Text>
-              <Text style={[styles.expectationValue, styles.actualValue]}>
-                {formatCurrency(expectations.revenue.actual * 1000000)}
-              </Text>
-            </View>
-          </View>
-          
-          <View style={styles.expectationDiff}>
-            <Text style={styles.expectationDiffText}>
-              Difference: {formatCurrency((expectations.revenue.actual - expectations.revenue.expected) * 1000000)} 
-              ({((expectations.revenue.actual / expectations.revenue.expected - 1) * 100).toFixed(1)}%)
-            </Text>
-          </View>
-        </View>
+        )}
 
         {/* EPS vs Expectations */}
-        <View style={styles.expectationCard}>
-          <View style={styles.expectationHeader}>
-            <Text style={styles.expectationTitle}>Earnings Per Share</Text>
-            <View style={[styles.beatMissBadge, { backgroundColor: getBeatMissIcon(expectations.eps.beat).color + '20' }]}>
-              <Icon name={getBeatMissIcon(expectations.eps.beat).icon} size={16} color={getBeatMissIcon(expectations.eps.beat).color} />
-              <Text style={[styles.beatMissText, { color: getBeatMissIcon(expectations.eps.beat).color }]}>
-                {getBeatMissIcon(expectations.eps.beat).text}
+        {expectations.eps && (
+          <View style={styles.expectationCard}>
+            <View style={styles.expectationHeader}>
+              <Text style={styles.expectationTitle}>Earnings Per Share</Text>
+              <View style={[styles.beatMissBadge, { backgroundColor: getBeatMissIcon(expectations.eps.beat).color + '20' }]}>
+                <Icon name={getBeatMissIcon(expectations.eps.beat).icon} size={16} color={getBeatMissIcon(expectations.eps.beat).color} />
+                <Text style={[styles.beatMissText, { color: getBeatMissIcon(expectations.eps.beat).color }]}>
+                  {getBeatMissIcon(expectations.eps.beat).text}
+                </Text>
+              </View>
+            </View>
+            
+            <View style={styles.expectationMetrics}>
+              <View style={styles.expectationItem}>
+                <Text style={styles.expectationLabel}>Expected</Text>
+                <Text style={styles.expectationValue}>${expectations.eps.expected.toFixed(2)}</Text>
+              </View>
+              <Icon name="arrow-forward" size={20} color={colors.textSecondary} />
+              <View style={styles.expectationItem}>
+                <Text style={styles.expectationLabel}>Actual</Text>
+                <Text style={[styles.expectationValue, styles.actualValue]}>${expectations.eps.actual.toFixed(2)}</Text>
+              </View>
+            </View>
+            
+            <View style={styles.expectationDiff}>
+              <Text style={styles.expectationDiffText}>
+                Difference: ${(expectations.eps.actual - expectations.eps.expected).toFixed(2)} 
+                ({((expectations.eps.actual / expectations.eps.expected - 1) * 100).toFixed(1)}%)
               </Text>
             </View>
           </View>
-          
-          <View style={styles.expectationMetrics}>
-            <View style={styles.expectationItem}>
-              <Text style={styles.expectationLabel}>Expected</Text>
-              <Text style={styles.expectationValue}>${expectations.eps.expected.toFixed(2)}</Text>
-            </View>
-            <Icon name="arrow-forward" size={20} color={colors.textSecondary} />
-            <View style={styles.expectationItem}>
-              <Text style={styles.expectationLabel}>Actual</Text>
-              <Text style={[styles.expectationValue, styles.actualValue]}>${expectations.eps.actual.toFixed(2)}</Text>
-            </View>
-          </View>
-          
-          <View style={styles.expectationDiff}>
-            <Text style={styles.expectationDiffText}>
-              Difference: ${(expectations.eps.actual - expectations.eps.expected).toFixed(2)} 
-              ({((expectations.eps.actual / expectations.eps.expected - 1) * 100).toFixed(1)}%)
-            </Text>
-          </View>
-        </View>
+        )}
 
         {/* Guidance Update */}
         {expectations.guidance && (
@@ -237,14 +242,14 @@ const Quarterly10QDetail: React.FC<Quarterly10QDetailProps> = ({ filing }) => {
     );
   };
 
-  // 条目3: 成本结构与费用摘要
+  // 条目3: 成本结构与费用摘要 - 修复版本
   const renderCostStructure = () => {
-    const costs = filing.cost_structure || {
-      cogs: { amount: 8200, percentage: 0.60, yoy_change: 0.02 },
-      rd: { amount: 2050, percentage: 0.15, yoy_change: 0.18 },
-      sga: { amount: 2460, percentage: 0.18, yoy_change: -0.05 },
-      total_opex: { amount: 4510, percentage: 0.33, yoy_change: 0.06 },
-    };
+    // 如果没有成本结构数据，不显示这个section
+    if (!filing.cost_structure) {
+      return null;
+    }
+
+    const costs = filing.cost_structure;
 
     const costCategories: Array<{
       key: keyof typeof costs;
@@ -266,6 +271,8 @@ const Quarterly10QDetail: React.FC<Quarterly10QDetailProps> = ({ filing }) => {
 
         {costCategories.map((category) => {
           const cost = costs[category.key];
+          if (!cost) return null; // 跳过没有数据的类别
+          
           const changeColor = cost.yoy_change > 0 ? colors.error : colors.success;
           
           return (
@@ -301,18 +308,14 @@ const Quarterly10QDetail: React.FC<Quarterly10QDetailProps> = ({ filing }) => {
     );
   };
 
-  // 条目4: 是否更新业绩指引
+  // 条目4: 是否更新业绩指引 - 修复版本
   const renderGuidanceUpdate = () => {
-    const guidance = filing.guidance_update || {
-      updated: true,
-      revenue_guidance: '$54-56B (previously $52-54B)',
-      eps_guidance: '$7.80-8.20 (previously $7.20-7.60)',
-      key_assumptions: [
-        'Continued strong demand in cloud services',
-        'Stabilizing supply chain conditions',
-        'Favorable foreign exchange impact',
-      ],
-    };
+    // 如果没有指引更新数据，不显示这个section
+    if (!filing.guidance_update) {
+      return null;
+    }
+
+    const guidance = filing.guidance_update;
 
     return (
       <View style={styles.section}>
@@ -333,27 +336,33 @@ const Quarterly10QDetail: React.FC<Quarterly10QDetailProps> = ({ filing }) => {
               <View style={styles.guidanceUpdateContent}>
                 <Text style={styles.guidanceUpdateTitle}>Full Year Guidance Raised</Text>
                 
-                <View style={styles.guidanceUpdateItem}>
-                  <Text style={styles.guidanceUpdateLabel}>Revenue:</Text>
-                  <Text style={styles.guidanceUpdateValue}>{guidance.revenue_guidance}</Text>
-                </View>
+                {guidance.revenue_guidance && (
+                  <View style={styles.guidanceUpdateItem}>
+                    <Text style={styles.guidanceUpdateLabel}>Revenue:</Text>
+                    <Text style={styles.guidanceUpdateValue}>{guidance.revenue_guidance}</Text>
+                  </View>
+                )}
                 
-                <View style={styles.guidanceUpdateItem}>
-                  <Text style={styles.guidanceUpdateLabel}>EPS:</Text>
-                  <Text style={styles.guidanceUpdateValue}>{guidance.eps_guidance}</Text>
-                </View>
+                {guidance.eps_guidance && (
+                  <View style={styles.guidanceUpdateItem}>
+                    <Text style={styles.guidanceUpdateLabel}>EPS:</Text>
+                    <Text style={styles.guidanceUpdateValue}>{guidance.eps_guidance}</Text>
+                  </View>
+                )}
               </View>
             </View>
 
-            <View style={styles.assumptionsCard}>
-              <Text style={styles.assumptionsTitle}>Key Assumptions:</Text>
-              {guidance.key_assumptions.map((assumption, index) => (
-                <View key={index} style={styles.assumptionItem}>
-                  <Icon name="check-circle" size={16} color={colors.success} />
-                  <Text style={styles.assumptionText}>{assumption}</Text>
-                </View>
-              ))}
-            </View>
+            {guidance.key_assumptions && guidance.key_assumptions.length > 0 && (
+              <View style={styles.assumptionsCard}>
+                <Text style={styles.assumptionsTitle}>Key Assumptions:</Text>
+                {guidance.key_assumptions.map((assumption, index) => (
+                  <View key={index} style={styles.assumptionItem}>
+                    <Icon name="check-circle" size={16} color={colors.success} />
+                    <Text style={styles.assumptionText}>{assumption}</Text>
+                  </View>
+                ))}
+              </View>
+            )}
           </>
         ) : (
           <View style={styles.noUpdateCard}>
@@ -367,8 +376,13 @@ const Quarterly10QDetail: React.FC<Quarterly10QDetailProps> = ({ filing }) => {
     );
   };
 
-  // 条目5: GPT增长/下滑驱动分析
+  // 条目5: GPT增长/下滑驱动分析 - 修复版本
   const renderGrowthDeclineAnalysis = () => {
+    // 如果没有分析数据，不显示这个section
+    if (!filing.growth_decline_analysis) {
+      return null;
+    }
+
     return (
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
@@ -382,30 +396,20 @@ const Quarterly10QDetail: React.FC<Quarterly10QDetailProps> = ({ filing }) => {
 
         <View style={styles.analysisCard}>
           <Text style={styles.analysisText}>
-            {filing.growth_decline_analysis || "Revenue growth of 12% YoY was primarily driven by strong cloud services adoption (+28%) and enterprise software renewals (+15%). This was partially offset by declining hardware sales (-8%) due to supply chain constraints. International markets, particularly Asia-Pacific, contributed significantly with 22% growth, while domestic growth remained steady at 9%."}
+            {filing.growth_decline_analysis}
           </Text>
-          
-          <View style={styles.driverHighlights}>
-            <View style={styles.driverItem}>
-              <Icon name="trending-up" size={16} color={colors.success} />
-              <Text style={styles.driverText}>Cloud Services: +28% YoY</Text>
-            </View>
-            <View style={styles.driverItem}>
-              <Icon name="trending-up" size={16} color={colors.success} />
-              <Text style={styles.driverText}>International: +22% YoY</Text>
-            </View>
-            <View style={styles.driverItem}>
-              <Icon name="trending-down" size={16} color={colors.error} />
-              <Text style={styles.driverText}>Hardware: -8% YoY</Text>
-            </View>
-          </View>
         </View>
       </View>
     );
   };
 
-  // 条目6: GPT管理层语气分析
+  // 条目6: GPT管理层语气分析 - 修复版本
   const renderManagementToneAnalysis = () => {
+    // 如果没有管理层语气分析，不显示这个section
+    if (!filing.management_tone_analysis) {
+      return null;
+    }
+
     return (
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
@@ -418,36 +422,21 @@ const Quarterly10QDetail: React.FC<Quarterly10QDetailProps> = ({ filing }) => {
         </View>
 
         <View style={styles.toneCard}>
-          <View style={styles.toneIndicator}>
-            <Icon name="sentiment-satisfied" size={32} color={colors.success} />
-            <Text style={styles.toneLabel}>Confident & Optimistic</Text>
-          </View>
-          
           <Text style={styles.toneAnalysis}>
-            {filing.management_tone_analysis || "Management's tone is notably more confident compared to last quarter, with increased use of growth-oriented language (+35% frequency). Key phrases like 'accelerating momentum', 'strong pipeline', and 'market leadership' appear prominently. The cautious tone around macroeconomic headwinds has softened, suggesting improved visibility into future quarters."}
+            {filing.management_tone_analysis}
           </Text>
-          
-          <View style={styles.toneMetrics}>
-            <View style={styles.toneMetric}>
-              <Text style={styles.toneMetricLabel}>Positive Language</Text>
-              <Text style={styles.toneMetricValue}>72%</Text>
-            </View>
-            <View style={styles.toneMetric}>
-              <Text style={styles.toneMetricLabel}>Forward-Looking</Text>
-              <Text style={styles.toneMetricValue}>High</Text>
-            </View>
-            <View style={styles.toneMetric}>
-              <Text style={styles.toneMetricLabel}>Confidence Level</Text>
-              <Text style={styles.toneMetricValue}>8/10</Text>
-            </View>
-          </View>
         </View>
       </View>
     );
   };
 
-  // 条目7: GPT超预期/不及预期原因分析
+  // 条目7: GPT超预期/不及预期原因分析 - 修复版本
   const renderBeatMissAnalysis = () => {
+    // 如果没有超预期/不及预期分析，不显示这个section
+    if (!filing.beat_miss_analysis) {
+      return null;
+    }
+
     return (
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
@@ -460,48 +449,9 @@ const Quarterly10QDetail: React.FC<Quarterly10QDetailProps> = ({ filing }) => {
         </View>
 
         <View style={styles.beatAnalysisCard}>
-          <View style={styles.beatHeader}>
-            <Icon name="celebration" size={24} color={colors.success} />
-            <Text style={styles.beatTitle}>Earnings Beat Analysis</Text>
-          </View>
-          
           <Text style={styles.beatAnalysisText}>
-            {filing.beat_miss_analysis || "The company exceeded expectations on both revenue and EPS due to three primary factors: (1) Better-than-expected cloud services adoption drove an additional $450M in high-margin revenue, (2) Operational efficiency initiatives reduced costs by $200M, improving margins by 180bps, and (3) Share buybacks reduced share count by 2.3%, boosting EPS by $0.08. The beat was broad-based across all geographic regions."}
+            {filing.beat_miss_analysis}
           </Text>
-          
-          <View style={styles.beatFactors}>
-            <Text style={styles.beatFactorsTitle}>Key Contributing Factors:</Text>
-            
-            <View style={styles.beatFactor}>
-              <View style={styles.beatFactorNumber}>
-                <Text style={styles.beatFactorNumberText}>1</Text>
-              </View>
-              <View style={styles.beatFactorContent}>
-                <Text style={styles.beatFactorTitle}>Cloud Outperformance</Text>
-                <Text style={styles.beatFactorText}>+$450M incremental revenue</Text>
-              </View>
-            </View>
-            
-            <View style={styles.beatFactor}>
-              <View style={styles.beatFactorNumber}>
-                <Text style={styles.beatFactorNumberText}>2</Text>
-              </View>
-              <View style={styles.beatFactorContent}>
-                <Text style={styles.beatFactorTitle}>Cost Optimization</Text>
-                <Text style={styles.beatFactorText}>180bps margin improvement</Text>
-              </View>
-            </View>
-            
-            <View style={styles.beatFactor}>
-              <View style={styles.beatFactorNumber}>
-                <Text style={styles.beatFactorNumberText}>3</Text>
-              </View>
-              <View style={styles.beatFactorContent}>
-                <Text style={styles.beatFactorTitle}>Share Buybacks</Text>
-                <Text style={styles.beatFactorText}>+$0.08 EPS contribution</Text>
-              </View>
-            </View>
-          </View>
         </View>
       </View>
     );
@@ -933,7 +883,6 @@ const styles = StyleSheet.create({
     fontSize: typography.fontSize.md,
     color: colors.text,
     lineHeight: 24,
-    marginBottom: spacing.md,
   },
   driverHighlights: {
     gap: spacing.sm,
@@ -970,7 +919,6 @@ const styles = StyleSheet.create({
     fontSize: typography.fontSize.md,
     color: colors.text,
     lineHeight: 24,
-    marginBottom: spacing.md,
   },
   toneMetrics: {
     flexDirection: 'row',
@@ -1014,7 +962,6 @@ const styles = StyleSheet.create({
     fontSize: typography.fontSize.md,
     color: colors.text,
     lineHeight: 24,
-    marginBottom: spacing.lg,
   },
   beatFactors: {
     borderTopWidth: 1,
