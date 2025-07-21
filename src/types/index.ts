@@ -130,14 +130,48 @@ export interface User {
     risk_factors?: string[];
     future_outlook?: string;
     tags?: string[];
-    event_type?: string; // For 8-K filings
+    item_type?: string; // For 8-K filings - 修复：使用 item_type 而不是 event_type
     vote_counts?: VoteCounts;
     user_vote?: VoteType | null;
     view_count?: number;
     comment_count?: number;
-    view_limit_info?: ViewLimitInfo;  // Add this line
+    view_limit_info?: ViewLimitInfo;
     created_at: string;
     updated_at: string;
+    
+    // 10-K specific fields
+    auditor_opinion?: string;
+    three_year_financials?: any;
+    business_segments?: any[];
+    risk_summary?: any;
+    growth_drivers?: string;
+    management_outlook?: string;
+    strategic_adjustments?: string;
+    market_impact_10k?: string; // 添加缺失的字段
+    
+    // 10-Q specific fields
+    expectations_comparison?: any;
+    cost_structure?: any;
+    guidance_update?: any;
+    growth_decline_analysis?: string;
+    management_tone_analysis?: string;
+    beat_miss_analysis?: string;
+    market_impact_10q?: string; // 添加缺失的字段
+    
+    // 8-K specific fields
+    items?: Array<{ item_number: string; description: string }>;
+    event_timeline?: any;
+    event_nature_analysis?: string;
+    market_impact_analysis?: string;
+    key_considerations?: string;
+    
+    // S-1 specific fields
+    ipo_details?: any;
+    company_overview?: string; // 只保留这个，删除 business_description
+    financial_summary?: any;
+    risk_categories?: any;
+    growth_path_analysis?: string;
+    competitive_moat_analysis?: string;
   }
 
   // Comment reply information

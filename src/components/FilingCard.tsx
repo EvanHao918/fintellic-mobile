@@ -87,9 +87,9 @@ export default function FilingCard({
   };
 
   // Extract event type for 8-K filings
-  const eventType = filing.filing_type === '8-K' && filing.event_type 
-    ? filing.event_type 
-    : null;
+  const eventType = filing.filing_type === '8-K' && filing.item_type 
+  ? filing.item_type 
+  : null;
 
   // Extract important tags
   const tags = filing.key_insights?.slice(0, 3);

@@ -265,7 +265,7 @@ export default function FilingDetailScreen() {
       }),
       
       ...(filing.filing_type === '8-K' && {
-        event_type: filing.event_type || "Executive Change",
+        item_type: filing.item_type || "5.02", // 使用标准的 8-K item 编号
         event_details: {
           description: "公司宣布任命新的首席技术官，将领导公司的技术创新战略..."
         },
@@ -734,8 +734,8 @@ export default function FilingDetailScreen() {
               </View>
             </View>
             <Text style={styles.filingDate}>{formatDate(filing.filing_date)}</Text>
-            {filing.event_type && (
-              <Text style={styles.eventType}>Event: {filing.event_type}</Text>
+            {filing.item_type && (
+            <Text style={styles.eventType}>Item: {filing.item_type}</Text>
             )}
           </View>
         );
