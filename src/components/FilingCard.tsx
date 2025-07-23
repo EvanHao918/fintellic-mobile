@@ -35,18 +35,30 @@ export default function FilingCard({
 }: FilingCardProps) {
   const scaleAnim = React.useRef(new Animated.Value(1)).current;
   
-  // Get filing type configuration
-  const filingConfig = filingTypes[filing.filing_type] || {
+  // 调试日志
+  console.log('FilingCard rendering:', {
+    id: filing.id,
+    form_type: filing.form_type,
+    company_name: filing.company_name,
+    company_ticker: filing.company_ticker,
+    one_liner: filing.one_liner,
+    ai_summary: filing.ai_summary?.substring(0, 50) + '...',
+  });
+  
+  // Get filing type configuration - 使用 form_type
+  const filingConfig = filingTypes[filing.form_type] || {
     color: colors.gray500,
-    label: filing.filing_type,
+    label: filing.form_type,
   };
   
   // Get sentiment configuration with emoji mapping
   const getSentimentEmoji = (tone: string) => {
     switch (tone) {
       case 'bullish':
+      case 'optimistic':
         return '😊';
       case 'bearish':
+      case 'pessimistic':
         return '😟';
       case 'neutral':
       default:
@@ -54,18 +66,20 @@ export default function FilingCard({
     }
   };
   
-  const sentimentConfig = filing.management_tone 
-    ? {
-        ...sentiments[filing.management_tone],
-        emoji: getSentimentEmoji(filing.management_tone)
-      }
-    : {
-        ...sentiments.neutral,
-        emoji: getSentimentEmoji('neutral')
-      };
+  // 使用 sentiment 字段（从 API 返回的数据）
+  const sentimentValue = filing.sentiment || filing.management_tone || 'neutral';
+  
+  // 映射 optimistic/pessimistic 到 bullish/bearish
+  const normalizedSentiment = sentimentValue === 'optimistic' ? 'bullish' : 
+                              sentimentValue === 'pessimistic' ? 'bearish' : 
+                              sentimentValue;
+  
+  const sentimentConfig = sentiments[normalizedSentiment as keyof typeof sentiments] || sentiments.neutral;
 
   // Format date
   const formatDate = (dateString: string) => {
+    if (!dateString) return '';
+    
     const date = new Date(dateString);
     const now = new Date();
     const diffInHours = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60));
@@ -86,13 +100,16 @@ export default function FilingCard({
     }
   };
 
-  // Extract event type for 8-K filings
-  const eventType = filing.filing_type === '8-K' && filing.item_type 
-  ? filing.item_type 
-  : null;
+  // Extract event type for 8-K filings - 使用 form_type 和 item_type
+  const eventType = filing.form_type === '8-K' && filing.item_type 
+    ? filing.item_type 
+    : null;
 
-  // Extract important tags
-  const tags = filing.key_insights?.slice(0, 3);
+  // Extract important tags - 使用 key_tags
+  const tags = filing.key_tags?.slice(0, 3) || [];
+
+  // 获取显示的摘要文本
+  const summaryText = filing.one_liner || filing.ai_summary || filing.feed_summary || 'Processing summary...';
 
   // Handle press animations
   const handlePressIn = () => {
@@ -111,6 +128,9 @@ export default function FilingCard({
     }).start();
   };
 
+  // 使用从 API 返回的 vote_counts
+  const displayVoteCounts = filing.vote_counts || voteCounts;
+
   return (
     <Animated.View style={[styles.container, { transform: [{ scale: scaleAnim }] }]}>
       <TouchableOpacity
@@ -124,9 +144,11 @@ export default function FilingCard({
           <View style={styles.header}>
             <View style={styles.headerTop}>
               <View style={styles.companyInfo}>
-                <Text style={styles.ticker}>{filing.company_ticker}</Text>
+                <Text style={styles.ticker}>{filing.company_ticker || 'N/A'}</Text>
                 <Text style={styles.dot}> · </Text>
-                <Text style={styles.companyName}>{filing.company_name}</Text>
+                <Text style={styles.companyName} numberOfLines={1}>
+                  {filing.company_name || 'Unknown Company'}
+                </Text>
               </View>
               <View style={[styles.filingBadge, { backgroundColor: filingConfig.color }]}>
                 <Text style={styles.filingBadgeText}>{filingConfig.label}</Text>
@@ -136,7 +158,7 @@ export default function FilingCard({
             <View style={styles.headerBottom}>
               <Text style={styles.indices}>S&P 500 · NASDAQ 100</Text>
               <Text style={styles.date}>{formatDate(filing.filing_date)}</Text>
-              {eventType && filing.filing_type === '8-K' && (
+              {eventType && filing.form_type === '8-K' && (
                 <>
                   <Text style={styles.dot}> · </Text>
                   <Text style={styles.eventType}>{eventType}</Text>
@@ -151,14 +173,14 @@ export default function FilingCard({
             <View style={styles.summarySection}>
               <Text style={styles.summaryIcon}>📝</Text>
               <Text style={styles.summaryText} numberOfLines={2}>
-                {filing.ai_summary || 'Processing summary...'}
+                {summaryText}
               </Text>
             </View>
 
             {/* Management Tone */}
-            {filing.management_tone && (
+            {sentimentValue && sentimentValue !== 'neutral' && (
               <View style={styles.toneSection}>
-                <Text style={styles.toneEmoji}>{getSentimentEmoji(filing.management_tone)}</Text>
+                <Text style={styles.toneEmoji}>{getSentimentEmoji(sentimentValue)}</Text>
                 <Text style={styles.toneLabel}>Management Tone: </Text>
                 <Text style={[styles.toneValue, { color: sentimentConfig.color }]}>
                   {sentimentConfig.label}
@@ -166,8 +188,8 @@ export default function FilingCard({
               </View>
             )}
 
-            {/* Tags */}
-            {tags && tags.length > 0 && (
+            {/* Tags - 使用 key_tags */}
+            {tags.length > 0 && (
               <View style={styles.tagsSection}>
                 <Text style={styles.tagIcon}>🏷️</Text>
                 <View style={styles.tagsList}>
@@ -195,7 +217,7 @@ export default function FilingCard({
                   styles.voteLabel,
                   userVote === 'bullish' && styles.voteLabelActive
                 ]}>Bullish</Text>
-                <Text style={styles.voteCount}>{voteCounts.bullish || '?'}</Text>
+                <Text style={styles.voteCount}>{displayVoteCounts.bullish}</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -210,7 +232,7 @@ export default function FilingCard({
                   styles.voteLabel,
                   userVote === 'neutral' && styles.voteLabelActive
                 ]}>Neutral</Text>
-                <Text style={styles.voteCount}>{voteCounts.neutral || '?'}</Text>
+                <Text style={styles.voteCount}>{displayVoteCounts.neutral}</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -225,7 +247,7 @@ export default function FilingCard({
                   styles.voteLabel,
                   userVote === 'bearish' && styles.voteLabelActive
                 ]}>Bearish</Text>
-                <Text style={styles.voteCount}>{voteCounts.bearish || '?'}</Text>
+                <Text style={styles.voteCount}>{displayVoteCounts.bearish}</Text>
               </TouchableOpacity>
             </View>
 
@@ -236,7 +258,7 @@ export default function FilingCard({
             >
               <View style={styles.commentsLeft}>
                 <Icon name="chat-bubble-outline" size={16} color={colors.textSecondary} />
-                <Text style={styles.commentsCount}>45 comments</Text>
+                <Text style={styles.commentsCount}>{filing.comment_count || 0} comments</Text>
                 {!isProUser && <Text style={styles.membersOnly}> · Members only</Text>}
               </View>
               {!isProUser && (

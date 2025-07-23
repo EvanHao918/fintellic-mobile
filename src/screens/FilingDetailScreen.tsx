@@ -223,11 +223,11 @@ export default function FilingDetailScreen() {
     // 添加详细的调试信息
     console.log('=== Filing Data Debug ===');
     console.log('Filing ID:', filing.id);
-    console.log('Filing type:', filing.filing_type);
-    // 注意：Filing类型中只有filing_type，没有form_type
+    console.log('Filing type:', filing.form_type);
+    // 注意：现在使用 form_type 而不是 filing_type
     
     // 8-K specific fields debug
-    if (filing.filing_type === '8-K') {
+    if (filing.form_type === '8-K') {
       console.log('--- 8-K Specific Fields ---');
       console.log('item_type:', filing.item_type);
       console.log('items:', filing.items);
@@ -242,7 +242,7 @@ export default function FilingDetailScreen() {
     console.log('======================');
     
     // 直接使用真实的filing数据，不添加任何模拟数据
-    const FilingComponent = getFilingDetailComponent(filing.filing_type);
+    const FilingComponent = getFilingDetailComponent(filing.form_type);
     
     // 直接使用filing，所有字段都应该是正确的snake_case格式
     const filingWithAllFields = filing;
@@ -551,7 +551,7 @@ export default function FilingDetailScreen() {
     const financialData = filing.financial_highlights;
     
     // For 10-K and 10-Q, show financial trends
-    if ((filing.filing_type === '10-K' || filing.filing_type === '10-Q') && financialData) {
+    if ((filing.form_type === '10-K' || filing.form_type === '10-Q') && financialData) {
       
       // Revenue trend - use real data if available
       if (financialData.revenue_trend && financialData.revenue_trend.length > 0) {
@@ -609,7 +609,7 @@ export default function FilingDetailScreen() {
     }
     
     // For S-1 filings, show IPO-specific metrics if available
-    if (filing.filing_type === 'S-1' && financialData) {
+    if (filing.form_type === 'S-1' && financialData) {
       if (financialData.revenue_trend && financialData.revenue_trend.length > 0) {
         visuals.push({
           id: 'ipo-revenue-history',
@@ -644,7 +644,7 @@ export default function FilingDetailScreen() {
     }
     
     // For 8-K filings, show event-specific metrics if available
-    if (filing.filing_type === '8-K' && financialData && financialData.key_metrics) {
+    if (filing.form_type === '8-K' && financialData && financialData.key_metrics) {
       visuals.push({
         id: 'event-metrics',
         type: 'metrics',
@@ -686,8 +686,8 @@ export default function FilingDetailScreen() {
                 <Text style={styles.ticker}>{filing.company_ticker}</Text>
                 <Text style={styles.companyName}>{filing.company_name}</Text>
               </View>
-              <View style={[styles.filingBadge, getFilingTypeStyle(filing.filing_type)]}>
-                <Text style={styles.filingBadgeText}>{filing.filing_type}</Text>
+              <View style={[styles.filingBadge, getFilingTypeStyle(filing.form_type)]}>
+                <Text style={styles.filingBadgeText}>{filing.form_type}</Text>
               </View>
             </View>
             <Text style={styles.filingDate}>{formatDate(filing.filing_date)}</Text>

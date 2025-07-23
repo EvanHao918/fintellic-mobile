@@ -14,12 +14,11 @@ import { colors, typography, spacing, borderRadius } from '../../theme';
 // Define FilingDetail interface locally if not exported from types
 interface FilingDetail {
   id: number;
-  filing_type?: string;
-  form_type?: string;
+  form_type: string;  // 使用 form_type 作为主要字段
   company_name: string;
   company_ticker: string;
   filing_date: string;
-  file_url: string;
+  filing_url: string;  // 注意：可能需要从 file_url 改为 filing_url
   accession_number: string;
   cik?: string;
   ai_summary?: string;
@@ -32,8 +31,8 @@ interface FilingDetail {
   opportunities?: string[];
   financial_highlights?: any;
   financial_metrics?: any;
-  event_type?: string;
-  tags?: string[];
+  item_type?: string;  // 修正：从 event_type 改为 item_type
+  key_tags?: string[];  // 使用 key_tags 而不是 tags
   management_tone?: string;
   sentiment?: string;
   sentiment_explanation?: string;
@@ -112,7 +111,7 @@ const GenericFilingDetail: React.FC<GenericFilingDetailProps> = ({ filing }) => 
         <View style={styles.headerIcon}>
           <Icon name="description" size={32} color={colors.white} />
         </View>
-        <Text style={styles.headerTitle}>{filing.filing_type || filing.form_type}</Text>
+        <Text style={styles.headerTitle}>{filing.form_type}</Text>
         <Text style={styles.headerSubtitle}>
           {filing.company_name} • {formatDate(filing.filing_date)}
         </Text>
@@ -144,7 +143,7 @@ const GenericFilingDetail: React.FC<GenericFilingDetailProps> = ({ filing }) => 
         )
       )}
 
-      {/* Event Information if available */}
+      {/* Event Information if available - 使用 item_type */}
       {filing.item_type && (
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
@@ -152,20 +151,20 @@ const GenericFilingDetail: React.FC<GenericFilingDetailProps> = ({ filing }) => 
             <Text style={styles.sectionTitle}>Event Type</Text>
           </View>
           <View style={styles.eventBadge}>
-            <Text style={styles.eventText}>{filing.event_type}</Text>
+            <Text style={styles.eventText}>{filing.item_type}</Text>
           </View>
         </View>
       )}
 
-      {/* Tags */}
-      {filing.tags && filing.tags.length > 0 && (
+      {/* Tags - 使用 key_tags */}
+      {filing.key_tags && filing.key_tags.length > 0 && (
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Icon name="label" size={24} color={colors.primary} />
             <Text style={styles.sectionTitle}>Topics</Text>
           </View>
           <View style={styles.tagsContainer}>
-            {filing.tags.map((tag: string, index: number) => (
+            {filing.key_tags.map((tag: string, index: number) => (
               <View key={index} style={styles.tag}>
                 <Text style={styles.tagText}>{tag}</Text>
               </View>
@@ -203,7 +202,7 @@ const GenericFilingDetail: React.FC<GenericFilingDetailProps> = ({ filing }) => 
         <View style={styles.filingInfo}>
           <View style={styles.infoRow}>
             <Text style={styles.infoLabel}>Filing Type:</Text>
-            <Text style={styles.infoValue}>{filing.filing_type || filing.form_type}</Text>
+            <Text style={styles.infoValue}>{filing.form_type}</Text>
           </View>
           <View style={styles.infoRow}>
             <Text style={styles.infoLabel}>Filing Date:</Text>
@@ -226,7 +225,7 @@ const GenericFilingDetail: React.FC<GenericFilingDetailProps> = ({ filing }) => 
       <View style={styles.footer}>
         <TouchableOpacity
           style={styles.secButton}
-          onPress={() => filing.file_url && Linking.openURL(filing.file_url)}
+          onPress={() => filing.filing_url && Linking.openURL(filing.filing_url)}
         >
           <Icon name="launch" size={20} color={colors.white} />
           <Text style={styles.secButtonText}>View Original SEC Filing</Text>

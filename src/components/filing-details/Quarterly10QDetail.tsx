@@ -13,11 +13,11 @@ import { colors, typography, spacing, borderRadius } from '../../theme';
 
 interface FilingDetail {
   id: number;
-  filing_type?: string;
+  form_type: string;  // 使用 form_type 而不是 filing_type
   company_name: string;
   company_ticker: string;
   filing_date: string;
-  file_url: string;
+  filing_url: string;  // 使用 filing_url 而不是 file_url
   fiscal_quarter?: string;
   period_end_date?: string;
   // 10-Q specific fields
@@ -48,6 +48,7 @@ interface FilingDetail {
   growth_decline_analysis?: string;
   management_tone_analysis?: string;
   beat_miss_analysis?: string;
+  market_impact_10q?: string;  // 确保使用正确的字段名
   [key: string]: any;
 }
 
@@ -458,7 +459,7 @@ const Quarterly10QDetail: React.FC<Quarterly10QDetailProps> = ({ filing }) => {
   };
 
   // 条目8: GPT市场影响分析
-const renderMarketImpact = () => {
+  const renderMarketImpact = () => {
     if (!filing.market_impact_10q) return null;
   
     return (
@@ -509,7 +510,7 @@ const renderMarketImpact = () => {
       <View style={styles.footer}>
         <TouchableOpacity
           style={[styles.secButton, { backgroundColor: colors.filing10Q }]}
-          onPress={() => filing.file_url && Linking.openURL(filing.file_url)}
+          onPress={() => filing.filing_url && Linking.openURL(filing.filing_url)}
         >
           <Icon name="launch" size={20} color={colors.white} />
           <Text style={styles.secButtonText}>View Full 10-Q Filing</Text>

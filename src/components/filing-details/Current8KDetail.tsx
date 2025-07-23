@@ -14,12 +14,11 @@ import { colors, typography, spacing, borderRadius } from '../../theme';
 // Define FilingDetail interface locally if not exported from types
 interface FilingDetail {
   id: number;
-  filing_type?: string;
-  form_type?: string;
+  form_type: string;  // 使用 form_type 作为主要字段
   company_name: string;
   company_ticker: string;
   filing_date: string;
-  file_url: string;
+  filing_url: string;  // 统一使用 filing_url
   accession_number: string;
   ai_summary?: string;
   
@@ -310,7 +309,7 @@ const Current8KDetail: React.FC<Current8KDetailProps> = ({ filing }) => {
       <View style={styles.footer}>
         <TouchableOpacity
           style={[styles.secButton, { backgroundColor: redColor }]}
-          onPress={() => filing.file_url && Linking.openURL(filing.file_url)}
+          onPress={() => filing.filing_url && Linking.openURL(filing.filing_url)}
         >
           <Icon name="launch" size={20} color={colors.white} />
           <Text style={styles.secButtonText}>View Original SEC Filing</Text>

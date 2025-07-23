@@ -13,11 +13,11 @@ import { colors, typography, spacing, borderRadius } from '../../theme';
 
 interface FilingDetail {
   id: number;
-  filing_type?: string;
+  form_type: string;  // 使用 form_type 作为主要字段
   company_name: string;
   company_ticker: string;
   filing_date: string;
-  file_url: string;
+  filing_url: string;  // 统一使用 filing_url
   fiscal_year?: string;
   period_end_date?: string;
   // 10-K specific fields
@@ -52,6 +52,7 @@ interface FilingDetail {
   growth_drivers?: string;
   management_outlook?: string;
   strategic_adjustments?: string;
+  market_impact_10k?: string;  // 确保字段名正确
   [key: string]: any;
 }
 
@@ -443,7 +444,7 @@ const renderMarketImpact = () => {
       <View style={styles.footer}>
         <TouchableOpacity
           style={[styles.secButton, { backgroundColor: colors.filing10K }]}
-          onPress={() => filing.file_url && Linking.openURL(filing.file_url)}
+          onPress={() => filing.filing_url && Linking.openURL(filing.filing_url)}
         >
           <Icon name="launch" size={20} color={colors.white} />
           <Text style={styles.secButtonText}>View Full 10-K Filing</Text>

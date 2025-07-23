@@ -47,7 +47,7 @@ export interface User {
   
   // Filing related types
   export type FilingType = '10-K' | '10-Q' | '8-K' | 'S-1';
-  export type ManagementTone = 'bullish' | 'neutral' | 'bearish';
+  export type ManagementTone = 'bullish' | 'neutral' | 'bearish' | 'optimistic' | 'pessimistic';
   export type VoteType = 'bullish' | 'neutral' | 'bearish';
   export type ProcessingStatus = 'pending' | 'processing' | 'completed' | 'failed';
   
@@ -110,27 +110,29 @@ export interface User {
     };
   }
   
-  // Frontend filing structure (normalized)
+  // Frontend filing structure (now matches backend exactly - zero mapping!)
   export interface Filing {
     id: string;
     company_id: string;
     company_name: string;
     company_ticker: string;
     company?: Company;
-    filing_type: FilingType;
+    form_type: FilingType;  // 改回使用后端的字段名
     filing_date: string;
     accession_number: string;
     filing_url: string;
     processing_status: ProcessingStatus;
     ai_summary?: string;
+    one_liner?: string;  // 添加这个字段（从 API 返回）
     feed_summary?: string;
+    sentiment?: ManagementTone;  // 添加这个字段（从 API 返回）
     management_tone?: ManagementTone;
     key_insights?: string[];
     financial_highlights?: FinancialHighlights;
     risk_factors?: string[];
     future_outlook?: string;
-    tags?: string[];
-    item_type?: string; // For 8-K filings - 修复：使用 item_type 而不是 event_type
+    key_tags?: string[];  // 改回使用后端的字段名
+    item_type?: string; // For 8-K filings
     vote_counts?: VoteCounts;
     user_vote?: VoteType | null;
     view_count?: number;
@@ -152,7 +154,7 @@ export interface User {
     growth_drivers?: string;
     management_outlook?: string;
     strategic_adjustments?: string;
-    market_impact_10k?: string; // 添加缺失的字段
+    market_impact_10k?: string;
     
     // 10-Q specific fields
     expectations_comparison?: any;
@@ -161,7 +163,7 @@ export interface User {
     growth_decline_analysis?: string;
     management_tone_analysis?: string;
     beat_miss_analysis?: string;
-    market_impact_10q?: string; // 添加缺失的字段
+    market_impact_10q?: string;
     
     // 8-K specific fields
     items?: Array<{ item_number: string; description: string }>;
@@ -172,7 +174,7 @@ export interface User {
     
     // S-1 specific fields
     ipo_details?: any;
-    company_overview?: string; // 只保留这个，删除 business_description
+    company_overview?: string;
     financial_summary?: any;
     risk_categories?: any;
     growth_path_analysis?: string;

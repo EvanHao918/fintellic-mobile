@@ -18,7 +18,7 @@ import { RootState } from '../store';
 import { colors, typography, spacing, borderRadius } from '../theme';
 import apiClient from '../api/client';
 
-// Updated Types based on new API
+// Updated Types based on new API - 使用 form_type
 interface WatchedCompany {
   ticker: string;
   name: string;
@@ -29,7 +29,7 @@ interface WatchedCompany {
   indices: string[];
   added_at: string;
   last_filing?: {
-    filing_type: string;
+    form_type: string;  // 改为 form_type
     filing_date: string;
     sentiment?: string;
   };
@@ -191,7 +191,7 @@ export default function WatchlistScreen() {
             <View style={styles.filingInfo}>
               <Icon name="description" type="material" size={14} color={colors.textSecondary} />
               <Text style={styles.filingText}>
-                {item.last_filing.filing_type} • {new Date(item.last_filing.filing_date).toLocaleDateString()}
+                {item.last_filing.form_type} • {new Date(item.last_filing.filing_date).toLocaleDateString()}
               </Text>
             </View>
           )}
