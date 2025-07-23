@@ -457,6 +457,30 @@ const Quarterly10QDetail: React.FC<Quarterly10QDetailProps> = ({ filing }) => {
     );
   };
 
+  // 条目8: GPT市场影响分析
+const renderMarketImpact = () => {
+    if (!filing.market_impact_10q) return null;
+  
+    return (
+      <View style={styles.section}>
+        <View style={styles.sectionHeader}>
+          <Icon name="trending-up" size={24} color={colors.primary} />
+          <Text style={styles.sectionTitle}>Market Impact Analysis</Text>
+          <View style={styles.gptBadge}>
+            <Icon name="auto-awesome" size={14} color={colors.primary} />
+            <Text style={styles.gptBadgeText}>AI</Text>
+          </View>
+        </View>
+  
+        <View style={styles.beatAnalysisCard}>
+          <Text style={styles.beatAnalysisText}>
+            {filing.market_impact_10q}
+          </Text>
+        </View>
+      </View>
+    );
+  };
+
   return (
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
       {/* 10-Q Header */}
@@ -470,7 +494,8 @@ const Quarterly10QDetail: React.FC<Quarterly10QDetailProps> = ({ filing }) => {
         </Text>
       </View>
 
-      {/* All 7 sections for 10-Q */}
+
+      {/* All 8 sections for 10-Q */}
       {renderQuarterlyMetaCard()}
       {renderPerformanceVsExpectations()}
       {renderCostStructure()}
@@ -478,6 +503,7 @@ const Quarterly10QDetail: React.FC<Quarterly10QDetailProps> = ({ filing }) => {
       {renderGrowthDeclineAnalysis()}
       {renderManagementToneAnalysis()}
       {renderBeatMissAnalysis()}
+      {renderMarketImpact()}
 
       {/* Footer with SEC Link */}
       <View style={styles.footer}>

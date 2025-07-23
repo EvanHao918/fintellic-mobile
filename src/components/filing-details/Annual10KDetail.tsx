@@ -391,6 +391,30 @@ const Annual10KDetail: React.FC<Annual10KDetailProps> = ({ filing }) => {
     );
   };
 
+  // 条目9: GPT市场影响分析
+const renderMarketImpact = () => {
+    if (!filing.market_impact_10k) return null;
+  
+    return (
+      <View style={styles.section}>
+        <View style={styles.sectionHeader}>
+          <Icon name="trending-up" size={24} color={colors.primary} />
+          <Text style={styles.sectionTitle}>Market Impact Analysis</Text>
+          <View style={styles.gptBadge}>
+            <Icon name="auto-awesome" size={14} color={colors.primary} />
+            <Text style={styles.gptBadgeText}>AI</Text>
+          </View>
+        </View>
+  
+        <View style={styles.insightCard}>
+          <Text style={styles.insightText}>
+            {filing.market_impact_10k}
+          </Text>
+        </View>
+      </View>
+    );
+  };
+
   return (
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
       {/* 10-K Header */}
@@ -404,7 +428,7 @@ const Annual10KDetail: React.FC<Annual10KDetailProps> = ({ filing }) => {
         </Text>
       </View>
 
-      {/* All 8 sections for 10-K */}
+      {/* All 9 sections for 10-K */}
       {renderCompanyMetaCard()}
       {renderAuditorOpinion()}
       {renderThreeYearFinancials()}
@@ -413,6 +437,7 @@ const Annual10KDetail: React.FC<Annual10KDetailProps> = ({ filing }) => {
       {renderGrowthDrivers()}
       {renderManagementOutlook()}
       {renderStrategicAdjustments()}
+      {renderMarketImpact()}
 
       {/* Footer with SEC Link */}
       <View style={styles.footer}>

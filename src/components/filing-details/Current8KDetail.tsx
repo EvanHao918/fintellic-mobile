@@ -24,7 +24,6 @@ interface FilingDetail {
   ai_summary?: string;
   
   // 8-K specific fields
-  event_type?: string;
   item_type?: string;
   items?: Array<{ item_number: string; description: string }>;
   event_timeline?: {
@@ -32,7 +31,6 @@ interface FilingDetail {
     filing_date: string;
     effective_date?: string;
   };
-  event_summary?: string;
   event_nature_analysis?: string; // GPT
   market_impact_analysis?: string; // GPT
   key_considerations?: string; // GPT
@@ -95,7 +93,7 @@ const Current8KDetail: React.FC<Current8KDetailProps> = ({ filing }) => {
       return filing.items;
     }
     
-    // Fallback: try to parse from item_type or event_type
+    // Fallback: try to parse from item_type
     if (filing.item_type) {
       const itemData = ITEM_TYPE_MAPPING[filing.item_type];
       if (itemData) {
@@ -189,9 +187,6 @@ const Current8KDetail: React.FC<Current8KDetailProps> = ({ filing }) => {
                   <View style={styles.itemContent}>
                     <Text style={styles.itemNumber}>Item {item.item_number}</Text>
                     <Text style={styles.itemTitle}>{itemConfig.title}</Text>
-                    {filing.event_type && (
-                      <Text style={styles.itemEventType}>{filing.event_type}</Text>
-                    )}
                   </View>
                 </View>
               );
@@ -200,8 +195,8 @@ const Current8KDetail: React.FC<Current8KDetailProps> = ({ filing }) => {
         </View>
       )}
 
-      {/* 3. 事件正文摘要卡 */}
-      {(filing.event_summary || filing.ai_summary) && (
+      {/* 3. 事件正文摘要卡 - 修复：只使用 ai_summary */}
+      {filing.ai_summary && (
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Icon name="subject" size={24} color={redColor} />
@@ -210,7 +205,7 @@ const Current8KDetail: React.FC<Current8KDetailProps> = ({ filing }) => {
           
           <View style={styles.summaryCard}>
             <Text style={styles.summaryText}>
-              {filing.event_summary || filing.ai_summary}
+              {filing.ai_summary}
             </Text>
           </View>
         </View>
@@ -472,11 +467,6 @@ const styles = StyleSheet.create({
     fontSize: typography.fontSize.md,
     fontWeight: typography.fontWeight.semibold,
     color: colors.text,
-    marginTop: spacing.xs,
-  },
-  itemEventType: {
-    fontSize: typography.fontSize.sm,
-    color: '#EF4444',
     marginTop: spacing.xs,
   },
   

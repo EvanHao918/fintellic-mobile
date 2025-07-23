@@ -139,6 +139,11 @@ export interface User {
     created_at: string;
     updated_at: string;
     
+    // ===== 添加通用的时间相关字段 =====
+    fiscal_year?: string;
+    fiscal_quarter?: string;
+    period_end_date?: string;
+    
     // 10-K specific fields
     auditor_opinion?: string;
     three_year_financials?: any;

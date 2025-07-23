@@ -80,7 +80,46 @@ export const transformFiling = (backendFiling: any): Filing => {
     updated_at: backendFiling.updated_at || backendFiling.filing_date,
     
     // Special fields
-    event_type: backendFiling.event_type, // For 8-K filings
+    item_type: backendFiling.item_type,
+    
+    // ========== 添加所有缺失的字段 ==========
+    
+    // 8-K specific fields
+    items: backendFiling.items,
+    event_timeline: backendFiling.event_timeline,
+    event_nature_analysis: backendFiling.event_nature_analysis,
+    market_impact_analysis: backendFiling.market_impact_analysis,
+    key_considerations: backendFiling.key_considerations,
+    
+    // 10-K specific fields
+    auditor_opinion: backendFiling.auditor_opinion,
+    three_year_financials: backendFiling.three_year_financials,
+    business_segments: backendFiling.business_segments,
+    risk_summary: backendFiling.risk_summary,
+    growth_drivers: backendFiling.growth_drivers,
+    management_outlook: backendFiling.management_outlook,
+    strategic_adjustments: backendFiling.strategic_adjustments,
+    market_impact_10k: backendFiling.market_impact_10k,
+    
+    // 10-Q specific fields
+    expectations_comparison: backendFiling.expectations_comparison,
+    cost_structure: backendFiling.cost_structure,
+    guidance_update: backendFiling.guidance_update,
+    growth_decline_analysis: backendFiling.growth_decline_analysis,
+    management_tone_analysis: backendFiling.management_tone_analysis,
+    beat_miss_analysis: backendFiling.beat_miss_analysis,
+    market_impact_10q: backendFiling.market_impact_10q,
+    fiscal_year: backendFiling.fiscal_year,
+    fiscal_quarter: backendFiling.fiscal_quarter,
+    period_end_date: backendFiling.period_end_date,
+    
+    // S-1 specific fields
+    ipo_details: backendFiling.ipo_details,
+    company_overview: backendFiling.company_overview,
+    financial_summary: backendFiling.financial_summary,
+    risk_categories: backendFiling.risk_categories,
+    growth_path_analysis: backendFiling.growth_path_analysis,
+    competitive_moat_analysis: backendFiling.competitive_moat_analysis,
   };
 
   return filing;

@@ -220,77 +220,34 @@ export default function FilingDetailScreen() {
   const renderDifferentiatedContent = () => {
     if (!filing) return null;
     
-    // 添加调试信息
+    // 添加详细的调试信息
     console.log('=== Filing Data Debug ===');
+    console.log('Filing ID:', filing.id);
     console.log('Filing type:', filing.filing_type);
+    // 注意：Filing类型中只有filing_type，没有form_type
+    
+    // 8-K specific fields debug
+    if (filing.filing_type === '8-K') {
+      console.log('--- 8-K Specific Fields ---');
+      console.log('item_type:', filing.item_type);
+      console.log('items:', filing.items);
+      console.log('event_timeline:', filing.event_timeline);
+      console.log('event_nature_analysis:', filing.event_nature_analysis);
+      console.log('market_impact_analysis:', filing.market_impact_analysis);
+      console.log('key_considerations:', filing.key_considerations);
+    }
+    
     console.log('AI Summary:', filing.ai_summary);
     console.log('Full filing object:', filing);
     console.log('======================');
     
-    // 临时添加模拟数据以查看界面效果
-    const enhancedFiling = {
-      ...filing,
-      // 如果 ai_summary 包含错误信息，替换为模拟内容
-      ai_summary: filing.ai_summary?.includes('Error') 
-        ? "这是一份重要的财务报告模拟摘要，展示了公司的最新业务进展..." 
-        : filing.ai_summary,
-      
-      // 根据不同类型添加模拟数据
-      ...(filing.filing_type === '10-K' && {
-        business_overview: "我们是一家专注于人工智能和云计算的科技公司，致力于为全球客户提供创新解决方案...",
-        financial_highlights: {
-          revenue: 1500000000,
-          net_income: 300000000,
-          eps: 3.45,
-          gross_margin: 0.68,
-          operating_margin: 0.25,
-          roe: 0.22,
-          debt_to_equity: 0.45
-        },
-        risk_factors: ["市场竞争加剧", "技术快速变革", "监管政策变化", "网络安全威胁"],
-        opportunities: ["AI市场快速增长", "国际市场扩张机会", "新产品线潜力"]
-      }),
-      
-      ...(filing.filing_type === '10-Q' && {
-        quarterly_highlights: {
-          revenue: 400000000,
-          net_income: 80000000,
-          eps: 0.92
-        },
-        quarterly_comparisons: {
-          revenue_growth: 0.25,
-          income_growth: 0.30,
-          eps_growth: 0.28
-        }
-      }),
-      
-      ...(filing.filing_type === '8-K' && {
-        item_type: filing.item_type || "5.02", // 使用标准的 8-K item 编号
-        event_details: {
-          description: "公司宣布任命新的首席技术官，将领导公司的技术创新战略..."
-        },
-        impact_analysis: {
-          immediate_impact: "预计将加强公司的技术领导力",
-          long_term_implications: "有助于推动产品创新和市场扩张"
-        }
-      }),
-      
-      ...(filing.filing_type === 'S-1' && {
-        ipo_details: {
-          offering_details: {
-            shares_offered: 10000000,
-            price_range_low: 15,
-            price_range_high: 20,
-            expected_proceeds: 175000000,
-            ticker_symbol: "DEMO"
-          },
-          company_overview: "一家快速成长的科技初创公司，专注于革命性的AI解决方案..."
-        }
-      })
-    };
-    
+    // 直接使用真实的filing数据，不添加任何模拟数据
     const FilingComponent = getFilingDetailComponent(filing.filing_type);
-    return <FilingComponent filing={enhancedFiling} />;
+    
+    // 直接使用filing，所有字段都应该是正确的snake_case格式
+    const filingWithAllFields = filing;
+    
+    return <FilingComponent filing={filingWithAllFields} />;
   };
 
   // Load data on mount

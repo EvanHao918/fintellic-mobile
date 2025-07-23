@@ -145,7 +145,7 @@ const GenericFilingDetail: React.FC<GenericFilingDetailProps> = ({ filing }) => 
       )}
 
       {/* Event Information if available */}
-      {filing.event_type && (
+      {filing.item_type && (
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Icon name="event" size={24} color={colors.primary} />
