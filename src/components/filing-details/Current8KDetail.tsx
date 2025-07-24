@@ -194,21 +194,7 @@ const Current8KDetail: React.FC<Current8KDetailProps> = ({ filing }) => {
         </View>
       )}
 
-      {/* 3. 事件正文摘要卡 - 修复：只使用 ai_summary */}
-      {filing.ai_summary && (
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Icon name="subject" size={24} color={redColor} />
-            <Text style={styles.sectionTitle}>Event Summary</Text>
-          </View>
-          
-          <View style={styles.summaryCard}>
-            <Text style={styles.summaryText}>
-              {filing.ai_summary}
-            </Text>
-          </View>
-        </View>
-      )}
+      {/* 移除了事件正文摘要卡 - AI Summary */}
 
       {/* 4. 时间线卡 */}
       {filing.event_timeline && (
@@ -467,20 +453,6 @@ const styles = StyleSheet.create({
     fontWeight: typography.fontWeight.semibold,
     color: colors.text,
     marginTop: spacing.xs,
-  },
-  
-  // Summary
-  summaryCard: {
-    backgroundColor: colors.background,
-    padding: spacing.md,
-    borderRadius: borderRadius.md,
-    borderLeftWidth: 4,
-    borderLeftColor: '#EF4444',
-  },
-  summaryText: {
-    fontSize: typography.fontSize.md,
-    color: colors.text,
-    lineHeight: 24,
   },
   
   // Timeline

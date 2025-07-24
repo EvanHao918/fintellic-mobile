@@ -42,231 +42,6 @@ const IPOS1Detail: React.FC<IPOS1DetailProps> = ({ filing }) => {
     }
   };
 
-  // 清理Markdown格式的辅助函数
-  const cleanMarkdownText = (text: string): string => {
-    if (!text) return '';
-    // 移除所有Markdown符号
-    return text
-      .replace(/\*\*/g, '') // 移除粗体标记
-      .replace(/#{1,6}\s?/g, '') // 移除标题标记
-      .replace(/\*/g, '') // 移除斜体标记
-      .replace(/`/g, ''); // 移除代码标记
-  };
-
-  // 定义Section类型
-  interface Section {
-    title: string;
-    content: string;
-  }
-
-  // 解析AI Summary为结构化内容 - 修复版本
-  const parseAISummary = (summary: string): Section[] => {
-    if (!summary) return [];
-    
-    const sections: Section[] = [];
-    const cleanedSummary = cleanMarkdownText(summary);
-    
-    // 关键模式定义 - 使用更精确的匹配
-    const keyPatterns = [
-      { key: 'Company Business Model and Value Proposition', title: 'Business Model & Value Proposition' },
-      { key: 'Financial Snapshot', title: 'Financial Snapshot' },
-      { key: 'Target Valuation and Share Price Range', title: 'Valuation & Pricing' },
-      { key: 'Use of Proceeds from IPO', title: 'Use of Proceeds' },
-      { key: 'Use of Proceeds:', title: 'Use of Proceeds' },  // 添加带冒号的版本
-      { key: 'Use of Proceeds', title: 'Use of Proceeds' },   // 不带冒号的版本
-      { key: 'Key Risk Factors', title: 'Risk Factors' },
-      { key: 'Competitive Advantages and Market Position', title: 'Competitive Advantages' },
-      { key: 'Management Team and Major Shareholders', title: 'Management & Ownership' },
-    ];
-    
-    // 用于追踪已处理的内容位置，避免重复
-    const processedRanges: Array<{start: number, end: number}> = [];
-    
-    // 首先提取Executive Summary（第一段，如果不包含关键词）
-    const firstDoubleNewline = cleanedSummary.indexOf('\n\n');
-    if (firstDoubleNewline > 0) {
-      const firstParagraph = cleanedSummary.substring(0, firstDoubleNewline).trim();
-      const hasKeyword = keyPatterns.some(p => firstParagraph.includes(p.key));
-      
-      if (firstParagraph && !hasKeyword) {
-        sections.push({
-          title: 'Executive Summary',
-          content: firstParagraph
-        });
-        processedRanges.push({ start: 0, end: firstDoubleNewline });
-      }
-    }
-    
-    // 收集所有关键词的位置，包括检查段落开头
-    const foundSections: Array<{pattern: typeof keyPatterns[0], index: number}> = [];
-    
-    // 先搜索整个文本中的关键词
-    keyPatterns.forEach(pattern => {
-      let searchIndex = 0;
-      while (searchIndex < cleanedSummary.length) {
-        const index = cleanedSummary.indexOf(pattern.key, searchIndex);
-        if (index === -1) break;
-        
-        // 检查是否是独立的标题（前面是换行符或文本开头）
-        const isAtStart = index === 0;
-        const hasNewlineBefore = index > 0 && cleanedSummary[index - 1] === '\n';
-        
-        if (isAtStart || hasNewlineBefore) {
-          // 避免重复添加相同位置的不同模式
-          const alreadyFound = foundSections.some(s => 
-            Math.abs(s.index - index) < 10 && s.pattern.title === pattern.title
-          );
-          
-          if (!alreadyFound) {
-            foundSections.push({ pattern, index });
-          }
-        }
-        
-        searchIndex = index + pattern.key.length;
-      }
-    });
-    
-    // 按位置排序
-    foundSections.sort((a, b) => a.index - b.index);
-    
-    // 处理每个找到的section
-    foundSections.forEach((section, idx) => {
-      const { pattern, index } = section;
-      
-      // 计算内容的开始位置
-      // 跳过关键词本身，并查找内容的实际开始
-      let contentStart = index + pattern.key.length;
-      
-      // 跳过关键词后的换行符、空格和冒号
-      while (contentStart < cleanedSummary.length && 
-             (cleanedSummary[contentStart] === '\n' || 
-              cleanedSummary[contentStart] === '\r' || 
-              cleanedSummary[contentStart] === ' ' ||
-              cleanedSummary[contentStart] === ':')) {
-        contentStart++;
-      }
-      
-      // 计算内容的结束位置
-      let contentEnd = cleanedSummary.length;
-      
-      // 如果有下一个section，内容结束于下一个section开始前
-      if (idx < foundSections.length - 1) {
-        contentEnd = foundSections[idx + 1].index;
-      }
-      
-      // 检查是否有"In summary"结束语
-      const summaryEndIndex = cleanedSummary.indexOf('In summary', contentStart);
-      if (summaryEndIndex > -1 && summaryEndIndex < contentEnd) {
-        contentEnd = summaryEndIndex;
-      }
-      
-      // 提取内容
-      let content = cleanedSummary.substring(contentStart, contentEnd).trim();
-      
-      // 再次清理内容开头的冒号（以防万一）
-      content = content.replace(/^[:：]\s*/, '');
-      
-      // 确保内容不为空且没有被处理过
-      if (content) {
-        // 检查是否与已有内容重复
-        const isDuplicate = sections.some(s => s.content === content);
-        
-        if (!isDuplicate) {
-          sections.push({
-            title: pattern.title,
-            content: content
-          });
-          processedRanges.push({ start: index, end: contentEnd });
-        }
-      }
-    });
-    
-    // 处理结尾的Investment Summary
-    const summaryMatch = cleanedSummary.match(/In summary[,:]?\s*([\s\S]+?)$/i);
-    if (summaryMatch && summaryMatch[1]) {
-      const summaryContent = summaryMatch[1].trim();
-      // 检查是否已经包含这个内容
-      const isDuplicate = sections.some(s => s.content.includes(summaryContent));
-      
-      if (!isDuplicate && summaryContent) {
-        sections.push({
-          title: 'Investment Summary',
-          content: summaryContent
-        });
-      }
-    }
-    
-    // 如果没有找到任何section，将整个内容作为一个section
-    if (sections.length === 0) {
-      sections.push({
-        title: 'IPO Analysis',
-        content: cleanedSummary
-      });
-    }
-    
-    return sections;
-  };
-
-  // 渲染结构化的AI Summary
-  const renderStructuredSummary = () => {
-    if (!filing.ai_summary) return null;
-    
-    const sections = parseAISummary(filing.ai_summary);
-    
-    // 图标映射
-    const getIconForSection = (title: string) => {
-      const iconMap: {[key: string]: {name: string, color: string}} = {
-        'Executive Summary': { name: 'text-box-outline', color: '#E88A36' },
-        'Business Model': { name: 'domain', color: '#2196F3' },
-        'Financial Snapshot': { name: 'cash-multiple', color: '#4CAF50' },
-        'Valuation': { name: 'chart-line', color: '#9C27B0' },
-        'Use of Proceeds': { name: 'cash-check', color: '#00BCD4' },
-        'Risk': { name: 'alert-circle', color: '#F44336' },
-        'Competitive': { name: 'shield-check', color: '#FF9800' },
-        'Management': { name: 'account-group', color: '#607D8B' },
-        'Investment Summary': { name: 'lightbulb-outline', color: '#795548' }
-      };
-      
-      // 查找匹配的图标
-      for (const [key, value] of Object.entries(iconMap)) {
-        if (title.includes(key)) {
-          return value;
-        }
-      }
-      
-      // 默认图标
-      return { name: 'information', color: '#E88A36' };
-    };
-    
-    return (
-      <View style={styles.section}>
-        <View style={styles.sectionHeader}>
-          <MaterialCommunityIcons name="robot" size={22} color="#E88A36" />
-          <Text style={styles.mainSectionTitle}>AI Analysis Summary</Text>
-        </View>
-        
-        {sections.map((section, index) => {
-          const icon = getIconForSection(section.title);
-          
-          return (
-            <View key={index} style={styles.summaryCard}>
-              <View style={styles.cardHeader}>
-                <MaterialCommunityIcons 
-                  name={icon.name as any} 
-                  size={20} 
-                  color={icon.color} 
-                />
-                <Text style={styles.summaryCardTitle}>{section.title}</Text>
-              </View>
-              <View style={styles.cardDivider} />
-              <Text style={styles.summaryCardContent}>{section.content}</Text>
-            </View>
-          );
-        })}
-      </View>
-    );
-  };
-
   // 从AI Summary中尝试提取IPO信息的备用方案
   const extractIPOInfoFromSummary = (summary: string): any => {
     const info: any = {};
@@ -274,7 +49,7 @@ const IPOS1Detail: React.FC<IPOS1DetailProps> = ({ filing }) => {
     // 尝试提取价格信息
     const priceMatch = summary.match(/\$(\d+(?:\.\d+)?)\s*(?:to|-)\s*\$?(\d+(?:\.\d+)?)\s*per\s*share/i);
     if (priceMatch) {
-      info.price_range = `${priceMatch[1]} - ${priceMatch[2]}`;
+      info.price_range = `$${priceMatch[1]}-$${priceMatch[2]}`;
     }
     
     // 尝试提取股票代码
@@ -493,9 +268,8 @@ const IPOS1Detail: React.FC<IPOS1DetailProps> = ({ filing }) => {
 
   return (
     <ScrollView style={styles.container}>
-      {/* 结构化的AI Summary - 瀑布流布局 */}
-      {renderStructuredSummary()}
-
+      {/* 移除了 AI Summary 部分 */}
+      
       {/* IPO详情 - 即使没有数据也显示框架 */}
       {renderIPODetails()}
 
@@ -537,14 +311,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 16,
   },
-  mainSectionTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#1a1a1a',
-    marginLeft: 10,
-    fontFamily: 'System', // iOS会使用SF Pro，Android会使用Roboto
-    letterSpacing: -0.5,
-  },
   sectionTitle: {
     fontSize: 18,
     fontWeight: '700',
@@ -562,57 +328,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.08,
     shadowRadius: 8,
     elevation: 4,
-  },
-  summaryCard: {
-    backgroundColor: 'white',
-    borderRadius: 16,
-    marginBottom: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 4,
-    borderWidth: 1,
-    borderColor: '#e8e8e8',
-    overflow: 'hidden',
-  },
-  cardHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingTop: 18,
-    paddingBottom: 12,
-  },
-  cardDivider: {
-    height: 1,
-    backgroundColor: '#f0f0f0',
-    marginHorizontal: 20,
-    marginBottom: 16,
-  },
-  summaryCardTitle: {
-    fontSize: 17,
-    fontWeight: '700',
-    color: '#1a2332',
-    marginLeft: 10,
-    fontFamily: 'System',
-    letterSpacing: -0.3,
-    flex: 1,
-  },
-  summaryCardContent: {
-    fontSize: 15,
-    lineHeight: 24,
-    color: '#3a4357',
-    fontFamily: 'System',
-    letterSpacing: -0.1,
-    paddingHorizontal: 20,
-    paddingBottom: 20,
-    textAlign: 'justify',
-  },
-  summaryText: {
-    fontSize: 15,
-    lineHeight: 24,
-    color: '#333',
-    textAlign: 'justify',
   },
   overviewText: {
     fontSize: 15,
@@ -632,11 +347,6 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#f5f5f5',
   },
-  detailColumn: {
-    paddingVertical: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f5f5f5',
-  },
   detailLabel: {
     fontSize: 14,
     color: '#64748b',
@@ -650,20 +360,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     flex: 1,
     textAlign: 'right',
-    fontFamily: 'System',
-  },
-  detailText: {
-    fontSize: 14,
-    color: '#475569',
-    marginTop: 6,
-    lineHeight: 20,
-    fontFamily: 'System',
-  },
-  underwriterItem: {
-    fontSize: 14,
-    color: '#475569',
-    marginTop: 4,
-    marginLeft: 8,
     fontFamily: 'System',
   },
   noDataText: {

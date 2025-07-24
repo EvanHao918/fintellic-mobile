@@ -117,16 +117,7 @@ const GenericFilingDetail: React.FC<GenericFilingDetailProps> = ({ filing }) => 
         </Text>
       </View>
 
-      {/* AI Summary if available */}
-      {filing.ai_summary && (
-        <View style={[styles.section, styles.summarySection]}>
-          <View style={styles.sectionHeader}>
-            <Icon name="auto-awesome" size={24} color={colors.primary} />
-            <Text style={styles.sectionTitle}>AI Summary</Text>
-          </View>
-          <Text style={styles.summaryText}>{filing.ai_summary}</Text>
-        </View>
-      )}
+      {/* 移除了 AI Summary 部分 */}
 
       {/* Dynamic sections based on available data */}
       {renderSection('Overview', filing.one_liner || filing.business_overview, 'info')}
@@ -283,10 +274,6 @@ const styles = StyleSheet.create({
       },
     }),
   },
-  summarySection: {
-    borderLeftWidth: 4,
-    borderLeftColor: colors.primary,
-  },
   sectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -302,12 +289,6 @@ const styles = StyleSheet.create({
     fontSize: typography.fontSize.md,
     color: colors.textSecondary,
     lineHeight: 24,
-  },
-  summaryText: {
-    fontSize: typography.fontSize.md,
-    color: colors.text,
-    lineHeight: 24,
-    fontStyle: 'italic',
   },
   itemsList: {
     marginTop: spacing.sm,
