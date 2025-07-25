@@ -8,32 +8,30 @@ import {
   Linking,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { Filing } from '../../types';
-import { formatNumber } from '../../utils/textHelpers';
+
+interface Filing {
+  id: number;
+  form_type: string;
+  company_name: string;
+  company_ticker: string;
+  filing_date: string;
+  filing_url: string;
+  ai_summary?: string;
+  
+  // S-1 specific fields - 全部改为字符串类型
+  ipo_details?: string;  // 改为string
+  company_overview?: string;
+  financial_summary?: string;  // 改为string
+  risk_categories?: string;  // 改为string
+  growth_path_analysis?: string;
+  competitive_moat_analysis?: string;
+  financial_highlights?: any;  // 保留结构化数据
+  [key: string]: any;
+}
 
 interface IPOS1DetailProps {
   filing: Filing;
 }
-
-// 格式化货币的辅助函数
-const formatCurrency = (value: number | string): string => {
-  if (typeof value === 'string') {
-    value = parseFloat(value);
-  }
-  if (isNaN(value)) return 'N/A';
-  
-  const absValue = Math.abs(value);
-  const sign = value < 0 ? '-' : '';
-  
-  if (absValue >= 1e9) {
-    return `${sign}${(absValue / 1e9).toFixed(1)}B`;
-  } else if (absValue >= 1e6) {
-    return `${sign}${(absValue / 1e6).toFixed(1)}M`;
-  } else if (absValue >= 1e3) {
-    return `${sign}${(absValue / 1e3).toFixed(0)}K`;
-  }
-  return `${sign}${absValue.toFixed(0)}`;
-};
 
 const IPOS1Detail: React.FC<IPOS1DetailProps> = ({ filing }) => {
   const openSECFiling = () => {
@@ -42,51 +40,30 @@ const IPOS1Detail: React.FC<IPOS1DetailProps> = ({ filing }) => {
     }
   };
 
-  // 从AI Summary中尝试提取IPO信息的备用方案
-  const extractIPOInfoFromSummary = (summary: string): any => {
-    const info: any = {};
-    
-    // 尝试提取价格信息
-    const priceMatch = summary.match(/\$(\d+(?:\.\d+)?)\s*(?:to|-)\s*\$?(\d+(?:\.\d+)?)\s*per\s*share/i);
-    if (priceMatch) {
-      info.price_range = `$${priceMatch[1]}-$${priceMatch[2]}`;
+  // 格式化货币的辅助函数（用于financial_highlights）
+  const formatCurrency = (value: number | string): string => {
+    if (typeof value === 'string') {
+      value = parseFloat(value);
     }
+    if (isNaN(value)) return 'N/A';
     
-    // 尝试提取股票代码
-    const tickerMatch = summary.match(/ticker[:\s]+([A-Z]{2,5})/i);
-    if (tickerMatch) {
-      info.ticker = tickerMatch[1];
+    const absValue = Math.abs(value);
+    const sign = value < 0 ? '-' : '';
+    
+    if (absValue >= 1e9) {
+      return `${sign}${(absValue / 1e9).toFixed(1)}B`;
+    } else if (absValue >= 1e6) {
+      return `${sign}${(absValue / 1e6).toFixed(1)}M`;
+    } else if (absValue >= 1e3) {
+      return `${sign}${(absValue / 1e3).toFixed(0)}K`;
     }
-    
-    // 尝试提取交易所
-    const exchangeMatch = summary.match(/(NYSE|NASDAQ|AMEX)/i);
-    if (exchangeMatch) {
-      info.exchange = exchangeMatch[1].toUpperCase();
-    }
-    
-    // 尝试提取募资金额
-    const proceedsMatch = summary.match(/(?:raise|raising|proceeds of)\s*\$(\d+(?:\.\d+)?)\s*(million|billion|M|B)/i);
-    if (proceedsMatch) {
-      const amount = parseFloat(proceedsMatch[1]);
-      const multiplier = proceedsMatch[2].toLowerCase().startsWith('b') ? 1e9 : 1e6;
-      info.expected_proceeds = amount * multiplier;
-    }
-    
-    return Object.keys(info).length > 0 ? info : null;
+    return `${sign}${absValue.toFixed(0)}`;
   };
 
-  // 渲染IPO基本信息
+  // 渲染IPO基本信息 - 修正版（改为文本显示）
   const renderIPODetails = () => {
-    // 优先使用后端返回的ipo_details
-    let details = filing.ipo_details || {};
-    
-    // 如果后端数据不完整，尝试从summary中提取
-    if (!details.ticker && !details.price_range && filing.ai_summary) {
-      const extractedInfo = extractIPOInfoFromSummary(filing.ai_summary);
-      if (extractedInfo) {
-        details = { ...extractedInfo, ...details };
-      }
-    }
+    if (!filing.ipo_details) return null;
+
     return (
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
@@ -94,39 +71,7 @@ const IPOS1Detail: React.FC<IPOS1DetailProps> = ({ filing }) => {
           <Text style={styles.sectionTitle}>IPO Details</Text>
         </View>
         <View style={styles.card}>
-          {details.ticker ? (
-            <View style={styles.detailRow}>
-              <Text style={styles.detailLabel}>Proposed Ticker:</Text>
-              <Text style={styles.detailValue}>{details.ticker}</Text>
-            </View>
-          ) : null}
-          {details.exchange ? (
-            <View style={styles.detailRow}>
-              <Text style={styles.detailLabel}>Exchange:</Text>
-              <Text style={styles.detailValue}>{details.exchange}</Text>
-            </View>
-          ) : null}
-          {details.price_range ? (
-            <View style={styles.detailRow}>
-              <Text style={styles.detailLabel}>Expected Price Range:</Text>
-              <Text style={styles.detailValue}>{details.price_range}</Text>
-            </View>
-          ) : null}
-          {details.shares_offered ? (
-            <View style={styles.detailRow}>
-              <Text style={styles.detailLabel}>Shares Offered:</Text>
-              <Text style={styles.detailValue}>{formatNumber(details.shares_offered)}</Text>
-            </View>
-          ) : null}
-          {details.expected_proceeds ? (
-            <View style={styles.detailRow}>
-              <Text style={styles.detailLabel}>Expected Proceeds:</Text>
-              <Text style={styles.detailValue}>{formatCurrency(details.expected_proceeds)}</Text>
-            </View>
-          ) : null}
-          {!details.ticker && !details.exchange && !details.price_range && (
-            <Text style={styles.noDataText}>IPO details not yet available</Text>
-          )}
+          <Text style={styles.narrativeText}>{filing.ipo_details}</Text>
         </View>
       </View>
     );
@@ -138,9 +83,10 @@ const IPOS1Detail: React.FC<IPOS1DetailProps> = ({ filing }) => {
 
     return (
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>
-          <MaterialCommunityIcons name="office-building" size={20} color="#E88A36" /> Company Overview
-        </Text>
+        <View style={styles.sectionHeader}>
+          <MaterialCommunityIcons name="office-building" size={20} color="#E88A36" />
+          <Text style={styles.sectionTitle}>Company Overview</Text>
+        </View>
         <View style={styles.card}>
           <Text style={styles.overviewText}>{filing.company_overview}</Text>
         </View>
@@ -148,49 +94,68 @@ const IPOS1Detail: React.FC<IPOS1DetailProps> = ({ filing }) => {
     );
   };
 
-  // 渲染财务摘要
+  // 渲染财务摘要 - 修正版（改为文本显示）
   const renderFinancialSummary = () => {
     if (!filing.financial_summary) return null;
 
-    const summary = filing.financial_summary;
     return (
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>
-          <MaterialCommunityIcons name="currency-usd" size={20} color="#E88A36" /> Financial Summary
-        </Text>
+        <View style={styles.sectionHeader}>
+          <MaterialCommunityIcons name="currency-usd" size={20} color="#E88A36" />
+          <Text style={styles.sectionTitle}>Financial Summary</Text>
+        </View>
         <View style={styles.card}>
-          {summary.revenue && (
+          <Text style={styles.narrativeText}>{filing.financial_summary}</Text>
+        </View>
+      </View>
+    );
+  };
+
+  // 渲染财务指标（如果有结构化数据）
+  const renderFinancialHighlights = () => {
+    if (!filing.financial_highlights) return null;
+
+    const highlights = filing.financial_highlights;
+
+    return (
+      <View style={styles.section}>
+        <View style={styles.sectionHeader}>
+          <MaterialCommunityIcons name="chart-bar" size={20} color="#E88A36" />
+          <Text style={styles.sectionTitle}>Financial Highlights</Text>
+        </View>
+        <View style={styles.card}>
+          {highlights.revenue && (
             <View style={styles.metricRow}>
               <Text style={styles.metricLabel}>Revenue (Latest):</Text>
-              <Text style={styles.metricValue}>{formatCurrency(summary.revenue)}</Text>
+              <Text style={styles.metricValue}>{formatCurrency(highlights.revenue)}</Text>
             </View>
           )}
-          {summary.revenue_growth && (
+          {highlights.revenue_growth && (
             <View style={styles.metricRow}>
               <Text style={styles.metricLabel}>Revenue Growth:</Text>
-              <Text style={[styles.metricValue, { color: summary.revenue_growth > 0 ? '#4CAF50' : '#F44336' }]}>
-                {summary.revenue_growth > 0 ? '+' : ''}{summary.revenue_growth}%
+              <Text style={[styles.metricValue, { color: highlights.revenue_growth > 0 ? '#4CAF50' : '#F44336' }]}>
+                {highlights.revenue_growth > 0 ? '+' : ''}{highlights.revenue_growth}%
               </Text>
             </View>
           )}
-          {summary.net_income !== undefined && (
+          {highlights.net_income !== undefined && (
             <View style={styles.metricRow}>
               <Text style={styles.metricLabel}>Net Income:</Text>
-              <Text style={[styles.metricValue, { color: summary.net_income >= 0 ? '#4CAF50' : '#F44336' }]}>
-                {formatCurrency(summary.net_income)}
+              <Text style={[styles.metricValue, { color: highlights.net_income >= 0 ? '#4CAF50' : '#F44336' }]}>
+                {formatCurrency(highlights.net_income)}
               </Text>
             </View>
           )}
-          {summary.cash_position && (
+          {highlights.cash && (
             <View style={styles.metricRow}>
               <Text style={styles.metricLabel}>Cash Position:</Text>
-              <Text style={styles.metricValue}>{formatCurrency(summary.cash_position)}</Text>
+              <Text style={styles.metricValue}>{formatCurrency(highlights.cash)}</Text>
             </View>
           )}
-          {summary.burn_rate && (
+          {highlights.burn_rate && (
             <View style={styles.metricRow}>
               <Text style={styles.metricLabel}>Monthly Burn Rate:</Text>
-              <Text style={styles.metricValue}>{formatCurrency(summary.burn_rate)}</Text>
+              <Text style={styles.metricValue}>{formatCurrency(highlights.burn_rate)}</Text>
             </View>
           )}
         </View>
@@ -198,38 +163,19 @@ const IPOS1Detail: React.FC<IPOS1DetailProps> = ({ filing }) => {
     );
   };
 
-  // 渲染风险分类
+  // 渲染风险分类 - 修正版（改为文本显示）
   const renderRiskCategories = () => {
     if (!filing.risk_categories) return null;
 
-    const risks = filing.risk_categories;
-    const riskSections = [
-      { key: 'business_risks', title: 'Business Risks', icon: 'briefcase' },
-      { key: 'market_risks', title: 'Market Risks', icon: 'chart-line-variant' },
-      { key: 'regulatory_risks', title: 'Regulatory Risks', icon: 'gavel' },
-      { key: 'financial_risks', title: 'Financial Risks', icon: 'cash-remove' },
-    ];
-
     return (
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>
-          <MaterialCommunityIcons name="alert-circle" size={20} color="#E88A36" /> Risk Factors
-        </Text>
-        {riskSections.map((section) => {
-          const riskItems = risks[section.key];
-          if (!riskItems || riskItems.length === 0) return null;
-
-          return (
-            <View key={section.key} style={styles.riskCategory}>
-              <Text style={styles.riskCategoryTitle}>
-                <MaterialCommunityIcons name={section.icon as any} size={16} color="#666" /> {section.title}
-              </Text>
-              {riskItems.map((risk: string, index: number) => (
-                <Text key={index} style={styles.riskItem}>• {risk}</Text>
-              ))}
-            </View>
-          );
-        })}
+        <View style={styles.sectionHeader}>
+          <MaterialCommunityIcons name="alert-circle" size={20} color="#E88A36" />
+          <Text style={styles.sectionTitle}>Risk Factors</Text>
+        </View>
+        <View style={styles.card}>
+          <Text style={styles.narrativeText}>{filing.risk_categories}</Text>
+        </View>
       </View>
     );
   };
@@ -240,9 +186,10 @@ const IPOS1Detail: React.FC<IPOS1DetailProps> = ({ filing }) => {
 
     return (
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>
-          <MaterialCommunityIcons name="trending-up" size={20} color="#E88A36" /> Growth Path Analysis
-        </Text>
+        <View style={styles.sectionHeader}>
+          <MaterialCommunityIcons name="trending-up" size={20} color="#E88A36" />
+          <Text style={styles.sectionTitle}>Growth Path Analysis</Text>
+        </View>
         <View style={styles.card}>
           <Text style={styles.analysisText}>{filing.growth_path_analysis}</Text>
         </View>
@@ -256,9 +203,10 @@ const IPOS1Detail: React.FC<IPOS1DetailProps> = ({ filing }) => {
 
     return (
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>
-          <MaterialCommunityIcons name="shield-check" size={20} color="#E88A36" /> Competitive Moat
-        </Text>
+        <View style={styles.sectionHeader}>
+          <MaterialCommunityIcons name="shield-check" size={20} color="#E88A36" />
+          <Text style={styles.sectionTitle}>Competitive Moat</Text>
+        </View>
         <View style={styles.card}>
           <Text style={styles.analysisText}>{filing.competitive_moat_analysis}</Text>
         </View>
@@ -270,7 +218,7 @@ const IPOS1Detail: React.FC<IPOS1DetailProps> = ({ filing }) => {
     <ScrollView style={styles.container}>
       {/* 移除了 AI Summary 部分 */}
       
-      {/* IPO详情 - 即使没有数据也显示框架 */}
+      {/* IPO详情 */}
       {renderIPODetails()}
 
       {/* 公司概述 */}
@@ -278,6 +226,9 @@ const IPOS1Detail: React.FC<IPOS1DetailProps> = ({ filing }) => {
 
       {/* 财务摘要 */}
       {renderFinancialSummary()}
+
+      {/* 财务指标（如果有） */}
+      {renderFinancialHighlights()}
 
       {/* 风险因素 */}
       {renderRiskCategories()}
@@ -339,35 +290,10 @@ const styles = StyleSheet.create({
     lineHeight: 23,
     color: '#444',
   },
-  detailRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f5f5f5',
-  },
-  detailLabel: {
-    fontSize: 14,
-    color: '#64748b',
-    fontWeight: '500',
-    flex: 1,
-    fontFamily: 'System',
-  },
-  detailValue: {
+  narrativeText: {
     fontSize: 15,
-    color: '#1e293b',
-    fontWeight: '600',
-    flex: 1,
-    textAlign: 'right',
-    fontFamily: 'System',
-  },
-  noDataText: {
-    fontSize: 14,
-    color: '#94a3b8',
-    textAlign: 'center',
-    fontStyle: 'italic',
-    fontFamily: 'System',
+    lineHeight: 23,
+    color: '#444',
   },
   metricRow: {
     flexDirection: 'row',
@@ -388,30 +314,6 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#1e293b',
     fontFamily: 'System',
-  },
-  riskCategory: {
-    marginBottom: 16,
-    backgroundColor: 'white',
-    borderRadius: 12,
-    padding: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  riskCategoryTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#333',
-    marginBottom: 8,
-  },
-  riskItem: {
-    fontSize: 14,
-    color: '#555',
-    marginLeft: 8,
-    marginTop: 6,
-    lineHeight: 20,
   },
   viewFilingButton: {
     backgroundColor: '#E88A36',

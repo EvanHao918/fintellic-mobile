@@ -13,42 +13,23 @@ import { colors, typography, spacing, borderRadius } from '../../theme';
 
 interface FilingDetail {
   id: number;
-  form_type: string;  // 使用 form_type 而不是 filing_type
+  form_type: string;
   company_name: string;
   company_ticker: string;
   filing_date: string;
-  filing_url: string;  // 使用 filing_url 而不是 file_url
+  filing_url: string;
   fiscal_quarter?: string;
   period_end_date?: string;
-  // 10-Q specific fields
-  core_metrics?: {
-    revenue: number;
-    net_income: number;
-    eps: number;
-    operating_margin: number;
-  };
-  expectations_comparison?: {
-    revenue: { expected: number; actual: number; beat: boolean };
-    eps: { expected: number; actual: number; beat: boolean };
-    guidance: { previous: string; updated: string; raised: boolean };
-  };
-  cost_structure?: {
-    cogs: { amount: number; percentage: number; yoy_change: number };
-    rd: { amount: number; percentage: number; yoy_change: number };
-    sga: { amount: number; percentage: number; yoy_change: number };
-    total_opex: { amount: number; percentage: number; yoy_change: number };
-  };
-  guidance_update?: {
-    updated: boolean;
-    revenue_guidance: string;
-    eps_guidance: string;
-    key_assumptions: string[];
-  };
-  // GPT generated insights
+  // 10-Q specific fields - 全部改为字符串类型
+  core_metrics?: string;  // ← 添加这个字段！
+  financial_highlights?: any;  // 保留兼容性
+  expectations_comparison?: string;
+  cost_structure?: string;
+  guidance_update?: string;
   growth_decline_analysis?: string;
   management_tone_analysis?: string;
   beat_miss_analysis?: string;
-  market_impact_10q?: string;  // 确保使用正确的字段名
+  market_impact_10q?: string;
   [key: string]: any;
 }
 
@@ -57,31 +38,6 @@ interface Quarterly10QDetailProps {
 }
 
 const Quarterly10QDetail: React.FC<Quarterly10QDetailProps> = ({ filing }) => {
-  // Format helper functions
-  const formatCurrency = (value: number | undefined) => {
-    if (!value) return 'N/A';
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-      notation: 'compact',
-      maximumFractionDigits: 1,
-    }).format(value);
-  };
-
-  const formatPercentage = (value: number | undefined) => {
-    if (!value && value !== 0) return 'N/A';
-    return `${(value * 100).toFixed(1)}%`;
-  };
-
-  const formatChange = (value: number | undefined) => {
-    if (!value && value !== 0) return { text: 'N/A', color: colors.textSecondary };
-    const isPositive = value > 0;
-    return {
-      text: `${isPositive ? '+' : ''}${(value * 100).toFixed(1)}%`,
-      color: isPositive ? colors.success : colors.error,
-    };
-  };
-
   const getQuarter = () => {
     if (filing.fiscal_quarter) return filing.fiscal_quarter;
     const date = new Date(filing.filing_date);
@@ -127,20 +83,34 @@ const Quarterly10QDetail: React.FC<Quarterly10QDetailProps> = ({ filing }) => {
     </View>
   );
 
-  // 条目2: 核心业绩 & 预期对比卡（重点功能）- 修复版本
-  const renderPerformanceVsExpectations = () => {
-    // 如果没有真实数据，不显示这个section
-    if (!filing.expectations_comparison) {
+  // 条目2: 财务快照 - 新的第一展示条目（替代原来的 Financial Metrics）
+  const renderFinancialSnapshot = () => {
+    // 修复：检查 core_metrics 而不是 financial_highlights
+    if (!filing.core_metrics || typeof filing.core_metrics !== 'string') {
       return null;
     }
 
-    const expectations = filing.expectations_comparison;
+    return (
+      <View style={styles.section}>
+        <View style={styles.sectionHeader}>
+          <Icon name="attach-money" size={24} color={colors.primary} />
+          <Text style={styles.sectionTitle}>财务快照</Text>
+          <View style={styles.snapshotBadge}>
+            <Icon name="flash-on" size={14} color={colors.primary} />
+            <Text style={styles.snapshotBadgeText}>SNAPSHOT</Text>
+          </View>
+        </View>
 
-    const getBeatMissIcon = (beat: boolean) => ({
-      icon: beat ? 'thumb-up' : 'thumb-down',
-      color: beat ? colors.success : colors.error,
-      text: beat ? 'BEAT' : 'MISS',
-    });
+        <View style={styles.snapshotCard}>
+          <Text style={styles.snapshotText}>{filing.core_metrics}</Text>
+        </View>
+      </View>
+    );
+  };
+
+  // 条目3: 核心业绩 & 预期对比卡（文本显示）
+  const renderPerformanceVsExpectations = () => {
+    if (!filing.expectations_comparison) return null;
 
     return (
       <View style={styles.section}>
@@ -153,115 +123,16 @@ const Quarterly10QDetail: React.FC<Quarterly10QDetailProps> = ({ filing }) => {
           </View>
         </View>
 
-        {/* Revenue vs Expectations */}
-        {expectations.revenue && (
-          <View style={styles.expectationCard}>
-            <View style={styles.expectationHeader}>
-              <Text style={styles.expectationTitle}>Revenue</Text>
-              <View style={[styles.beatMissBadge, { backgroundColor: getBeatMissIcon(expectations.revenue.beat).color + '20' }]}>
-                <Icon name={getBeatMissIcon(expectations.revenue.beat).icon} size={16} color={getBeatMissIcon(expectations.revenue.beat).color} />
-                <Text style={[styles.beatMissText, { color: getBeatMissIcon(expectations.revenue.beat).color }]}>
-                  {getBeatMissIcon(expectations.revenue.beat).text}
-                </Text>
-              </View>
-            </View>
-            
-            <View style={styles.expectationMetrics}>
-              <View style={styles.expectationItem}>
-                <Text style={styles.expectationLabel}>Expected</Text>
-                <Text style={styles.expectationValue}>{formatCurrency(expectations.revenue.expected * 1000000)}</Text>
-              </View>
-              <Icon name="arrow-forward" size={20} color={colors.textSecondary} />
-              <View style={styles.expectationItem}>
-                <Text style={styles.expectationLabel}>Actual</Text>
-                <Text style={[styles.expectationValue, styles.actualValue]}>
-                  {formatCurrency(expectations.revenue.actual * 1000000)}
-                </Text>
-              </View>
-            </View>
-            
-            <View style={styles.expectationDiff}>
-              <Text style={styles.expectationDiffText}>
-                Difference: {formatCurrency((expectations.revenue.actual - expectations.revenue.expected) * 1000000)} 
-                ({((expectations.revenue.actual / expectations.revenue.expected - 1) * 100).toFixed(1)}%)
-              </Text>
-            </View>
-          </View>
-        )}
-
-        {/* EPS vs Expectations */}
-        {expectations.eps && (
-          <View style={styles.expectationCard}>
-            <View style={styles.expectationHeader}>
-              <Text style={styles.expectationTitle}>Earnings Per Share</Text>
-              <View style={[styles.beatMissBadge, { backgroundColor: getBeatMissIcon(expectations.eps.beat).color + '20' }]}>
-                <Icon name={getBeatMissIcon(expectations.eps.beat).icon} size={16} color={getBeatMissIcon(expectations.eps.beat).color} />
-                <Text style={[styles.beatMissText, { color: getBeatMissIcon(expectations.eps.beat).color }]}>
-                  {getBeatMissIcon(expectations.eps.beat).text}
-                </Text>
-              </View>
-            </View>
-            
-            <View style={styles.expectationMetrics}>
-              <View style={styles.expectationItem}>
-                <Text style={styles.expectationLabel}>Expected</Text>
-                <Text style={styles.expectationValue}>${expectations.eps.expected.toFixed(2)}</Text>
-              </View>
-              <Icon name="arrow-forward" size={20} color={colors.textSecondary} />
-              <View style={styles.expectationItem}>
-                <Text style={styles.expectationLabel}>Actual</Text>
-                <Text style={[styles.expectationValue, styles.actualValue]}>${expectations.eps.actual.toFixed(2)}</Text>
-              </View>
-            </View>
-            
-            <View style={styles.expectationDiff}>
-              <Text style={styles.expectationDiffText}>
-                Difference: ${(expectations.eps.actual - expectations.eps.expected).toFixed(2)} 
-                ({((expectations.eps.actual / expectations.eps.expected - 1) * 100).toFixed(1)}%)
-              </Text>
-            </View>
-          </View>
-        )}
-
-        {/* Guidance Update */}
-        {expectations.guidance && (
-          <View style={[styles.guidanceCard, { borderColor: expectations.guidance.raised ? colors.success : colors.warning }]}>
-            <Icon 
-              name={expectations.guidance.raised ? 'trending-up' : 'trending-flat'} 
-              size={24} 
-              color={expectations.guidance.raised ? colors.success : colors.warning} 
-            />
-            <View style={styles.guidanceContent}>
-              <Text style={styles.guidanceTitle}>Guidance {expectations.guidance.raised ? 'Raised' : 'Maintained'}</Text>
-              <Text style={styles.guidanceText}>
-                {expectations.guidance.previous} → {expectations.guidance.updated}
-              </Text>
-            </View>
-          </View>
-        )}
+        <View style={styles.narrativeCard}>
+          <Text style={styles.narrativeText}>{filing.expectations_comparison}</Text>
+        </View>
       </View>
     );
   };
 
-  // 条目3: 成本结构与费用摘要 - 修复版本
+  // 条目4: 成本结构与费用摘要（文本显示）
   const renderCostStructure = () => {
-    // 如果没有成本结构数据，不显示这个section
-    if (!filing.cost_structure) {
-      return null;
-    }
-
-    const costs = filing.cost_structure;
-
-    const costCategories: Array<{
-      key: keyof typeof costs;
-      label: string;
-      icon: string;
-    }> = [
-      { key: 'cogs', label: 'Cost of Goods Sold', icon: 'inventory' },
-      { key: 'rd', label: 'R&D Expenses', icon: 'science' },
-      { key: 'sga', label: 'SG&A Expenses', icon: 'business-center' },
-      { key: 'total_opex', label: 'Total OpEx', icon: 'account-balance-wallet' },
-    ];
+    if (!filing.cost_structure) return null;
 
     return (
       <View style={styles.section}>
@@ -270,119 +141,34 @@ const Quarterly10QDetail: React.FC<Quarterly10QDetailProps> = ({ filing }) => {
           <Text style={styles.sectionTitle}>Cost Structure Analysis</Text>
         </View>
 
-        {costCategories.map((category) => {
-          const cost = costs[category.key];
-          if (!cost) return null; // 跳过没有数据的类别
-          
-          const changeColor = cost.yoy_change > 0 ? colors.error : colors.success;
-          
-          return (
-            <View key={category.key} style={styles.costItem}>
-              <View style={styles.costHeader}>
-                <View style={styles.costInfo}>
-                  <Icon name={category.icon} size={20} color={colors.textSecondary} />
-                  <Text style={styles.costLabel}>{category.label}</Text>
-                </View>
-                <Text style={styles.costAmount}>{formatCurrency(cost.amount * 1000000)}</Text>
-              </View>
-              
-              <View style={styles.costMetrics}>
-                <View style={styles.costMetric}>
-                  <Text style={styles.costMetricLabel}>% of Revenue</Text>
-                  <Text style={styles.costMetricValue}>{formatPercentage(cost.percentage)}</Text>
-                </View>
-                <View style={styles.costMetric}>
-                  <Text style={styles.costMetricLabel}>YoY Change</Text>
-                  <Text style={[styles.costMetricValue, { color: changeColor }]}>
-                    {formatChange(cost.yoy_change).text}
-                  </Text>
-                </View>
-              </View>
-              
-              <View style={styles.costBar}>
-                <View style={[styles.costBarFill, { width: `${cost.percentage * 100}%` }]} />
-              </View>
-            </View>
-          );
-        })}
+        <View style={styles.narrativeCard}>
+          <Text style={styles.narrativeText}>{filing.cost_structure}</Text>
+        </View>
       </View>
     );
   };
 
-  // 条目4: 是否更新业绩指引 - 修复版本
+  // 条目5: 是否更新业绩指引（文本显示）
   const renderGuidanceUpdate = () => {
-    // 如果没有指引更新数据，不显示这个section
-    if (!filing.guidance_update) {
-      return null;
-    }
-
-    const guidance = filing.guidance_update;
+    if (!filing.guidance_update) return null;
 
     return (
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
           <Icon name="update" size={24} color={colors.primary} />
           <Text style={styles.sectionTitle}>Guidance Update</Text>
-          {guidance.updated && (
-            <View style={styles.updatedBadge}>
-              <Text style={styles.updatedBadgeText}>UPDATED</Text>
-            </View>
-          )}
         </View>
 
-        {guidance.updated ? (
-          <>
-            <View style={styles.guidanceUpdateCard}>
-              <Icon name="trending-up" size={28} color={colors.success} />
-              <View style={styles.guidanceUpdateContent}>
-                <Text style={styles.guidanceUpdateTitle}>Full Year Guidance Raised</Text>
-                
-                {guidance.revenue_guidance && (
-                  <View style={styles.guidanceUpdateItem}>
-                    <Text style={styles.guidanceUpdateLabel}>Revenue:</Text>
-                    <Text style={styles.guidanceUpdateValue}>{guidance.revenue_guidance}</Text>
-                  </View>
-                )}
-                
-                {guidance.eps_guidance && (
-                  <View style={styles.guidanceUpdateItem}>
-                    <Text style={styles.guidanceUpdateLabel}>EPS:</Text>
-                    <Text style={styles.guidanceUpdateValue}>{guidance.eps_guidance}</Text>
-                  </View>
-                )}
-              </View>
-            </View>
-
-            {guidance.key_assumptions && guidance.key_assumptions.length > 0 && (
-              <View style={styles.assumptionsCard}>
-                <Text style={styles.assumptionsTitle}>Key Assumptions:</Text>
-                {guidance.key_assumptions.map((assumption, index) => (
-                  <View key={index} style={styles.assumptionItem}>
-                    <Icon name="check-circle" size={16} color={colors.success} />
-                    <Text style={styles.assumptionText}>{assumption}</Text>
-                  </View>
-                ))}
-              </View>
-            )}
-          </>
-        ) : (
-          <View style={styles.noUpdateCard}>
-            <Icon name="info" size={24} color={colors.textSecondary} />
-            <Text style={styles.noUpdateText}>
-              Management maintained previous full-year guidance
-            </Text>
-          </View>
-        )}
+        <View style={styles.narrativeCard}>
+          <Text style={styles.narrativeText}>{filing.guidance_update}</Text>
+        </View>
       </View>
     );
   };
 
-  // 条目5: GPT增长/下滑驱动分析 - 修复版本
+  // 条目6: GPT增长/下滑驱动分析
   const renderGrowthDeclineAnalysis = () => {
-    // 如果没有分析数据，不显示这个section
-    if (!filing.growth_decline_analysis) {
-      return null;
-    }
+    if (!filing.growth_decline_analysis) return null;
 
     return (
       <View style={styles.section}>
@@ -396,20 +182,15 @@ const Quarterly10QDetail: React.FC<Quarterly10QDetailProps> = ({ filing }) => {
         </View>
 
         <View style={styles.analysisCard}>
-          <Text style={styles.analysisText}>
-            {filing.growth_decline_analysis}
-          </Text>
+          <Text style={styles.analysisText}>{filing.growth_decline_analysis}</Text>
         </View>
       </View>
     );
   };
 
-  // 条目6: GPT管理层语气分析 - 修复版本
+  // 条目7: GPT管理层语气分析
   const renderManagementToneAnalysis = () => {
-    // 如果没有管理层语气分析，不显示这个section
-    if (!filing.management_tone_analysis) {
-      return null;
-    }
+    if (!filing.management_tone_analysis) return null;
 
     return (
       <View style={styles.section}>
@@ -423,20 +204,15 @@ const Quarterly10QDetail: React.FC<Quarterly10QDetailProps> = ({ filing }) => {
         </View>
 
         <View style={styles.toneCard}>
-          <Text style={styles.toneAnalysis}>
-            {filing.management_tone_analysis}
-          </Text>
+          <Text style={styles.narrativeText}>{filing.management_tone_analysis}</Text>
         </View>
       </View>
     );
   };
 
-  // 条目7: GPT超预期/不及预期原因分析 - 修复版本
+  // 条目8: GPT超预期/不及预期原因分析
   const renderBeatMissAnalysis = () => {
-    // 如果没有超预期/不及预期分析，不显示这个section
-    if (!filing.beat_miss_analysis) {
-      return null;
-    }
+    if (!filing.beat_miss_analysis) return null;
 
     return (
       <View style={styles.section}>
@@ -450,15 +226,13 @@ const Quarterly10QDetail: React.FC<Quarterly10QDetailProps> = ({ filing }) => {
         </View>
 
         <View style={styles.beatAnalysisCard}>
-          <Text style={styles.beatAnalysisText}>
-            {filing.beat_miss_analysis}
-          </Text>
+          <Text style={styles.narrativeText}>{filing.beat_miss_analysis}</Text>
         </View>
       </View>
     );
   };
 
-  // 条目8: GPT市场影响分析
+  // 条目9: GPT市场影响分析
   const renderMarketImpact = () => {
     if (!filing.market_impact_10q) return null;
   
@@ -474,9 +248,7 @@ const Quarterly10QDetail: React.FC<Quarterly10QDetailProps> = ({ filing }) => {
         </View>
   
         <View style={styles.beatAnalysisCard}>
-          <Text style={styles.beatAnalysisText}>
-            {filing.market_impact_10q}
-          </Text>
+          <Text style={styles.narrativeText}>{filing.market_impact_10q}</Text>
         </View>
       </View>
     );
@@ -495,9 +267,9 @@ const Quarterly10QDetail: React.FC<Quarterly10QDetailProps> = ({ filing }) => {
         </Text>
       </View>
 
-
-      {/* All 8 sections for 10-Q */}
+      {/* All sections for 10-Q - 财务快照作为第一个展示条目 */}
       {renderQuarterlyMetaCard()}
+      {renderFinancialSnapshot()}  {/* 新的第一展示条目 - 现在能正常显示了！ */}
       {renderPerformanceVsExpectations()}
       {renderCostStructure()}
       {renderGuidanceUpdate()}
@@ -678,224 +450,45 @@ const styles = StyleSheet.create({
     fontWeight: typography.fontWeight.medium,
   },
 
-  // Expectation Cards
-  expectationCard: {
-    backgroundColor: colors.background,
-    padding: spacing.md,
-    borderRadius: borderRadius.sm,
-    marginBottom: spacing.md,
-  },
-  expectationHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: spacing.md,
-  },
-  expectationTitle: {
-    fontSize: typography.fontSize.md,
-    fontWeight: typography.fontWeight.semibold,
-    color: colors.text,
-  },
-  beatMissBadge: {
+  // 财务快照样式 - 新增
+  snapshotBadge: {
     flexDirection: 'row',
     alignItems: 'center',
+    backgroundColor: colors.primary + '20',
     paddingHorizontal: spacing.sm,
     paddingVertical: spacing.xs,
     borderRadius: borderRadius.sm,
   },
-  beatMissText: {
+  snapshotBadgeText: {
     fontSize: typography.fontSize.xs,
-    fontWeight: typography.fontWeight.bold,
+    color: colors.primary,
     marginLeft: spacing.xs,
-  },
-  expectationMetrics: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-around',
-    marginBottom: spacing.sm,
-  },
-  expectationItem: {
-    alignItems: 'center',
-  },
-  expectationLabel: {
-    fontSize: typography.fontSize.sm,
-    color: colors.textSecondary,
-    marginBottom: spacing.xs,
-  },
-  expectationValue: {
-    fontSize: typography.fontSize.lg,
-    fontWeight: typography.fontWeight.medium,
-    color: colors.text,
-  },
-  actualValue: {
     fontWeight: typography.fontWeight.bold,
   },
-  expectationDiff: {
-    alignItems: 'center',
-    paddingTop: spacing.sm,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
+  snapshotCard: {
+    backgroundColor: colors.primary + '05',
+    padding: spacing.lg,
+    borderRadius: borderRadius.md,
+    borderLeftWidth: 4,
+    borderLeftColor: colors.primary,
   },
-  expectationDiffText: {
-    fontSize: typography.fontSize.sm,
-    color: colors.textSecondary,
-  },
-
-  // Guidance Card
-  guidanceCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.success + '10',
-    padding: spacing.md,
-    borderRadius: borderRadius.sm,
-    borderWidth: 1,
-  },
-  guidanceContent: {
-    flex: 1,
-    marginLeft: spacing.md,
-  },
-  guidanceTitle: {
-    fontSize: typography.fontSize.md,
-    fontWeight: typography.fontWeight.semibold,
-    color: colors.text,
-    marginBottom: spacing.xs,
-  },
-  guidanceText: {
-    fontSize: typography.fontSize.sm,
-    color: colors.textSecondary,
-  },
-
-  // Cost Structure
-  costItem: {
-    marginBottom: spacing.lg,
-  },
-  costHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: spacing.sm,
-  },
-  costInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  costLabel: {
+  snapshotText: {
     fontSize: typography.fontSize.md,
     color: colors.text,
-    marginLeft: spacing.sm,
-  },
-  costAmount: {
-    fontSize: typography.fontSize.md,
-    fontWeight: typography.fontWeight.semibold,
-    color: colors.text,
-  },
-  costMetrics: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: spacing.sm,
-  },
-  costMetric: {
-    flex: 1,
-  },
-  costMetricLabel: {
-    fontSize: typography.fontSize.xs,
-    color: colors.textSecondary,
-  },
-  costMetricValue: {
-    fontSize: typography.fontSize.sm,
+    lineHeight: 26,
     fontWeight: typography.fontWeight.medium,
-    color: colors.text,
-  },
-  costBar: {
-    height: 6,
-    backgroundColor: colors.background,
-    borderRadius: 3,
-    overflow: 'hidden',
-  },
-  costBarFill: {
-    height: '100%',
-    backgroundColor: colors.primary + '60',
-    borderRadius: 3,
   },
 
-  // Guidance Update
-  updatedBadge: {
-    backgroundColor: colors.success,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xs,
-    borderRadius: borderRadius.sm,
-  },
-  updatedBadgeText: {
-    fontSize: typography.fontSize.xs,
-    color: colors.white,
-    fontWeight: typography.fontWeight.bold,
-  },
-  guidanceUpdateCard: {
-    flexDirection: 'row',
-    backgroundColor: colors.success + '10',
-    padding: spacing.md,
-    borderRadius: borderRadius.sm,
-    marginBottom: spacing.md,
-  },
-  guidanceUpdateContent: {
-    flex: 1,
-    marginLeft: spacing.md,
-  },
-  guidanceUpdateTitle: {
-    fontSize: typography.fontSize.md,
-    fontWeight: typography.fontWeight.semibold,
-    color: colors.text,
-    marginBottom: spacing.sm,
-  },
-  guidanceUpdateItem: {
-    flexDirection: 'row',
-    marginBottom: spacing.xs,
-  },
-  guidanceUpdateLabel: {
-    fontSize: typography.fontSize.sm,
-    color: colors.textSecondary,
-    marginRight: spacing.sm,
-  },
-  guidanceUpdateValue: {
-    fontSize: typography.fontSize.sm,
-    fontWeight: typography.fontWeight.medium,
-    color: colors.text,
-    flex: 1,
-  },
-  assumptionsCard: {
+  // Narrative Cards - 文本显示样式
+  narrativeCard: {
     backgroundColor: colors.background,
     padding: spacing.md,
     borderRadius: borderRadius.sm,
   },
-  assumptionsTitle: {
-    fontSize: typography.fontSize.sm,
-    fontWeight: typography.fontWeight.semibold,
-    color: colors.text,
-    marginBottom: spacing.sm,
-  },
-  assumptionItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: spacing.xs,
-  },
-  assumptionText: {
-    fontSize: typography.fontSize.sm,
-    color: colors.textSecondary,
-    marginLeft: spacing.sm,
-    flex: 1,
-  },
-  noUpdateCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.background,
-    padding: spacing.md,
-    borderRadius: borderRadius.sm,
-  },
-  noUpdateText: {
+  narrativeText: {
     fontSize: typography.fontSize.md,
-    color: colors.textSecondary,
-    marginLeft: spacing.md,
-    flex: 1,
+    color: colors.text,
+    lineHeight: 24,
   },
 
   // Analysis Cards
@@ -911,19 +504,6 @@ const styles = StyleSheet.create({
     color: colors.text,
     lineHeight: 24,
   },
-  driverHighlights: {
-    gap: spacing.sm,
-  },
-  driverItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: spacing.xs,
-  },
-  driverText: {
-    fontSize: typography.fontSize.sm,
-    color: colors.textSecondary,
-    marginLeft: spacing.sm,
-  },
 
   // Tone Analysis
   toneCard: {
@@ -931,106 +511,12 @@ const styles = StyleSheet.create({
     padding: spacing.md,
     borderRadius: borderRadius.sm,
   },
-  toneIndicator: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: spacing.md,
-  },
-  toneLabel: {
-    fontSize: typography.fontSize.lg,
-    fontWeight: typography.fontWeight.semibold,
-    color: colors.success,
-    marginLeft: spacing.md,
-  },
-  toneAnalysis: {
-    fontSize: typography.fontSize.md,
-    color: colors.text,
-    lineHeight: 24,
-  },
-  toneMetrics: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    paddingTop: spacing.md,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-  },
-  toneMetric: {
-    alignItems: 'center',
-  },
-  toneMetricLabel: {
-    fontSize: typography.fontSize.xs,
-    color: colors.textSecondary,
-    marginBottom: spacing.xs,
-  },
-  toneMetricValue: {
-    fontSize: typography.fontSize.md,
-    fontWeight: typography.fontWeight.semibold,
-    color: colors.text,
-  },
 
   // Beat Analysis
   beatAnalysisCard: {
     backgroundColor: colors.background,
     padding: spacing.md,
     borderRadius: borderRadius.sm,
-  },
-  beatHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: spacing.md,
-  },
-  beatTitle: {
-    fontSize: typography.fontSize.md,
-    fontWeight: typography.fontWeight.semibold,
-    color: colors.text,
-    marginLeft: spacing.md,
-  },
-  beatAnalysisText: {
-    fontSize: typography.fontSize.md,
-    color: colors.text,
-    lineHeight: 24,
-  },
-  beatFactors: {
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-    paddingTop: spacing.md,
-  },
-  beatFactorsTitle: {
-    fontSize: typography.fontSize.sm,
-    fontWeight: typography.fontWeight.semibold,
-    color: colors.text,
-    marginBottom: spacing.md,
-  },
-  beatFactor: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    marginBottom: spacing.md,
-  },
-  beatFactorNumber: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: colors.primary,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  beatFactorNumberText: {
-    fontSize: typography.fontSize.sm,
-    fontWeight: typography.fontWeight.bold,
-    color: colors.white,
-  },
-  beatFactorContent: {
-    flex: 1,
-    marginLeft: spacing.md,
-  },
-  beatFactorTitle: {
-    fontSize: typography.fontSize.sm,
-    fontWeight: typography.fontWeight.semibold,
-    color: colors.text,
-  },
-  beatFactorText: {
-    fontSize: typography.fontSize.sm,
-    color: colors.textSecondary,
   },
 
   // Footer

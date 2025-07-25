@@ -35,46 +35,28 @@ export default function FilingCard({
 }: FilingCardProps) {
   const scaleAnim = React.useRef(new Animated.Value(1)).current;
   
-  // 调试日志
-  console.log('FilingCard rendering:', {
-    id: filing.id,
-    form_type: filing.form_type,
-    company_name: filing.company_name,
-    company_ticker: filing.company_ticker,
-    one_liner: filing.one_liner,
-    ai_summary: filing.ai_summary?.substring(0, 50) + '...',
-  });
-  
-  // Get filing type configuration - 使用 form_type
-  const filingConfig = filingTypes[filing.form_type] || {
-    color: colors.gray500,
-    label: filing.form_type,
+  // Get filing type configuration with enhanced labels
+  const getFilingTypeConfig = (formType: string) => {
+    const baseConfig = filingTypes[formType as keyof typeof filingTypes] || {
+      color: colors.gray500,
+      label: formType,
+    };
+    
+    // Enhanced labels for better understanding
+    const enhancedLabels: { [key: string]: string } = {
+      '10-K': '10-K Annual',
+      '10-Q': '10-Q Quarterly',
+      '8-K': '8-K Current',
+      'S-1': 'S-1 IPO',
+    };
+    
+    return {
+      ...baseConfig,
+      label: enhancedLabels[formType] || baseConfig.label,
+    };
   };
   
-  // Get sentiment configuration with emoji mapping
-  const getSentimentEmoji = (tone: string) => {
-    switch (tone) {
-      case 'bullish':
-      case 'optimistic':
-        return '😊';
-      case 'bearish':
-      case 'pessimistic':
-        return '😟';
-      case 'neutral':
-      default:
-        return '😐';
-    }
-  };
-  
-  // 使用 sentiment 字段（从 API 返回的数据）
-  const sentimentValue = filing.sentiment || filing.management_tone || 'neutral';
-  
-  // 映射 optimistic/pessimistic 到 bullish/bearish
-  const normalizedSentiment = sentimentValue === 'optimistic' ? 'bullish' : 
-                              sentimentValue === 'pessimistic' ? 'bearish' : 
-                              sentimentValue;
-  
-  const sentimentConfig = sentiments[normalizedSentiment as keyof typeof sentiments] || sentiments.neutral;
+  const filingConfig = getFilingTypeConfig(filing.form_type);
 
   // Format date
   const formatDate = (dateString: string) => {
@@ -88,7 +70,7 @@ export default function FilingCard({
       const diffInMinutes = Math.floor((now.getTime() - date.getTime()) / (1000 * 60));
       return diffInMinutes === 0 ? 'Just now' : `${diffInMinutes}m ago`;
     } else if (diffInHours < 24) {
-      return `${diffInHours} hours ago`;
+      return `${diffInHours}h ago`;
     } else if (diffInHours < 48) {
       return 'Yesterday';
     } else {
@@ -100,12 +82,12 @@ export default function FilingCard({
     }
   };
 
-  // Extract event type for 8-K filings - 使用 form_type 和 item_type
+  // Extract event type for 8-K filings
   const eventType = filing.form_type === '8-K' && filing.item_type 
     ? filing.item_type 
     : null;
 
-  // Extract important tags - 使用 key_tags
+  // Extract important tags
   const tags = filing.key_tags?.slice(0, 3) || [];
 
   // 获取显示的摘要文本
@@ -131,6 +113,26 @@ export default function FilingCard({
   // 使用从 API 返回的 vote_counts
   const displayVoteCounts = filing.vote_counts || voteCounts;
 
+  // 计算总投票数
+  const totalVotes = displayVoteCounts.bullish + displayVoteCounts.neutral + displayVoteCounts.bearish;
+  
+  // 计算百分比
+  const getVotePercentage = (count: number) => {
+    if (totalVotes === 0) return 0;
+    return Math.round((count / totalVotes) * 100);
+  };
+
+  // 从filing中提取关键信息作为指标展示
+  const hasFinancials = filing.financial_highlights && 
+    (filing.financial_highlights.revenue || filing.financial_highlights.eps || filing.financial_highlights.net_income);
+  
+  const hasGuidance = filing.guidance_update || filing.future_outlook;
+  
+  const hasRiskFactors = filing.risk_factors && filing.risk_factors.length > 0;
+  
+  // 检查是否有期望对比（季报特有）
+  const hasExpectations = filing.expectations_comparison || filing.beat_miss_analysis;
+
   return (
     <Animated.View style={[styles.container, { transform: [{ scale: scaleAnim }] }]}>
       <TouchableOpacity
@@ -140,131 +142,180 @@ export default function FilingCard({
         onPressOut={handlePressOut}
       >
         <View style={styles.card}>
-          {/* Header Section */}
+          {/* Compact Header */}
           <View style={styles.header}>
-            <View style={styles.headerTop}>
-              <View style={styles.companyInfo}>
-                <Text style={styles.ticker}>{filing.company_ticker || 'N/A'}</Text>
-                <Text style={styles.dot}> · </Text>
-                <Text style={styles.companyName} numberOfLines={1}>
-                  {filing.company_name || 'Unknown Company'}
-                </Text>
+            <View style={styles.headerLeft}>
+              <View style={styles.companyRow}>
+                <Text style={styles.ticker}>{filing.company_ticker}</Text>
+                <View style={[styles.filingBadge, { backgroundColor: filingConfig.color }]}>
+                  <Text style={styles.filingBadgeText}>{filingConfig.label}</Text>
+                </View>
               </View>
-              <View style={[styles.filingBadge, { backgroundColor: filingConfig.color }]}>
-                <Text style={styles.filingBadgeText}>{filingConfig.label}</Text>
-              </View>
+              <Text style={styles.companyName} numberOfLines={1}>
+                {filing.company_name}
+              </Text>
             </View>
-            
-            <View style={styles.headerBottom}>
-              <Text style={styles.indices}>S&P 500 · NASDAQ 100</Text>
+            <View style={styles.headerRight}>
               <Text style={styles.date}>{formatDate(filing.filing_date)}</Text>
-              {eventType && filing.form_type === '8-K' && (
-                <>
-                  <Text style={styles.dot}> · </Text>
-                  <Text style={styles.eventType}>{eventType}</Text>
-                </>
-              )}
             </View>
           </View>
 
-          {/* Main Content Section */}
+          {/* Main Content */}
           <View style={styles.content}>
-            {/* AI Summary */}
+            {/* Summary with event type */}
             <View style={styles.summarySection}>
-              <Text style={styles.summaryIcon}>📝</Text>
-              <Text style={styles.summaryText} numberOfLines={2}>
+              {eventType && filing.form_type === '8-K' && (
+                <Text style={styles.eventLabel}>{eventType}: </Text>
+              )}
+              <Text style={styles.summaryText} numberOfLines={3}>
                 {summaryText}
               </Text>
             </View>
 
-            {/* Management Tone */}
-            {sentimentValue && sentimentValue !== 'neutral' && (
-              <View style={styles.toneSection}>
-                <Text style={styles.toneEmoji}>{getSentimentEmoji(sentimentValue)}</Text>
-                <Text style={styles.toneLabel}>Management Tone: </Text>
-                <Text style={[styles.toneValue, { color: sentimentConfig.color }]}>
-                  {sentimentConfig.label}
-                </Text>
-              </View>
-            )}
-
-            {/* Tags - 使用 key_tags */}
-            {tags.length > 0 && (
-              <View style={styles.tagsSection}>
-                <Text style={styles.tagIcon}>🏷️</Text>
-                <View style={styles.tagsList}>
-                  {tags.map((tag, index) => (
-                    <Text key={index} style={styles.tag}>{tag}</Text>
-                  ))}
+            {/* Key Info Row - 使用实际存在的字段 */}
+            <View style={styles.metricsRow}>
+              {/* 财报类型特定信息 */}
+              {filing.form_type === '10-Q' && filing.expectations_comparison && (
+                <View style={styles.metricItem}>
+                  <Icon name="assessment" size={12} color={colors.primary} />
+                  <Text style={styles.metricLabel} numberOfLines={1}>Beat/Miss</Text>
                 </View>
+              )}
+              
+              {filing.form_type === '10-K' && filing.fiscal_year && (
+                <View style={styles.metricItem}>
+                  <Icon name="event" size={12} color={colors.gray600} />
+                  <Text style={styles.metricLabel} numberOfLines={1}>FY {filing.fiscal_year}</Text>
+                </View>
+              )}
+              
+              {filing.form_type === '8-K' && filing.items && filing.items.length > 0 && (
+                <View style={styles.metricItem}>
+                  <Icon name="announcement" size={12} color={colors.warning} />
+                  <Text style={styles.metricLabel} numberOfLines={1}>{filing.items[0].item_number}</Text>
+                </View>
+              )}
+              
+              {hasFinancials && (
+                <View style={styles.metricItem}>
+                  <Icon name="attach-money" size={12} color={colors.success} />
+                  <Text style={styles.metricLabel} numberOfLines={1}>Financials</Text>
+                </View>
+              )}
+              
+              {hasGuidance && (
+                <View style={styles.metricItem}>
+                  <Icon name="trending-up" size={12} color={colors.primary} />
+                  <Text style={styles.metricLabel} numberOfLines={1}>Guidance</Text>
+                </View>
+              )}
+              
+              {hasRiskFactors && (
+                <View style={styles.metricItem}>
+                  <Icon name="warning" size={12} color={colors.error} />
+                  <Text style={styles.metricLabel} numberOfLines={1}>Risks</Text>
+                </View>
+              )}
+            </View>
+
+            {/* Tags */}
+            {tags.length > 0 && (
+              <View style={styles.tagsRow}>
+                {tags.map((tag, index) => (
+                  <View key={index} style={styles.tag}>
+                    <Text style={styles.tagText}>{tag}</Text>
+                  </View>
+                ))}
+                {filing.key_tags && filing.key_tags.length > 3 && (
+                  <Text style={styles.moreTagsText}>+{filing.key_tags.length - 3} more</Text>
+                )}
               </View>
             )}
           </View>
 
-          {/* Footer Section - Voting */}
+          {/* Compact Footer */}
           <View style={styles.footer}>
-            <Text style={styles.voteQuestion}>How do you see it?</Text>
-            <View style={styles.voteButtons}>
-              <TouchableOpacity
-                style={[
-                  styles.voteButton,
-                  userVote === 'bullish' && styles.voteButtonActive
-                ]}
-                onPress={() => onVote?.(filing.id, 'bullish')}
-              >
-                <Text style={styles.voteEmoji}>😊</Text>
-                <Text style={[
-                  styles.voteLabel,
-                  userVote === 'bullish' && styles.voteLabelActive
-                ]}>Bullish</Text>
-                <Text style={styles.voteCount}>{displayVoteCounts.bullish}</Text>
-              </TouchableOpacity>
+            {/* Voting Section */}
+            <View style={styles.voteSection}>
+              <View style={styles.voteButtons}>
+                <TouchableOpacity
+                  style={[
+                    styles.voteButton,
+                    userVote === 'bullish' && styles.voteButtonActive,
+                    userVote === 'bullish' && { borderColor: colors.bullish }
+                  ]}
+                  onPress={() => onVote?.(filing.id, 'bullish')}
+                >
+                  <Text style={styles.voteEmoji}>😊</Text>
+                  <Text style={[styles.voteCount, userVote === 'bullish' && { color: colors.bullish }]}>
+                    {displayVoteCounts.bullish}
+                  </Text>
+                  {totalVotes > 0 && (
+                    <Text style={[styles.votePercentage, userVote === 'bullish' && { color: colors.bullish }]}>
+                      {getVotePercentage(displayVoteCounts.bullish)}%
+                    </Text>
+                  )}
+                </TouchableOpacity>
 
-              <TouchableOpacity
-                style={[
-                  styles.voteButton,
-                  userVote === 'neutral' && styles.voteButtonActive
-                ]}
-                onPress={() => onVote?.(filing.id, 'neutral')}
-              >
-                <Text style={styles.voteEmoji}>😐</Text>
-                <Text style={[
-                  styles.voteLabel,
-                  userVote === 'neutral' && styles.voteLabelActive
-                ]}>Neutral</Text>
-                <Text style={styles.voteCount}>{displayVoteCounts.neutral}</Text>
-              </TouchableOpacity>
+                <TouchableOpacity
+                  style={[
+                    styles.voteButton,
+                    userVote === 'neutral' && styles.voteButtonActive,
+                    userVote === 'neutral' && { borderColor: colors.neutral }
+                  ]}
+                  onPress={() => onVote?.(filing.id, 'neutral')}
+                >
+                  <Text style={styles.voteEmoji}>😐</Text>
+                  <Text style={[styles.voteCount, userVote === 'neutral' && { color: colors.neutral }]}>
+                    {displayVoteCounts.neutral}
+                  </Text>
+                  {totalVotes > 0 && (
+                    <Text style={[styles.votePercentage, userVote === 'neutral' && { color: colors.neutral }]}>
+                      {getVotePercentage(displayVoteCounts.neutral)}%
+                    </Text>
+                  )}
+                </TouchableOpacity>
 
-              <TouchableOpacity
-                style={[
-                  styles.voteButton,
-                  userVote === 'bearish' && styles.voteButtonActive
-                ]}
-                onPress={() => onVote?.(filing.id, 'bearish')}
-              >
-                <Text style={styles.voteEmoji}>😟</Text>
-                <Text style={[
-                  styles.voteLabel,
-                  userVote === 'bearish' && styles.voteLabelActive
-                ]}>Bearish</Text>
-                <Text style={styles.voteCount}>{displayVoteCounts.bearish}</Text>
-              </TouchableOpacity>
-            </View>
-
-            {/* Comments Section */}
-            <TouchableOpacity 
-              style={styles.commentsSection}
-              onPress={() => onPress(filing)}
-            >
-              <View style={styles.commentsLeft}>
-                <Icon name="chat-bubble-outline" size={16} color={colors.textSecondary} />
-                <Text style={styles.commentsCount}>{filing.comment_count || 0} comments</Text>
-                {!isProUser && <Text style={styles.membersOnly}> · Members only</Text>}
+                <TouchableOpacity
+                  style={[
+                    styles.voteButton,
+                    userVote === 'bearish' && styles.voteButtonActive,
+                    userVote === 'bearish' && { borderColor: colors.bearish }
+                  ]}
+                  onPress={() => onVote?.(filing.id, 'bearish')}
+                >
+                  <Text style={styles.voteEmoji}>😟</Text>
+                  <Text style={[styles.voteCount, userVote === 'bearish' && { color: colors.bearish }]}>
+                    {displayVoteCounts.bearish}
+                  </Text>
+                  {totalVotes > 0 && (
+                    <Text style={[styles.votePercentage, userVote === 'bearish' && { color: colors.bearish }]}>
+                      {getVotePercentage(displayVoteCounts.bearish)}%
+                    </Text>
+                  )}
+                </TouchableOpacity>
               </View>
-              {!isProUser && (
-                <Icon name="lock" size={14} color={colors.textSecondary} />
-              )}
-            </TouchableOpacity>
+
+              {/* Comments and Stats */}
+              <View style={styles.statsRow}>
+                <TouchableOpacity style={styles.statItem} onPress={() => onPress(filing)}>
+                  <Icon name="chat-bubble-outline" size={14} color={colors.textSecondary} />
+                  <Text style={styles.statText}>{filing.comment_count || 0}</Text>
+                </TouchableOpacity>
+                
+                <View style={styles.statItem}>
+                  <Icon name="visibility" size={14} color={colors.textSecondary} />
+                  <Text style={styles.statText}>{filing.view_count || totalVotes || 0}</Text>
+                </View>
+
+                {!isProUser && (
+                  <View style={styles.proIndicator}>
+                    <Icon name="lock" size={12} color={colors.warning} />
+                    <Text style={styles.proText}>PRO</Text>
+                  </View>
+                )}
+              </View>
+            </View>
           </View>
         </View>
       </TouchableOpacity>
@@ -274,199 +325,207 @@ export default function FilingCard({
 
 const styles = StyleSheet.create({
   container: {
-    marginBottom: spacing.md,
+    marginBottom: spacing.sm,
+    marginHorizontal: spacing.xs,
   },
   card: {
     backgroundColor: colors.white,
     borderRadius: borderRadius.lg,
-    ...shadows.md,
+    borderWidth: 1,
+    borderColor: colors.gray100,
+    ...shadows.sm,
     overflow: 'hidden',
   },
   
-  // Header Styles
+  // Header Styles - Compact
   header: {
-    padding: spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  headerTop: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: spacing.xs,
+    alignItems: 'flex-start',
+    paddingHorizontal: spacing.sm,
+    paddingTop: spacing.sm,
+    paddingBottom: spacing.xs,
+    backgroundColor: colors.gray50,
   },
-  companyInfo: {
+  headerLeft: {
+    flex: 1,
+    marginRight: spacing.xs,
+  },
+  companyRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    flex: 1,
+    marginBottom: 2,
   },
   ticker: {
-    fontSize: typography.fontSize.md,
+    fontSize: typography.fontSize.base,
     fontWeight: typography.fontWeight.bold,
-    color: colors.text,
-  },
-  dot: {
-    color: colors.textSecondary,
-    fontSize: typography.fontSize.sm,
-  },
-  companyName: {
-    fontSize: typography.fontSize.md,
-    color: colors.text,
-    flex: 1,
+    color: colors.gray900,
+    marginRight: spacing.xs,
   },
   filingBadge: {
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xxs,
+    paddingHorizontal: spacing.xs,
+    paddingVertical: 1,
     borderRadius: borderRadius.sm,
-    marginLeft: spacing.xs,
   },
   filingBadgeText: {
-    fontSize: typography.fontSize.sm,
+    fontSize: 10,
     fontWeight: typography.fontWeight.semibold,
     color: colors.white,
+    letterSpacing: 0.3,
   },
-  headerBottom: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  indices: {
+  companyName: {
     fontSize: typography.fontSize.sm,
-    color: colors.textSecondary,
-  },
-  date: {
-    fontSize: typography.fontSize.sm,
-    color: colors.textSecondary,
-    marginLeft: spacing.sm,
-  },
-  eventType: {
-    fontSize: typography.fontSize.sm,
-    color: colors.textSecondary,
-    fontStyle: 'italic',
-  },
-  
-  // Content Styles
-  content: {
-    padding: spacing.md,
-  },
-  summarySection: {
-    flexDirection: 'row',
-    marginBottom: spacing.sm,
-  },
-  summaryIcon: {
-    fontSize: typography.fontSize.md,
-    marginRight: spacing.xs,
-  },
-  summaryText: {
-    flex: 1,
-    fontSize: typography.fontSize.base,
-    color: colors.text,
-    lineHeight: typography.fontSize.base * typography.lineHeight.normal,
-  },
-  toneSection: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: spacing.sm,
-  },
-  toneEmoji: {
-    fontSize: typography.fontSize.md,
-    marginRight: spacing.xs,
-  },
-  toneLabel: {
-    fontSize: typography.fontSize.sm,
-    color: colors.textSecondary,
-  },
-  toneValue: {
-    fontSize: typography.fontSize.sm,
+    color: colors.gray600,
     fontWeight: typography.fontWeight.medium,
   },
-  tagsSection: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
+  headerRight: {
+    alignItems: 'flex-end',
   },
-  tagIcon: {
-    fontSize: typography.fontSize.md,
-    marginRight: spacing.xs,
+  date: {
+    fontSize: typography.fontSize.xs,
+    color: colors.gray500,
   },
-  tagsList: {
-    flex: 1,
+  
+  // Content Styles - Dense
+  content: {
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+  },
+  summarySection: {
+    marginBottom: spacing.sm,
+  },
+  eventLabel: {
+    fontSize: typography.fontSize.sm,
+    fontWeight: typography.fontWeight.semibold,
+    color: colors.primary,
+  },
+  summaryText: {
+    fontSize: typography.fontSize.base,
+    color: colors.gray800,
+    lineHeight: typography.fontSize.base * 1.5,
+  },
+  
+  // Metrics Row - 始终显示，但内容根据财报类型动态变化
+  metricsRow: {
     flexDirection: 'row',
+    justifyContent: 'flex-start',
+    flexWrap: 'wrap',
+    marginBottom: spacing.xs,
+    paddingVertical: spacing.xxs,
+  },
+  metricItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginRight: spacing.md,
+  },
+  metricLabel: {
+    fontSize: 11,
+    color: colors.gray600,
+    marginLeft: 4,
+    fontWeight: typography.fontWeight.medium,
+  },
+  
+  // Tags - Compact
+  tagsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
     flexWrap: 'wrap',
   },
   tag: {
-    fontSize: typography.fontSize.sm,
+    backgroundColor: colors.primary + '10',
+    paddingHorizontal: spacing.xs,
+    paddingVertical: 2,
+    borderRadius: borderRadius.sm,
+    marginRight: spacing.xxs,
+    marginBottom: spacing.xxs,
+  },
+  tagText: {
+    fontSize: 10,
     color: colors.primary,
-    marginRight: spacing.sm,
-    marginBottom: spacing.xs,
+    fontWeight: typography.fontWeight.medium,
+  },
+  moreTagsText: {
+    fontSize: 10,
+    color: colors.gray500,
+    fontStyle: 'italic',
+    marginLeft: spacing.xxs,
   },
   
-  // Footer Styles
+  // Footer - Compact
   footer: {
-    padding: spacing.md,
-    paddingTop: 0,
+    backgroundColor: colors.gray50,
+    borderTopWidth: 1,
+    borderTopColor: colors.gray100,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
   },
-  voteQuestion: {
-    fontSize: typography.fontSize.sm,
-    color: colors.textSecondary,
-    marginBottom: spacing.sm,
+  voteSection: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
   },
   voteButtons: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: spacing.md,
+    flex: 1,
   },
   voteButton: {
-    flex: 1,
-    flexDirection: 'column',
+    flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: spacing.sm,
-    marginHorizontal: spacing.xs,
+    paddingHorizontal: spacing.xs,
+    paddingVertical: spacing.xxs,
+    marginRight: spacing.xs,
     borderRadius: borderRadius.sm,
-    backgroundColor: colors.backgroundSecondary,
+    backgroundColor: colors.white,
+    borderWidth: 1,
+    borderColor: colors.gray200,
   },
   voteButtonActive: {
-    backgroundColor: colors.primary + '20',
-    borderWidth: 1,
-    borderColor: colors.primary,
+    backgroundColor: colors.primary + '08',
+    borderWidth: 1.5,
   },
   voteEmoji: {
-    fontSize: typography.fontSize.xl,
-    marginBottom: spacing.xs,
-  },
-  voteLabel: {
-    fontSize: typography.fontSize.xs,
-    color: colors.textSecondary,
-    marginBottom: spacing.xs,
-  },
-  voteLabelActive: {
-    color: colors.primary,
-    fontWeight: typography.fontWeight.semibold,
+    fontSize: 14,
+    marginRight: 4,
   },
   voteCount: {
-    fontSize: typography.fontSize.sm,
+    fontSize: typography.fontSize.xs,
     fontWeight: typography.fontWeight.bold,
-    color: colors.text,
+    color: colors.gray700,
+    marginRight: 2,
+  },
+  votePercentage: {
+    fontSize: 10,
+    color: colors.gray500,
   },
   
-  // Comments Section
-  commentsSection: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingTop: spacing.sm,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-  },
-  commentsLeft: {
+  // Stats Row
+  statsRow: {
     flexDirection: 'row',
     alignItems: 'center',
   },
-  commentsCount: {
-    fontSize: typography.fontSize.sm,
-    color: colors.textSecondary,
-    marginLeft: spacing.xs,
+  statItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginLeft: spacing.sm,
   },
-  membersOnly: {
-    fontSize: typography.fontSize.sm,
-    color: colors.gray400,
+  statText: {
+    fontSize: typography.fontSize.xs,
+    color: colors.gray600,
+    marginLeft: 4,
+  },
+  proIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginLeft: spacing.sm,
+    backgroundColor: colors.warning + '20',
+    paddingHorizontal: spacing.xs,
+    paddingVertical: 2,
+    borderRadius: borderRadius.sm,
+  },
+  proText: {
+    fontSize: 10,
+    color: colors.warning,
+    fontWeight: typography.fontWeight.bold,
+    marginLeft: 2,
   },
 });

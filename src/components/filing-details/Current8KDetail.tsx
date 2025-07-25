@@ -11,53 +11,29 @@ import {
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { colors, typography, spacing, borderRadius } from '../../theme';
 
-// Define FilingDetail interface locally if not exported from types
 interface FilingDetail {
   id: number;
-  form_type: string;  // 使用 form_type 作为主要字段
+  form_type: string;
   company_name: string;
   company_ticker: string;
   filing_date: string;
-  filing_url: string;  // 统一使用 filing_url
+  filing_url: string;
   accession_number: string;
   ai_summary?: string;
   
-  // 8-K specific fields
+  // 8-K specific fields - 全部改为字符串类型
   item_type?: string;
-  items?: Array<{ item_number: string; description: string }>;
-  event_timeline?: {
-    event_date?: string;
-    filing_date: string;
-    effective_date?: string;
-  };
-  event_nature_analysis?: string; // GPT
-  market_impact_analysis?: string; // GPT
-  key_considerations?: string; // GPT
+  items?: string;  // 改为string
+  event_timeline?: string;  // 改为string
+  event_nature_analysis?: string;
+  market_impact_analysis?: string;
+  key_considerations?: string;
   [key: string]: any;
 }
 
 interface Current8KDetailProps {
   filing: FilingDetail;
 }
-
-// Item type mapping for 8-K forms
-const ITEM_TYPE_MAPPING: { [key: string]: { title: string; icon: string; color: string } } = {
-  '1.01': { title: 'Entry into Material Agreement', icon: 'description', color: '#3B82F6' },
-  '1.02': { title: 'Termination of Material Agreement', icon: 'cancel', color: '#EF4444' },
-  '1.03': { title: 'Bankruptcy or Receivership', icon: 'gavel', color: '#DC2626' },
-  '2.01': { title: 'Completion of Acquisition or Disposition', icon: 'business', color: '#8B5CF6' },
-  '2.02': { title: 'Results of Operations', icon: 'trending-up', color: '#10B981' },
-  '2.03': { title: 'Material Direct Financial Obligation', icon: 'account-balance', color: '#F59E0B' },
-  '3.01': { title: 'Notice of Delisting', icon: 'warning', color: '#EF4444' },
-  '3.02': { title: 'Unregistered Sales of Securities', icon: 'security', color: '#6366F1' },
-  '4.01': { title: 'Changes in Accountant', icon: 'swap-horiz', color: '#8B5CF6' },
-  '5.01': { title: 'Changes in Control', icon: 'swap-vert', color: '#EC4899' },
-  '5.02': { title: 'Executive Changes', icon: 'people', color: '#8B5CF6' },
-  '5.03': { title: 'Amendments to Articles/Bylaws', icon: 'article', color: '#6366F1' },
-  '5.07': { title: 'Submission of Matters to Shareholders', icon: 'how-to-vote', color: '#3B82F6' },
-  '7.01': { title: 'Regulation FD Disclosure', icon: 'info', color: '#6B7280' },
-  '8.01': { title: 'Other Events', icon: 'more-horiz', color: '#6B7280' },
-};
 
 const Current8KDetail: React.FC<Current8KDetailProps> = ({ filing }) => {
   const redColor = '#EF4444'; // 8-K signature color
@@ -85,25 +61,6 @@ const Current8KDetail: React.FC<Current8KDetailProps> = ({ filing }) => {
     if (diffInHours < 48) return 'Yesterday';
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   };
-
-  // Parse items from filing data
-  const parseItems = () => {
-    if (filing.items && filing.items.length > 0) {
-      return filing.items;
-    }
-    
-    // Fallback: try to parse from item_type
-    if (filing.item_type) {
-      const itemData = ITEM_TYPE_MAPPING[filing.item_type];
-      if (itemData) {
-        return [{ item_number: filing.item_type, description: itemData.title }];
-      }
-    }
-    
-    return [];
-  };
-
-  const items = parseItems();
 
   return (
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
@@ -162,41 +119,35 @@ const Current8KDetail: React.FC<Current8KDetailProps> = ({ filing }) => {
         </View>
       </View>
 
-      {/* 2. Item 摘要卡 */}
-      {items.length > 0 && (
+      {/* 2. Item Type 摘要卡 */}
+      {filing.item_type && (
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Icon name="assignment" size={24} color={redColor} />
-            <Text style={styles.sectionTitle}>Reported Items</Text>
+            <Text style={styles.sectionTitle}>Item Type</Text>
           </View>
           
-          <View style={styles.itemsList}>
-            {items.map((item, index) => {
-              const itemConfig = ITEM_TYPE_MAPPING[item.item_number] || {
-                title: item.description || 'Other Event',
-                icon: 'info',
-                color: '#6B7280',
-              };
-              
-              return (
-                <View key={index} style={styles.itemCard}>
-                  <View style={[styles.itemIcon, { backgroundColor: itemConfig.color + '20' }]}>
-                    <Icon name={itemConfig.icon} size={24} color={itemConfig.color} />
-                  </View>
-                  <View style={styles.itemContent}>
-                    <Text style={styles.itemNumber}>Item {item.item_number}</Text>
-                    <Text style={styles.itemTitle}>{itemConfig.title}</Text>
-                  </View>
-                </View>
-              );
-            })}
+          <View style={styles.narrativeCard}>
+            <Text style={styles.itemTypeText}>Item {filing.item_type}</Text>
           </View>
         </View>
       )}
 
-      {/* 移除了事件正文摘要卡 - AI Summary */}
+      {/* 3. Items 摘要卡 - 修正版（改为文本显示） */}
+      {filing.items && (
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Icon name="list" size={24} color={redColor} />
+            <Text style={styles.sectionTitle}>Reported Items</Text>
+          </View>
+          
+          <View style={styles.narrativeCard}>
+            <Text style={styles.narrativeText}>{filing.items}</Text>
+          </View>
+        </View>
+      )}
 
-      {/* 4. 时间线卡 */}
+      {/* 4. 时间线卡 - 修正版（改为文本显示） */}
       {filing.event_timeline && (
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
@@ -204,40 +155,8 @@ const Current8KDetail: React.FC<Current8KDetailProps> = ({ filing }) => {
             <Text style={styles.sectionTitle}>Event Timeline</Text>
           </View>
           
-          <View style={styles.timeline}>
-            {filing.event_timeline.event_date && (
-              <View style={styles.timelineItem}>
-                <View style={styles.timelineDot} />
-                <View style={styles.timelineContent}>
-                  <Text style={styles.timelineLabel}>Event Occurred</Text>
-                  <Text style={styles.timelineDate}>
-                    {formatDateTime(filing.event_timeline.event_date)}
-                  </Text>
-                </View>
-              </View>
-            )}
-            
-            <View style={styles.timelineItem}>
-              <View style={[styles.timelineDot, { backgroundColor: redColor }]} />
-              <View style={styles.timelineContent}>
-                <Text style={styles.timelineLabel}>Filed with SEC</Text>
-                <Text style={styles.timelineDate}>
-                  {formatDateTime(filing.event_timeline.filing_date)}
-                </Text>
-              </View>
-            </View>
-            
-            {filing.event_timeline.effective_date && (
-              <View style={styles.timelineItem}>
-                <View style={styles.timelineDot} />
-                <View style={styles.timelineContent}>
-                  <Text style={styles.timelineLabel}>Effective Date</Text>
-                  <Text style={styles.timelineDate}>
-                    {formatDateTime(filing.event_timeline.effective_date)}
-                  </Text>
-                </View>
-              </View>
-            )}
+          <View style={styles.narrativeCard}>
+            <Text style={styles.narrativeText}>{filing.event_timeline}</Text>
           </View>
         </View>
       )}
@@ -253,7 +172,9 @@ const Current8KDetail: React.FC<Current8KDetailProps> = ({ filing }) => {
             </View>
           </View>
           
-          <Text style={styles.analysisText}>{filing.event_nature_analysis}</Text>
+          <View style={styles.analysisCard}>
+            <Text style={styles.narrativeText}>{filing.event_nature_analysis}</Text>
+          </View>
         </View>
       )}
 
@@ -269,7 +190,7 @@ const Current8KDetail: React.FC<Current8KDetailProps> = ({ filing }) => {
           </View>
           
           <View style={styles.impactCard}>
-            <Text style={styles.analysisText}>{filing.market_impact_analysis}</Text>
+            <Text style={styles.narrativeText}>{filing.market_impact_analysis}</Text>
           </View>
         </View>
       )}
@@ -286,7 +207,7 @@ const Current8KDetail: React.FC<Current8KDetailProps> = ({ filing }) => {
           </View>
           
           <View style={styles.considerationsCard}>
-            <Text style={styles.analysisText}>{filing.key_considerations}</Text>
+            <Text style={styles.narrativeText}>{filing.key_considerations}</Text>
           </View>
         </View>
       )}
@@ -421,75 +342,28 @@ const styles = StyleSheet.create({
     fontSize: typography.fontSize.sm,
   },
   
-  // Items List
-  itemsList: {
-    gap: spacing.md,
-  },
-  itemCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  // Narrative Cards - 文本显示样式
+  narrativeCard: {
     backgroundColor: colors.background,
     padding: spacing.md,
-    borderRadius: borderRadius.md,
+    borderRadius: borderRadius.sm,
   },
-  itemIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: spacing.md,
-  },
-  itemContent: {
-    flex: 1,
-  },
-  itemNumber: {
-    fontSize: typography.fontSize.sm,
-    color: colors.textSecondary,
-    fontWeight: typography.fontWeight.medium,
-  },
-  itemTitle: {
-    fontSize: typography.fontSize.md,
-    fontWeight: typography.fontWeight.semibold,
-    color: colors.text,
-    marginTop: spacing.xs,
-  },
-  
-  // Timeline
-  timeline: {
-    paddingLeft: spacing.md,
-  },
-  timelineItem: {
-    flexDirection: 'row',
-    marginBottom: spacing.lg,
-  },
-  timelineDot: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    backgroundColor: colors.textSecondary,
-    marginTop: spacing.xs,
-    marginRight: spacing.md,
-  },
-  timelineContent: {
-    flex: 1,
-  },
-  timelineLabel: {
-    fontSize: typography.fontSize.sm,
-    color: colors.textSecondary,
-    marginBottom: spacing.xs,
-  },
-  timelineDate: {
-    fontSize: typography.fontSize.md,
-    fontWeight: typography.fontWeight.medium,
-    color: colors.text,
-  },
-  
-  // Analysis
-  analysisText: {
+  narrativeText: {
     fontSize: typography.fontSize.md,
     color: colors.text,
     lineHeight: 24,
+  },
+  itemTypeText: {
+    fontSize: typography.fontSize.lg,
+    fontWeight: typography.fontWeight.semibold,
+    color: colors.text,
+  },
+  
+  // Analysis Cards
+  analysisCard: {
+    backgroundColor: colors.background,
+    padding: spacing.md,
+    borderRadius: borderRadius.sm,
   },
   impactCard: {
     backgroundColor: '#FEE2E2',

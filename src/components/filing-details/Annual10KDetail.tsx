@@ -13,14 +13,14 @@ import { colors, typography, spacing, borderRadius } from '../../theme';
 
 interface FilingDetail {
   id: number;
-  form_type: string;  // 使用 form_type 作为主要字段
+  form_type: string;
   company_name: string;
   company_ticker: string;
   filing_date: string;
-  filing_url: string;  // 统一使用 filing_url
+  filing_url: string;
   fiscal_year?: string;
   period_end_date?: string;
-  // 10-K specific fields
+  // 10-K specific fields - 全部改为字符串类型
   auditor_opinion?: string;
   financial_metrics?: {
     revenue: number;
@@ -31,28 +31,14 @@ interface FilingDetail {
     roe: number;
     debt_to_equity: number;
   };
-  three_year_financials?: {
-    revenue_trend: Array<{ year: string; value: number }>;
-    income_trend: Array<{ year: string; value: number }>;
-    margin_trend: Array<{ year: string; value: number }>;
-  };
-  business_segments?: Array<{
-    name: string;
-    revenue: number;
-    percentage: number;
-    description?: string;
-  }>;
-  risk_summary?: {
-    operational: string[];
-    financial: string[];
-    regulatory: string[];
-    market: string[];
-  };
-  // GPT generated insights
+  three_year_financials?: string;  // 改为string
+  business_segments?: string;  // 改为string
+  risk_summary?: string;  // 改为string
   growth_drivers?: string;
   management_outlook?: string;
   strategic_adjustments?: string;
-  market_impact_10k?: string;  // 确保字段名正确
+  market_impact_10k?: string;
+  financial_highlights?: any;
   [key: string]: any;
 }
 
@@ -124,17 +110,6 @@ const Annual10KDetail: React.FC<Annual10KDetailProps> = ({ filing }) => {
   const renderAuditorOpinion = () => {
     if (!filing.auditor_opinion) return null;
     
-    const getOpinionIcon = (opinion: string) => {
-      if (opinion.includes('unqualified') || opinion.includes('clean')) {
-        return { icon: 'check-circle', color: colors.success };
-      } else if (opinion.includes('qualified')) {
-        return { icon: 'warning', color: colors.warning };
-      }
-      return { icon: 'info', color: colors.primary };
-    };
-    
-    const { icon, color } = getOpinionIcon(filing.auditor_opinion);
-    
     return (
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
@@ -142,36 +117,16 @@ const Annual10KDetail: React.FC<Annual10KDetailProps> = ({ filing }) => {
           <Text style={styles.sectionTitle}>Auditor Opinion</Text>
         </View>
         
-        <View style={[styles.opinionCard, { borderLeftColor: color }]}>
-          <Icon name={icon} size={28} color={color} />
-          <View style={styles.opinionContent}>
-            <Text style={styles.opinionType}>Unqualified Opinion</Text>
-            <Text style={styles.opinionText}>{filing.auditor_opinion || "The financial statements present fairly, in all material respects, the financial position of the company."}</Text>
-          </View>
+        <View style={styles.narrativeCard}>
+          <Text style={styles.narrativeText}>{filing.auditor_opinion}</Text>
         </View>
       </View>
     );
   };
 
-  // 条目3: 三年财务关键指标卡
+  // 条目3: 三年财务关键指标卡 - 修正版
   const renderThreeYearFinancials = () => {
-    const metrics = filing.three_year_financials || {
-      revenue_trend: [
-        { year: '2022', value: 380000 },
-        { year: '2023', value: 410000 },
-        { year: '2024', value: 455000 },
-      ],
-      income_trend: [
-        { year: '2022', value: 75000 },
-        { year: '2023', value: 82000 },
-        { year: '2024', value: 95000 },
-      ],
-      margin_trend: [
-        { year: '2022', value: 0.197 },
-        { year: '2023', value: 0.200 },
-        { year: '2024', value: 0.209 },
-      ],
-    };
+    if (!filing.three_year_financials) return null;
 
     return (
       <View style={styles.section}>
@@ -180,54 +135,16 @@ const Annual10KDetail: React.FC<Annual10KDetailProps> = ({ filing }) => {
           <Text style={styles.sectionTitle}>3-Year Financial Highlights</Text>
         </View>
 
-        {/* Revenue Trend */}
-        <View style={styles.trendCard}>
-          <Text style={styles.trendTitle}>Revenue Growth</Text>
-          <View style={styles.trendChart}>
-            {metrics.revenue_trend.map((item, index) => (
-              <View key={index} style={styles.trendItem}>
-                <View style={[styles.trendBar, { 
-                  height: `${(item.value / Math.max(...metrics.revenue_trend.map(i => i.value))) * 100}%`,
-                  backgroundColor: colors.primary,
-                }]} />
-                <Text style={styles.trendValue}>{formatCurrency(item.value * 1000000)}</Text>
-                <Text style={styles.trendYear}>{item.year}</Text>
-              </View>
-            ))}
-          </View>
-        </View>
-
-        {/* Key Metrics Grid */}
-        <View style={styles.metricsGrid}>
-          <View style={styles.metricCard}>
-            <Text style={styles.metricLabel}>3Y Revenue CAGR</Text>
-            <Text style={styles.metricValue}>9.5%</Text>
-          </View>
-          <View style={styles.metricCard}>
-            <Text style={styles.metricLabel}>3Y Income CAGR</Text>
-            <Text style={styles.metricValue}>12.7%</Text>
-          </View>
-          <View style={styles.metricCard}>
-            <Text style={styles.metricLabel}>Avg Net Margin</Text>
-            <Text style={styles.metricValue}>20.2%</Text>
-          </View>
-          <View style={styles.metricCard}>
-            <Text style={styles.metricLabel}>Revenue Stability</Text>
-            <Text style={styles.metricValue}>High</Text>
-          </View>
+        <View style={styles.narrativeCard}>
+          <Text style={styles.narrativeText}>{filing.three_year_financials}</Text>
         </View>
       </View>
     );
   };
 
-  // 条目4: 主营业务结构摘要
+  // 条目4: 主营业务结构摘要 - 修正版
   const renderBusinessSegments = () => {
-    const segments = filing.business_segments || [
-      { name: 'Cloud Services', revenue: 182000, percentage: 40 },
-      { name: 'Enterprise Software', revenue: 136500, percentage: 30 },
-      { name: 'Consumer Products', revenue: 91000, percentage: 20 },
-      { name: 'Other Services', revenue: 45500, percentage: 10 },
-    ];
+    if (!filing.business_segments) return null;
 
     return (
       <View style={styles.section}>
@@ -236,45 +153,16 @@ const Annual10KDetail: React.FC<Annual10KDetailProps> = ({ filing }) => {
           <Text style={styles.sectionTitle}>Business Segments</Text>
         </View>
 
-        {segments.map((segment, index) => (
-          <View key={index} style={styles.segmentItem}>
-            <View style={styles.segmentHeader}>
-              <Text style={styles.segmentName}>{segment.name}</Text>
-              <Text style={styles.segmentRevenue}>{formatCurrency(segment.revenue * 1000000)}</Text>
-            </View>
-            <View style={styles.segmentBarContainer}>
-              <View style={[styles.segmentBar, { 
-                width: `${segment.percentage}%`,
-                backgroundColor: colors.primary + ((100 - segment.percentage) * 2).toString(16),
-              }]} />
-              <Text style={styles.segmentPercentage}>{segment.percentage}%</Text>
-            </View>
-          </View>
-        ))}
+        <View style={styles.narrativeCard}>
+          <Text style={styles.narrativeText}>{filing.business_segments}</Text>
+        </View>
       </View>
     );
   };
 
-  // 条目5: 风险因素摘要卡
+  // 条目5: 风险因素摘要卡 - 修正版
   const renderRiskFactorsSummary = () => {
-    const risks = filing.risk_summary || {
-      operational: ['Supply chain disruptions', 'Key personnel dependency'],
-      financial: ['Foreign exchange exposure', 'Credit risk concentration'],
-      regulatory: ['Data privacy regulations', 'Antitrust scrutiny'],
-      market: ['Intense competition', 'Technology disruption'],
-    };
-
-    const riskCategories: Array<{
-      key: keyof typeof risks;
-      icon: string;
-      color: string;
-      title: string;
-    }> = [
-      { key: 'operational', icon: 'settings', color: '#3B82F6', title: 'Operational Risks' },
-      { key: 'financial', icon: 'account-balance', color: '#EF4444', title: 'Financial Risks' },
-      { key: 'regulatory', icon: 'policy', color: '#F59E0B', title: 'Regulatory Risks' },
-      { key: 'market', icon: 'trending-down', color: '#8B5CF6', title: 'Market Risks' },
-    ];
+    if (!filing.risk_summary) return null;
 
     return (
       <View style={styles.section}>
@@ -283,20 +171,8 @@ const Annual10KDetail: React.FC<Annual10KDetailProps> = ({ filing }) => {
           <Text style={styles.sectionTitle}>Risk Factors Summary</Text>
         </View>
 
-        <View style={styles.riskGrid}>
-          {riskCategories.map((category) => (
-            <View key={category.key} style={styles.riskCategory}>
-              <View style={[styles.riskIconContainer, { backgroundColor: category.color + '20' }]}>
-                <Icon name={category.icon} size={24} color={category.color} />
-              </View>
-              <Text style={styles.riskTitle}>{category.title}</Text>
-              <View style={styles.riskItems}>
-                {risks[category.key]?.slice(0, 2).map((risk: string, idx: number) => (
-                  <Text key={idx} style={styles.riskItem}>• {risk}</Text>
-                ))}
-              </View>
-            </View>
-          ))}
+        <View style={styles.narrativeCard}>
+          <Text style={styles.narrativeText}>{filing.risk_summary}</Text>
         </View>
       </View>
     );
@@ -318,9 +194,7 @@ const Annual10KDetail: React.FC<Annual10KDetailProps> = ({ filing }) => {
         </View>
 
         <View style={styles.insightCard}>
-          <Text style={styles.insightText}>
-            {filing.growth_drivers || "The company's growth is primarily driven by strong demand in cloud computing services, successful product launches in the consumer segment, and strategic acquisitions that expanded market reach. International expansion, particularly in emerging markets, contributed significantly to revenue growth."}
-          </Text>
+          <Text style={styles.insightText}>{filing.growth_drivers}</Text>
         </View>
       </View>
     );
@@ -342,12 +216,7 @@ const Annual10KDetail: React.FC<Annual10KDetailProps> = ({ filing }) => {
         </View>
 
         <View style={styles.outlookCard}>
-          <View style={styles.outlookItem}>
-            <Icon name="trending-up" size={20} color={colors.success} />
-            <Text style={styles.outlookText}>
-              {filing.management_outlook || "Management expects continued momentum in FY2025, with revenue growth projected at 8-10%. Key focus areas include AI integration across all product lines and expansion in Asian markets."}
-            </Text>
-          </View>
+          <Text style={styles.narrativeText}>{filing.management_outlook}</Text>
         </View>
       </View>
     );
@@ -369,31 +238,14 @@ const Annual10KDetail: React.FC<Annual10KDetailProps> = ({ filing }) => {
         </View>
 
         <View style={styles.strategyCard}>
-          <Text style={styles.strategyText}>
-            {filing.strategic_adjustments || "Notable strategic shifts include pivoting from hardware to subscription-based services, divesting non-core assets, and increasing R&D investment in artificial intelligence. The company is transitioning to a platform-based business model."}
-          </Text>
-          
-          <View style={styles.strategyHighlights}>
-            <View style={styles.strategyItem}>
-              <Icon name="check-circle" size={16} color={colors.success} />
-              <Text style={styles.strategyItemText}>Shift to recurring revenue model</Text>
-            </View>
-            <View style={styles.strategyItem}>
-              <Icon name="check-circle" size={16} color={colors.success} />
-              <Text style={styles.strategyItemText}>Focus on high-margin services</Text>
-            </View>
-            <View style={styles.strategyItem}>
-              <Icon name="check-circle" size={16} color={colors.success} />
-              <Text style={styles.strategyItemText}>Streamlined product portfolio</Text>
-            </View>
-          </View>
+          <Text style={styles.narrativeText}>{filing.strategic_adjustments}</Text>
         </View>
       </View>
     );
   };
 
   // 条目9: GPT市场影响分析
-const renderMarketImpact = () => {
+  const renderMarketImpact = () => {
     if (!filing.market_impact_10k) return null;
   
     return (
@@ -408,9 +260,62 @@ const renderMarketImpact = () => {
         </View>
   
         <View style={styles.insightCard}>
-          <Text style={styles.insightText}>
-            {filing.market_impact_10k}
-          </Text>
+          <Text style={styles.insightText}>{filing.market_impact_10k}</Text>
+        </View>
+      </View>
+    );
+  };
+
+  // 财务指标卡（保持原有的结构化数据）
+  const renderFinancialMetrics = () => {
+    if (!filing.financial_highlights) return null;
+
+    const metrics = filing.financial_highlights;
+
+    return (
+      <View style={styles.section}>
+        <View style={styles.sectionHeader}>
+          <Icon name="attach-money" size={24} color={colors.primary} />
+          <Text style={styles.sectionTitle}>Financial Metrics</Text>
+        </View>
+
+        <View style={styles.metricsGrid}>
+          {metrics.revenue && (
+            <View style={styles.metricCard}>
+              <Text style={styles.metricLabel}>Revenue</Text>
+              <Text style={styles.metricValue}>{formatCurrency(metrics.revenue)}</Text>
+            </View>
+          )}
+          {metrics.net_income && (
+            <View style={styles.metricCard}>
+              <Text style={styles.metricLabel}>Net Income</Text>
+              <Text style={styles.metricValue}>{formatCurrency(metrics.net_income)}</Text>
+            </View>
+          )}
+          {metrics.eps && (
+            <View style={styles.metricCard}>
+              <Text style={styles.metricLabel}>EPS</Text>
+              <Text style={styles.metricValue}>${metrics.eps.toFixed(2)}</Text>
+            </View>
+          )}
+          {metrics.gross_margin && (
+            <View style={styles.metricCard}>
+              <Text style={styles.metricLabel}>Gross Margin</Text>
+              <Text style={styles.metricValue}>{formatPercentage(metrics.gross_margin / 100)}</Text>
+            </View>
+          )}
+          {metrics.operating_margin && (
+            <View style={styles.metricCard}>
+              <Text style={styles.metricLabel}>Operating Margin</Text>
+              <Text style={styles.metricValue}>{formatPercentage(metrics.operating_margin / 100)}</Text>
+            </View>
+          )}
+          {metrics.cash && (
+            <View style={styles.metricCard}>
+              <Text style={styles.metricLabel}>Cash & Equivalents</Text>
+              <Text style={styles.metricValue}>{formatCurrency(metrics.cash)}</Text>
+            </View>
+          )}
         </View>
       </View>
     );
@@ -429,8 +334,9 @@ const renderMarketImpact = () => {
         </Text>
       </View>
 
-      {/* All 9 sections for 10-K */}
+      {/* All sections for 10-K */}
       {renderCompanyMetaCard()}
+      {renderFinancialMetrics()}
       {renderAuditorOpinion()}
       {renderThreeYearFinancials()}
       {renderBusinessSegments()}
@@ -598,65 +504,16 @@ const styles = StyleSheet.create({
     fontWeight: typography.fontWeight.medium,
   },
 
-  // Opinion Card
-  opinionCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  // Narrative Cards - 新增的文本显示样式
+  narrativeCard: {
     backgroundColor: colors.background,
     padding: spacing.md,
     borderRadius: borderRadius.sm,
-    borderLeftWidth: 4,
   },
-  opinionContent: {
-    flex: 1,
-    marginLeft: spacing.md,
-  },
-  opinionType: {
+  narrativeText: {
     fontSize: typography.fontSize.md,
-    fontWeight: typography.fontWeight.semibold,
     color: colors.text,
-    marginBottom: spacing.xs,
-  },
-  opinionText: {
-    fontSize: typography.fontSize.sm,
-    color: colors.textSecondary,
-    lineHeight: 20,
-  },
-
-  // Trend Chart
-  trendCard: {
-    marginBottom: spacing.lg,
-  },
-  trendTitle: {
-    fontSize: typography.fontSize.md,
-    fontWeight: typography.fontWeight.medium,
-    color: colors.text,
-    marginBottom: spacing.md,
-  },
-  trendChart: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    height: 120,
-    justifyContent: 'space-around',
-  },
-  trendItem: {
-    flex: 1,
-    alignItems: 'center',
-  },
-  trendBar: {
-    width: '60%',
-    borderRadius: borderRadius.sm,
-    marginBottom: spacing.sm,
-  },
-  trendValue: {
-    fontSize: typography.fontSize.xs,
-    fontWeight: typography.fontWeight.medium,
-    color: colors.text,
-    marginBottom: spacing.xs,
-  },
-  trendYear: {
-    fontSize: typography.fontSize.xs,
-    color: colors.textSecondary,
+    lineHeight: 24,
   },
 
   // Metrics Grid
@@ -680,73 +537,6 @@ const styles = StyleSheet.create({
     color: colors.text,
   },
 
-  // Segment Styles
-  segmentItem: {
-    marginBottom: spacing.md,
-  },
-  segmentHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: spacing.sm,
-  },
-  segmentName: {
-    fontSize: typography.fontSize.md,
-    fontWeight: typography.fontWeight.medium,
-    color: colors.text,
-  },
-  segmentRevenue: {
-    fontSize: typography.fontSize.md,
-    fontWeight: typography.fontWeight.semibold,
-    color: colors.text,
-  },
-  segmentBarContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  segmentBar: {
-    height: 8,
-    borderRadius: 4,
-    marginRight: spacing.sm,
-  },
-  segmentPercentage: {
-    fontSize: typography.fontSize.sm,
-    color: colors.textSecondary,
-  },
-
-  // Risk Grid
-  riskGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    marginHorizontal: -spacing.xs,
-  },
-  riskCategory: {
-    width: '50%',
-    padding: spacing.xs,
-    marginBottom: spacing.md,
-  },
-  riskIconContainer: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: spacing.sm,
-  },
-  riskTitle: {
-    fontSize: typography.fontSize.sm,
-    fontWeight: typography.fontWeight.semibold,
-    color: colors.text,
-    marginBottom: spacing.xs,
-  },
-  riskItems: {
-    gap: spacing.xs,
-  },
-  riskItem: {
-    fontSize: typography.fontSize.xs,
-    color: colors.textSecondary,
-    lineHeight: 16,
-  },
-
   // Insight Cards
   insightCard: {
     backgroundColor: colors.primary + '05',
@@ -767,42 +557,12 @@ const styles = StyleSheet.create({
     padding: spacing.md,
     borderRadius: borderRadius.sm,
   },
-  outlookItem: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-  },
-  outlookText: {
-    flex: 1,
-    fontSize: typography.fontSize.md,
-    color: colors.text,
-    lineHeight: 24,
-    marginLeft: spacing.sm,
-  },
 
   // Strategy Card
   strategyCard: {
     backgroundColor: colors.warning + '05',
     padding: spacing.md,
     borderRadius: borderRadius.sm,
-  },
-  strategyText: {
-    fontSize: typography.fontSize.md,
-    color: colors.text,
-    lineHeight: 24,
-    marginBottom: spacing.md,
-  },
-  strategyHighlights: {
-    gap: spacing.sm,
-  },
-  strategyItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: spacing.xs,
-  },
-  strategyItemText: {
-    fontSize: typography.fontSize.sm,
-    color: colors.textSecondary,
-    marginLeft: spacing.sm,
   },
 
   // Footer
