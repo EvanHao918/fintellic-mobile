@@ -20,9 +20,9 @@ interface FilingDetail {
   filing_url: string;
   fiscal_quarter?: string;
   period_end_date?: string;
-  // 10-Q specific fields - 全部改为字符串类型
-  core_metrics?: string;  // ← 添加这个字段！
-  financial_highlights?: any;  // 保留兼容性
+  // 10-Q specific fields
+  core_metrics?: string;
+  financial_highlights?: any;
   expectations_comparison?: string;
   cost_structure?: string;
   guidance_update?: string;
@@ -46,7 +46,7 @@ const Quarterly10QDetail: React.FC<Quarterly10QDetailProps> = ({ filing }) => {
     return `Q${quarter} ${date.getFullYear()}`;
   };
 
-  // 条目1: 季报元信息卡
+  // 条目1: 季报元信息卡 - 极简设计
   const renderQuarterlyMetaCard = () => (
     <View style={styles.metaCard}>
       <View style={styles.metaHeader}>
@@ -54,38 +54,37 @@ const Quarterly10QDetail: React.FC<Quarterly10QDetailProps> = ({ filing }) => {
           <Text style={styles.ticker}>{filing.company_ticker}</Text>
           <Text style={styles.companyName}>{filing.company_name}</Text>
         </View>
-        <View style={[styles.filingBadge, { backgroundColor: colors.filing10Q }]}>
+        <View style={styles.filingBadge}>
           <Text style={styles.filingBadgeText}>10-Q</Text>
         </View>
       </View>
       
       <View style={styles.metaDetails}>
         <View style={styles.metaRow}>
-          <Icon name="calendar-today" size={16} color={colors.textSecondary} />
-          <Text style={styles.metaLabel}>Fiscal Quarter:</Text>
+          <Icon name="calendar-today" size={14} color={colors.gray500} />
+          <Text style={styles.metaLabel}>Fiscal Quarter</Text>
           <Text style={styles.metaValue}>{getQuarter()}</Text>
         </View>
         
         <View style={styles.metaRow}>
-          <Icon name="event" size={16} color={colors.textSecondary} />
-          <Text style={styles.metaLabel}>Period End:</Text>
+          <Icon name="event" size={14} color={colors.gray500} />
+          <Text style={styles.metaLabel}>Period End</Text>
           <Text style={styles.metaValue}>
             {filing.period_end_date ? new Date(filing.period_end_date).toLocaleDateString() : new Date(filing.filing_date).toLocaleDateString()}
           </Text>
         </View>
         
         <View style={styles.metaRow}>
-          <Icon name="publish" size={16} color={colors.textSecondary} />
-          <Text style={styles.metaLabel}>Filed:</Text>
+          <Icon name="publish" size={14} color={colors.gray500} />
+          <Text style={styles.metaLabel}>Filed</Text>
           <Text style={styles.metaValue}>{new Date(filing.filing_date).toLocaleDateString()}</Text>
         </View>
       </View>
     </View>
   );
 
-  // 条目2: 财务快照 - 新的第一展示条目（替代原来的 Financial Metrics）
+  // 条目2: 财务快照 - 重点突出设计
   const renderFinancialSnapshot = () => {
-    // 修复：检查 core_metrics 而不是 financial_highlights
     if (!filing.core_metrics || typeof filing.core_metrics !== 'string') {
       return null;
     }
@@ -94,10 +93,10 @@ const Quarterly10QDetail: React.FC<Quarterly10QDetailProps> = ({ filing }) => {
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
           <Icon name="attach-money" size={24} color={colors.primary} />
-          <Text style={styles.sectionTitle}>财务快照</Text>
-          <View style={styles.snapshotBadge}>
-            <Icon name="flash-on" size={14} color={colors.primary} />
-            <Text style={styles.snapshotBadgeText}>SNAPSHOT</Text>
+          <Text style={styles.sectionTitle}>Financial Snapshot</Text>
+          <View style={styles.keyBadge}>
+            <Icon name="star" size={14} color={colors.warning} />
+            <Text style={styles.keyBadgeText}>KEY</Text>
           </View>
         </View>
 
@@ -108,7 +107,7 @@ const Quarterly10QDetail: React.FC<Quarterly10QDetailProps> = ({ filing }) => {
     );
   };
 
-  // 条目3: 核心业绩 & 预期对比卡（文本显示）
+  // 条目3: 核心业绩 & 预期对比卡
   const renderPerformanceVsExpectations = () => {
     if (!filing.expectations_comparison) return null;
 
@@ -117,20 +116,16 @@ const Quarterly10QDetail: React.FC<Quarterly10QDetailProps> = ({ filing }) => {
         <View style={styles.sectionHeader}>
           <Icon name="analytics" size={24} color={colors.primary} />
           <Text style={styles.sectionTitle}>Performance vs. Expectations</Text>
-          <View style={styles.highlightBadge}>
-            <Icon name="star" size={14} color={colors.warning} />
-            <Text style={styles.highlightBadgeText}>KEY</Text>
-          </View>
         </View>
 
-        <View style={styles.narrativeCard}>
-          <Text style={styles.narrativeText}>{filing.expectations_comparison}</Text>
+        <View style={styles.contentCard}>
+          <Text style={styles.contentText}>{filing.expectations_comparison}</Text>
         </View>
       </View>
     );
   };
 
-  // 条目4: 成本结构与费用摘要（文本显示）
+  // 条目4: 成本结构与费用摘要
   const renderCostStructure = () => {
     if (!filing.cost_structure) return null;
 
@@ -141,14 +136,14 @@ const Quarterly10QDetail: React.FC<Quarterly10QDetailProps> = ({ filing }) => {
           <Text style={styles.sectionTitle}>Cost Structure Analysis</Text>
         </View>
 
-        <View style={styles.narrativeCard}>
-          <Text style={styles.narrativeText}>{filing.cost_structure}</Text>
+        <View style={styles.contentCard}>
+          <Text style={styles.contentText}>{filing.cost_structure}</Text>
         </View>
       </View>
     );
   };
 
-  // 条目5: 是否更新业绩指引（文本显示）
+  // 条目5: 是否更新业绩指引
   const renderGuidanceUpdate = () => {
     if (!filing.guidance_update) return null;
 
@@ -159,8 +154,8 @@ const Quarterly10QDetail: React.FC<Quarterly10QDetailProps> = ({ filing }) => {
           <Text style={styles.sectionTitle}>Guidance Update</Text>
         </View>
 
-        <View style={styles.narrativeCard}>
-          <Text style={styles.narrativeText}>{filing.guidance_update}</Text>
+        <View style={styles.contentCard}>
+          <Text style={styles.contentText}>{filing.guidance_update}</Text>
         </View>
       </View>
     );
@@ -175,14 +170,14 @@ const Quarterly10QDetail: React.FC<Quarterly10QDetailProps> = ({ filing }) => {
         <View style={styles.sectionHeader}>
           <Icon name="insights" size={24} color={colors.primary} />
           <Text style={styles.sectionTitle}>Growth/Decline Drivers</Text>
-          <View style={styles.gptBadge}>
+          <View style={styles.aiBadge}>
             <Icon name="auto-awesome" size={14} color={colors.primary} />
-            <Text style={styles.gptBadgeText}>AI</Text>
+            <Text style={styles.aiBadgeText}>AI</Text>
           </View>
         </View>
 
-        <View style={styles.analysisCard}>
-          <Text style={styles.analysisText}>{filing.growth_decline_analysis}</Text>
+        <View style={styles.aiContentCard}>
+          <Text style={styles.aiContentText}>{filing.growth_decline_analysis}</Text>
         </View>
       </View>
     );
@@ -197,14 +192,14 @@ const Quarterly10QDetail: React.FC<Quarterly10QDetailProps> = ({ filing }) => {
         <View style={styles.sectionHeader}>
           <Icon name="record-voice-over" size={24} color={colors.primary} />
           <Text style={styles.sectionTitle}>Management Tone Analysis</Text>
-          <View style={styles.gptBadge}>
+          <View style={styles.aiBadge}>
             <Icon name="auto-awesome" size={14} color={colors.primary} />
-            <Text style={styles.gptBadgeText}>AI</Text>
+            <Text style={styles.aiBadgeText}>AI</Text>
           </View>
         </View>
 
-        <View style={styles.toneCard}>
-          <Text style={styles.narrativeText}>{filing.management_tone_analysis}</Text>
+        <View style={styles.aiContentCard}>
+          <Text style={styles.aiContentText}>{filing.management_tone_analysis}</Text>
         </View>
       </View>
     );
@@ -219,14 +214,14 @@ const Quarterly10QDetail: React.FC<Quarterly10QDetailProps> = ({ filing }) => {
         <View style={styles.sectionHeader}>
           <Icon name="psychology" size={24} color={colors.primary} />
           <Text style={styles.sectionTitle}>Beat/Miss Analysis</Text>
-          <View style={styles.gptBadge}>
+          <View style={styles.aiBadge}>
             <Icon name="auto-awesome" size={14} color={colors.primary} />
-            <Text style={styles.gptBadgeText}>AI</Text>
+            <Text style={styles.aiBadgeText}>AI</Text>
           </View>
         </View>
 
-        <View style={styles.beatAnalysisCard}>
-          <Text style={styles.narrativeText}>{filing.beat_miss_analysis}</Text>
+        <View style={styles.aiContentCard}>
+          <Text style={styles.aiContentText}>{filing.beat_miss_analysis}</Text>
         </View>
       </View>
     );
@@ -241,14 +236,14 @@ const Quarterly10QDetail: React.FC<Quarterly10QDetailProps> = ({ filing }) => {
         <View style={styles.sectionHeader}>
           <Icon name="trending-up" size={24} color={colors.primary} />
           <Text style={styles.sectionTitle}>Market Impact Analysis</Text>
-          <View style={styles.gptBadge}>
+          <View style={styles.aiBadge}>
             <Icon name="auto-awesome" size={14} color={colors.primary} />
-            <Text style={styles.gptBadgeText}>AI</Text>
+            <Text style={styles.aiBadgeText}>AI</Text>
           </View>
         </View>
   
-        <View style={styles.beatAnalysisCard}>
-          <Text style={styles.narrativeText}>{filing.market_impact_10q}</Text>
+        <View style={styles.aiContentCard}>
+          <Text style={styles.aiContentText}>{filing.market_impact_10q}</Text>
         </View>
       </View>
     );
@@ -256,36 +251,40 @@ const Quarterly10QDetail: React.FC<Quarterly10QDetailProps> = ({ filing }) => {
 
   return (
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
-      {/* 10-Q Header */}
-      <View style={[styles.header, { backgroundColor: colors.filing10Q }]}>
-        <View style={styles.headerIcon}>
-          <Icon name="insert-chart" size={32} color={colors.white} />
+      {/* 10-Q Header - 极简设计 */}
+      <View style={styles.header}>
+        <View style={styles.headerContent}>
+          <View style={styles.headerIcon}>
+            <Icon name="insert-chart" size={28} color={colors.white} />
+          </View>
+          <View style={styles.headerTextContainer}>
+            <Text style={styles.headerTitle}>Quarterly Report</Text>
+            <Text style={styles.headerSubtitle}>{getQuarter()} Financial Results</Text>
+          </View>
         </View>
-        <Text style={styles.headerTitle}>Quarterly Report (10-Q)</Text>
-        <Text style={styles.headerSubtitle}>
-          {getQuarter()} Financial Results
-        </Text>
       </View>
 
-      {/* All sections for 10-Q - 财务快照作为第一个展示条目 */}
-      {renderQuarterlyMetaCard()}
-      {renderFinancialSnapshot()}  {/* 新的第一展示条目 - 现在能正常显示了！ */}
-      {renderPerformanceVsExpectations()}
-      {renderCostStructure()}
-      {renderGuidanceUpdate()}
-      {renderGrowthDeclineAnalysis()}
-      {renderManagementToneAnalysis()}
-      {renderBeatMissAnalysis()}
-      {renderMarketImpact()}
+      {/* All sections */}
+      <View style={styles.contentContainer}>
+        {renderQuarterlyMetaCard()}
+        {renderFinancialSnapshot()}
+        {renderPerformanceVsExpectations()}
+        {renderCostStructure()}
+        {renderGuidanceUpdate()}
+        {renderGrowthDeclineAnalysis()}
+        {renderManagementToneAnalysis()}
+        {renderBeatMissAnalysis()}
+        {renderMarketImpact()}
+      </View>
 
       {/* Footer with SEC Link */}
       <View style={styles.footer}>
         <TouchableOpacity
-          style={[styles.secButton, { backgroundColor: colors.filing10Q }]}
+          style={styles.secButton}
           onPress={() => filing.filing_url && Linking.openURL(filing.filing_url)}
         >
-          <Icon name="launch" size={20} color={colors.white} />
-          <Text style={styles.secButtonText}>View Full 10-Q Filing</Text>
+          <Text style={styles.secButtonText}>View Original SEC Filing</Text>
+          <Icon name="launch" size={16} color={colors.gray700} />
         </TouchableOpacity>
       </View>
     </ScrollView>
@@ -295,46 +294,64 @@ const Quarterly10QDetail: React.FC<Quarterly10QDetailProps> = ({ filing }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: colors.gray50, // 浅灰背景增加层次
   },
+  
+  // Header - 简约设计
   header: {
-    padding: spacing.xl,
+    backgroundColor: colors.filing10Q,
+    paddingTop: spacing.xxl,
+    paddingBottom: spacing.xl,
+    paddingHorizontal: spacing.lg,
+  },
+  headerContent: {
+    flexDirection: 'row',
     alignItems: 'center',
   },
   headerIcon: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
     backgroundColor: colors.white + '20',
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: spacing.md,
+    marginRight: spacing.md,
+  },
+  headerTextContainer: {
+    flex: 1,
   },
   headerTitle: {
     fontSize: typography.fontSize.xl,
     fontWeight: typography.fontWeight.bold,
     color: colors.white,
-    marginBottom: spacing.xs,
+    letterSpacing: 0.3,
   },
   headerSubtitle: {
     fontSize: typography.fontSize.sm,
     color: colors.white + '90',
-    textAlign: 'center',
+    marginTop: 2,
   },
   
-  // Meta Card
+  // Content Container
+  contentContainer: {
+    paddingVertical: spacing.md,
+  },
+  
+  // Meta Card - 信息卡片 - 报纸风格
   metaCard: {
     backgroundColor: colors.white,
     marginHorizontal: spacing.md,
-    marginTop: spacing.md,
+    marginBottom: spacing.md,
     padding: spacing.lg,
-    borderRadius: borderRadius.md,
+    borderRadius: borderRadius.lg,
+    borderWidth: 1,
+    borderColor: colors.gray100,
     ...Platform.select({
       ios: {
-        shadowColor: colors.text,
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
+        shadowColor: colors.black,
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.05,
+        shadowRadius: 3,
       },
       android: {
         elevation: 2,
@@ -346,21 +363,38 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'flex-start',
     marginBottom: spacing.lg,
+    paddingBottom: spacing.md,
+    borderBottomWidth: 3,
+    borderBottomColor: colors.gray900,
   },
   companyInfo: {
     flex: 1,
   },
   ticker: {
-    fontSize: typography.fontSize.xxl,
-    fontWeight: typography.fontWeight.bold,
-    color: colors.text,
+    fontSize: 32,
+    fontWeight: '900',
+    color: colors.gray900,
+    letterSpacing: -1,
+    fontFamily: Platform.select({
+      ios: 'Georgia',
+      android: 'Roboto Slab',
+      default: 'System',
+    }),
   },
   companyName: {
     fontSize: typography.fontSize.md,
-    color: colors.textSecondary,
-    marginTop: spacing.xs,
+    color: colors.gray600,
+    marginTop: spacing.xxs,
+    fontWeight: typography.fontWeight.medium,
+    fontStyle: 'italic',
+    fontFamily: Platform.select({
+      ios: 'Georgia',
+      android: 'Roboto Slab',
+      default: 'System',
+    }),
   },
   filingBadge: {
+    backgroundColor: colors.filing10Q,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.xs,
     borderRadius: borderRadius.md,
@@ -369,6 +403,7 @@ const styles = StyleSheet.create({
     color: colors.white,
     fontSize: typography.fontSize.sm,
     fontWeight: typography.fontWeight.semibold,
+    letterSpacing: 0.5,
   },
   metaDetails: {
     gap: spacing.sm,
@@ -380,48 +415,64 @@ const styles = StyleSheet.create({
   },
   metaLabel: {
     fontSize: typography.fontSize.sm,
-    color: colors.textSecondary,
+    color: colors.gray500,
     marginLeft: spacing.sm,
     flex: 1,
+    fontWeight: typography.fontWeight.regular,
   },
   metaValue: {
     fontSize: typography.fontSize.sm,
-    fontWeight: typography.fontWeight.medium,
-    color: colors.text,
+    fontWeight: typography.fontWeight.semibold,
+    color: colors.gray900,
   },
 
-  // Section
+  // Section - 通用卡片样式
   section: {
     backgroundColor: colors.white,
     marginHorizontal: spacing.md,
-    marginTop: spacing.md,
-    padding: spacing.lg,
-    borderRadius: borderRadius.md,
+    marginBottom: spacing.md,
+    paddingTop: spacing.lg,
+    paddingHorizontal: spacing.lg,
+    paddingBottom: spacing.lg + spacing.xs,
+    borderRadius: borderRadius.lg,
+    borderWidth: 1,
+    borderColor: colors.gray100,
     ...Platform.select({
       ios: {
-        shadowColor: colors.text,
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
+        shadowColor: colors.black,
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.03,
+        shadowRadius: 2,
       },
       android: {
-        elevation: 2,
+        elevation: 1,
       },
     }),
   },
   sectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: spacing.md,
+    marginBottom: spacing.lg,
+    paddingBottom: spacing.md,
+    borderBottomWidth: 2,
+    borderBottomColor: colors.gray900,
   },
   sectionTitle: {
-    fontSize: typography.fontSize.lg,
-    fontWeight: typography.fontWeight.semibold,
-    color: colors.text,
+    fontSize: 20,
+    fontWeight: '700',
+    color: colors.gray900,
     marginLeft: spacing.sm,
     flex: 1,
+    letterSpacing: -0.5,
+    fontFamily: Platform.select({
+      ios: 'Georgia',
+      android: 'Roboto Slab', 
+      default: 'System',
+    }),
   },
-  highlightBadge: {
+
+  // 重点标记 - 添加flexDirection
+  keyBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: colors.warning + '20',
@@ -429,13 +480,16 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.xs,
     borderRadius: borderRadius.sm,
   },
-  highlightBadgeText: {
+  keyBadgeText: {
     fontSize: typography.fontSize.xs,
     color: colors.warning,
-    marginLeft: spacing.xs,
     fontWeight: typography.fontWeight.bold,
+    letterSpacing: 0.5,
+    marginLeft: spacing.xs,
   },
-  gptBadge: {
+
+  // AI标记 - 使用主色调
+  aiBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: colors.primary + '10',
@@ -443,99 +497,83 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.xs,
     borderRadius: borderRadius.sm,
   },
-  gptBadgeText: {
+  aiBadgeText: {
     fontSize: typography.fontSize.xs,
     color: colors.primary,
-    marginLeft: spacing.xs,
+    marginLeft: spacing.xxs,
     fontWeight: typography.fontWeight.medium,
+    letterSpacing: 0.5,
   },
 
-  // 财务快照样式 - 新增
-  snapshotBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.primary + '20',
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xs,
-    borderRadius: borderRadius.sm,
-  },
-  snapshotBadgeText: {
-    fontSize: typography.fontSize.xs,
-    color: colors.primary,
-    marginLeft: spacing.xs,
-    fontWeight: typography.fontWeight.bold,
-  },
+  // 财务快照卡片 - 重点内容特殊处理
   snapshotCard: {
-    backgroundColor: colors.primary + '05',
-    padding: spacing.lg,
-    borderRadius: borderRadius.md,
-    borderLeftWidth: 4,
-    borderLeftColor: colors.primary,
+    backgroundColor: colors.white,
+    paddingTop: spacing.md,
   },
   snapshotText: {
     fontSize: typography.fontSize.md,
-    color: colors.text,
-    lineHeight: 26,
-    fontWeight: typography.fontWeight.medium,
+    color: colors.gray900,
+    lineHeight: 30,
+    fontWeight: typography.fontWeight.regular,
+    letterSpacing: 0.3,
+    // 首行缩进效果
+    textAlign: 'justify' as 'justify',
   },
 
-  // Narrative Cards - 文本显示样式
-  narrativeCard: {
-    backgroundColor: colors.background,
-    padding: spacing.md,
-    borderRadius: borderRadius.sm,
+  // 普通内容卡片
+  contentCard: {
+    backgroundColor: colors.white,
+    paddingTop: spacing.xs,
   },
-  narrativeText: {
-    fontSize: typography.fontSize.md,
-    color: colors.text,
-    lineHeight: 24,
-  },
-
-  // Analysis Cards
-  analysisCard: {
-    backgroundColor: colors.primary + '05',
-    padding: spacing.md,
-    borderRadius: borderRadius.sm,
-    borderLeftWidth: 3,
-    borderLeftColor: colors.primary,
-  },
-  analysisText: {
-    fontSize: typography.fontSize.md,
-    color: colors.text,
-    lineHeight: 24,
+  contentText: {
+    fontSize: typography.fontSize.base,
+    color: colors.gray800,
+    lineHeight: 28,
+    letterSpacing: 0.2,
+    textAlign: 'justify' as 'justify',
   },
 
-  // Tone Analysis
-  toneCard: {
-    backgroundColor: colors.success + '05',
-    padding: spacing.md,
-    borderRadius: borderRadius.sm,
+  // AI内容卡片 - 引用样式
+  aiContentCard: {
+    backgroundColor: colors.white,
+    paddingLeft: spacing.md,
+    marginTop: spacing.xs,
+    borderLeftWidth: 2,
+    borderLeftColor: colors.gray200,
+  },
+  aiContentText: {
+    fontSize: typography.fontSize.base,
+    color: colors.gray700,
+    lineHeight: 28,
+    letterSpacing: 0.2,
+    fontStyle: 'italic',
   },
 
-  // Beat Analysis
-  beatAnalysisCard: {
-    backgroundColor: colors.background,
-    padding: spacing.md,
-    borderRadius: borderRadius.sm,
-  },
-
-  // Footer
+  // Footer - 优雅设计
   footer: {
-    padding: spacing.xl,
+    paddingVertical: spacing.xxl,
+    paddingHorizontal: spacing.lg,
     alignItems: 'center',
+    borderTopWidth: 1,
+    borderTopColor: colors.gray100,
+    backgroundColor: colors.white,
   },
   secButton: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: spacing.md,
     paddingHorizontal: spacing.xl,
-    borderRadius: borderRadius.md,
+    borderRadius: borderRadius.lg,
+    backgroundColor: colors.white,
+    borderWidth: 2,
+    borderColor: colors.gray900,
   },
   secButtonText: {
-    color: colors.white,
-    fontSize: typography.fontSize.md,
-    fontWeight: typography.fontWeight.medium,
-    marginLeft: spacing.sm,
+    color: colors.gray900,
+    fontSize: typography.fontSize.base,
+    fontWeight: typography.fontWeight.semibold,
+    marginRight: spacing.sm,
+    letterSpacing: 0.3,
   },
 });
 
