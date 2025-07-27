@@ -14,12 +14,13 @@ interface RegisterCredentials {
 const initialState: AuthState = {
   user: null,
   token: null,
+  refreshToken: null,
   isAuthenticated: false,
   isLoading: false,
   error: null,
 };
 
-// FIXED: Login async thunk with separate user info fetch
+// Login async thunk
 export const login = createAsyncThunk(
   'auth/login',
   async (credentials: LoginCredentials) => {
@@ -29,7 +30,7 @@ export const login = createAsyncThunk(
       formData.append('username', credentials.email);
       formData.append('password', credentials.password);
 
-      const loginResponse = await apiClient.post<{ access_token: string; token_type: string }>('/auth/login', formData, {
+      const loginResponse = await apiClient.post<{ access_token: string; token_type: string; refresh_token?: string }>('/auth/login', formData, {
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded',
         },
@@ -46,11 +47,15 @@ export const login = createAsyncThunk(
 
       // Step 4: Store token and user info
       await AsyncStorage.setItem(STORAGE_KEYS.AUTH_TOKEN, loginResponse.access_token);
+      if (loginResponse.refresh_token) {
+        await AsyncStorage.setItem(STORAGE_KEYS.REFRESH_TOKEN, loginResponse.refresh_token);
+      }
       await AsyncStorage.setItem(STORAGE_KEYS.USER_INFO, JSON.stringify(userResponse));
 
       // Return combined response
       return {
         access_token: loginResponse.access_token,
+        refresh_token: loginResponse.refresh_token || null,
         token_type: loginResponse.token_type,
         user: userResponse
       };
@@ -61,7 +66,7 @@ export const login = createAsyncThunk(
   }
 );
 
-// FIXED: Register async thunk with proper user info fetch
+// Register async thunk
 export const register = createAsyncThunk(
   'auth/register',
   async (credentials: RegisterCredentials) => {
@@ -80,7 +85,7 @@ export const register = createAsyncThunk(
       formData.append('username', credentials.email);
       formData.append('password', credentials.password);
 
-      const loginResponse = await apiClient.post<{ access_token: string; token_type: string }>('/auth/login', formData, {
+      const loginResponse = await apiClient.post<{ access_token: string; token_type: string; refresh_token?: string }>('/auth/login', formData, {
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded',
         },
@@ -94,10 +99,14 @@ export const register = createAsyncThunk(
 
       // Store token and user info
       await AsyncStorage.setItem(STORAGE_KEYS.AUTH_TOKEN, loginResponse.access_token);
+      if (loginResponse.refresh_token) {
+        await AsyncStorage.setItem(STORAGE_KEYS.REFRESH_TOKEN, loginResponse.refresh_token);
+      }
       await AsyncStorage.setItem(STORAGE_KEYS.USER_INFO, JSON.stringify(userResponse));
 
       return {
         access_token: loginResponse.access_token,
+        refresh_token: loginResponse.refresh_token || null,
         token_type: loginResponse.token_type,
         user: userResponse
       };
@@ -110,22 +119,33 @@ export const register = createAsyncThunk(
 
 // Logout async thunk
 export const logout = createAsyncThunk('auth/logout', async () => {
+  try {
+    // Call logout API if needed
+    await apiClient.post('/auth/logout').catch(() => {
+      // Ignore logout API errors
+    });
+  } catch (error) {
+    console.error('Logout API error:', error);
+  } finally {
     // Clear stored data
     await AsyncStorage.multiRemove([
       STORAGE_KEYS.AUTH_TOKEN,
+      STORAGE_KEYS.REFRESH_TOKEN,
       STORAGE_KEYS.USER_INFO,
     ]);
     
     // Clear the auth token from API client
     apiClient.removeAuthToken();
-  });
+  }
+});
 
-// FIXED: Load stored auth with user validation
+// Load stored auth
 export const loadStoredAuth = createAsyncThunk(
   'auth/loadStoredAuth',
   async () => {
     try {
       const token = await AsyncStorage.getItem(STORAGE_KEYS.AUTH_TOKEN);
+      const refreshToken = await AsyncStorage.getItem(STORAGE_KEYS.REFRESH_TOKEN);
       const userInfo = await AsyncStorage.getItem(STORAGE_KEYS.USER_INFO);
 
       if (token && userInfo) {
@@ -146,11 +166,15 @@ export const loadStoredAuth = createAsyncThunk(
             await AsyncStorage.setItem(STORAGE_KEYS.USER_INFO, JSON.stringify(currentUser));
           }
           
-          return { token, user: currentUser };
+          return { 
+            token, 
+            refreshToken: refreshToken || null,
+            user: currentUser 
+          };
         } catch (apiError) {
           console.error('Token validation failed:', apiError);
           // Token is invalid, clear storage
-          await AsyncStorage.multiRemove([STORAGE_KEYS.AUTH_TOKEN, STORAGE_KEYS.USER_INFO]);
+          await AsyncStorage.multiRemove([STORAGE_KEYS.AUTH_TOKEN, STORAGE_KEYS.REFRESH_TOKEN, STORAGE_KEYS.USER_INFO]);
           apiClient.removeAuthToken();
           return null;
         }
@@ -163,7 +187,7 @@ export const loadStoredAuth = createAsyncThunk(
   }
 );
 
-// Add refresh user info thunk
+// Refresh user info
 export const refreshUserInfo = createAsyncThunk(
   'auth/refreshUserInfo',
   async () => {
@@ -206,6 +230,7 @@ const authSlice = createSlice({
         state.isLoading = false;
         state.isAuthenticated = true;
         state.token = action.payload.access_token;
+        state.refreshToken = action.payload.refresh_token;
         state.user = action.payload.user;
         state.error = null;
         console.log('Login successful, user set:', action.payload.user);
@@ -215,6 +240,7 @@ const authSlice = createSlice({
         state.isAuthenticated = false;
         state.user = null;
         state.token = null;
+        state.refreshToken = null;
         state.error = action.error.message || 'Login failed';
       });
 
@@ -228,6 +254,7 @@ const authSlice = createSlice({
         state.isLoading = false;
         state.isAuthenticated = true;
         state.token = action.payload.access_token;
+        state.refreshToken = action.payload.refresh_token;
         state.user = action.payload.user;
         state.error = null;
       })
@@ -236,6 +263,7 @@ const authSlice = createSlice({
         state.isAuthenticated = false;
         state.user = null;
         state.token = null;
+        state.refreshToken = null;
         state.error = action.error.message || 'Registration failed';
       });
 
@@ -244,6 +272,7 @@ const authSlice = createSlice({
       .addCase(logout.fulfilled, (state) => {
         state.user = null;
         state.token = null;
+        state.refreshToken = null;
         state.isAuthenticated = false;
         state.error = null;
       });
@@ -257,6 +286,7 @@ const authSlice = createSlice({
         state.isLoading = false;
         if (action.payload) {
           state.token = action.payload.token;
+          state.refreshToken = action.payload.refreshToken;
           state.user = action.payload.user;
           state.isAuthenticated = true;
           console.log('Stored auth loaded, user set:', action.payload.user);
@@ -267,6 +297,7 @@ const authSlice = createSlice({
         state.isAuthenticated = false;
         state.user = null;
         state.token = null;
+        state.refreshToken = null;
       });
 
     // Refresh user info cases

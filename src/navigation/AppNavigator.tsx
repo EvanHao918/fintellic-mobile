@@ -25,7 +25,7 @@ export default function AppNavigator() {
             <Stack.Screen 
               name="FilingDetail" 
               component={FilingDetailScreen}
-              options={{ headerShown: true }}
+              options={{ headerShown: false }}
             />
             <Stack.Screen 
               name="Subscription" 

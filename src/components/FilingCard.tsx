@@ -15,7 +15,7 @@ const { colors, typography, spacing, borderRadius, shadows, filingTypes, sentime
 interface FilingCardProps {
   filing: Filing;
   onPress: (filing: Filing) => void;
-  onVote?: (filingId: string, voteType: 'bullish' | 'neutral' | 'bearish') => void;
+  onVote?: (filingId: number, voteType: 'bullish' | 'neutral' | 'bearish') => void;
   voteCounts?: {
     bullish: number;
     neutral: number;
@@ -192,7 +192,7 @@ export default function FilingCard({
               {filing.form_type === '8-K' && filing.items && filing.items.length > 0 && (
                 <View style={styles.metricItem}>
                   <Icon name="announcement" size={12} color={colors.warning} />
-                  <Text style={styles.metricLabel} numberOfLines={1}>{filing.items[0].item_number}</Text>
+                  <Text style={styles.metricLabel} numberOfLines={1}>{filing.items[0]}</Text>
                 </View>
               )}
               
@@ -221,7 +221,7 @@ export default function FilingCard({
             {/* Tags */}
             {tags.length > 0 && (
               <View style={styles.tagsRow}>
-                {tags.map((tag, index) => (
+                {tags.map((tag: string, index: number) => (
                   <View key={index} style={styles.tag}>
                     <Text style={styles.tagText}>{tag}</Text>
                   </View>

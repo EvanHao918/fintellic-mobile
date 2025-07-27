@@ -133,12 +133,12 @@ const Current8KDetail: React.FC<Current8KDetailProps> = ({ filing }) => {
         </View>
       )}
 
-      {/* 3. Items 摘要卡 - 修正版（改为文本显示） */}
+      {/* 3. What Happened - 原Items */}
       {filing.items && (
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Icon name="list" size={24} color={redColor} />
-            <Text style={styles.sectionTitle}>Reported Items</Text>
+            <Icon name="article" size={24} color={redColor} />
+            <Text style={styles.sectionTitle}>What Happened</Text>
           </View>
           
           <View style={styles.narrativeCard}>
@@ -147,43 +147,12 @@ const Current8KDetail: React.FC<Current8KDetailProps> = ({ filing }) => {
         </View>
       )}
 
-      {/* 4. 时间线卡 - 修正版（改为文本显示） */}
-      {filing.event_timeline && (
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Icon name="timeline" size={24} color={redColor} />
-            <Text style={styles.sectionTitle}>Event Timeline</Text>
-          </View>
-          
-          <View style={styles.narrativeCard}>
-            <Text style={styles.narrativeText}>{filing.event_timeline}</Text>
-          </View>
-        </View>
-      )}
-
-      {/* 5. GPT: 事件性质解释 */}
-      {filing.event_nature_analysis && (
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Icon name="psychology" size={24} color={redColor} />
-            <Text style={styles.sectionTitle}>Event Analysis</Text>
-            <View style={styles.gptBadge}>
-              <Text style={styles.gptBadgeText}>AI</Text>
-            </View>
-          </View>
-          
-          <View style={styles.analysisCard}>
-            <Text style={styles.narrativeText}>{filing.event_nature_analysis}</Text>
-          </View>
-        </View>
-      )}
-
-      {/* 6. GPT: 市场反应 */}
+      {/* 4. Potential Market Impact - 原market_impact_analysis */}
       {filing.market_impact_analysis && (
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Icon name="show-chart" size={24} color={redColor} />
-            <Text style={styles.sectionTitle}>Expected Market Impact</Text>
+            <Text style={styles.sectionTitle}>Potential Market Impact</Text>
             <View style={styles.gptBadge}>
               <Text style={styles.gptBadgeText}>AI</Text>
             </View>
@@ -195,12 +164,12 @@ const Current8KDetail: React.FC<Current8KDetailProps> = ({ filing }) => {
         </View>
       )}
 
-      {/* 7. GPT: 潜在关注点 */}
+      {/* 5. What to Watch - 原key_considerations */}
       {filing.key_considerations && (
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Icon name="visibility" size={24} color={redColor} />
-            <Text style={styles.sectionTitle}>Key Considerations</Text>
+            <Text style={styles.sectionTitle}>What to Watch</Text>
             <View style={styles.gptBadge}>
               <Text style={styles.gptBadgeText}>AI</Text>
             </View>

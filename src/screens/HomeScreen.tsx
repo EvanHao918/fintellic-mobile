@@ -12,7 +12,10 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { useDispatch, useSelector } from 'react-redux';
-import { FilingCard } from '../components';
+// 修改这行导入
+import { FilingCard } from '../components'; // 使用默认导入
+// 或者如果 FilingCard 是命名导出，使用:
+// import { FilingCard } from '../components/FilingCard';
 import { Filing } from '../types';
 import { RootState } from '../store';
 import { fetchFilings, voteFiling } from '../store/slices/filingsSlice';
@@ -77,15 +80,15 @@ export const HomeScreen: React.FC = () => {
     navigation.navigate('FilingDetail', { filingId: filing.id });
   }, [navigation]);
 
-  // Handle vote
-  const handleVote = useCallback(async (filingId: string, voteType: 'bullish' | 'neutral' | 'bearish') => {
+  // Handle vote - 修改参数类型为 number
+  const handleVote = useCallback(async (filingId: number, voteType: 'bullish' | 'neutral' | 'bearish') => {
     if (!isAuthenticated) {
       navigation.navigate('Login');
       return;
     }
     
     try {
-      await dispatch(voteFiling({ filingId, voteType })).unwrap();
+      await dispatch(voteFiling({ filingId: filingId.toString(), voteType })).unwrap();
     } catch (error) {
       console.error('Failed to vote:', error);
     }
@@ -96,7 +99,7 @@ export const HomeScreen: React.FC = () => {
     <FilingCard
       filing={item}
       onPress={() => handleFilingPress(item)}
-      onVote={(filingId: string, voteType: 'bullish' | 'neutral' | 'bearish') => handleVote(filingId, voteType)}
+      onVote={handleVote}
     />
   ), [handleFilingPress, handleVote]);
   
@@ -164,7 +167,7 @@ export const HomeScreen: React.FC = () => {
       <FlatList
         data={filings || []}
         renderItem={renderFiling}
-        keyExtractor={(item) => item.id}
+        keyExtractor={(item) => item.id.toString()}
         contentContainerStyle={styles.listContent}
         refreshControl={
           <RefreshControl

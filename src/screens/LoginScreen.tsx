@@ -1,5 +1,5 @@
 // src/screens/LoginScreen.tsx
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   StyleSheet,
@@ -9,16 +9,25 @@ import {
   TouchableOpacity,
   Alert,
   Animated,
+  ActivityIndicator,
 } from 'react-native';
 import { Text, Input, Button } from 'react-native-elements';
 import { useDispatch, useSelector } from 'react-redux';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialIcons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as AppleAuthentication from 'expo-apple-authentication';
+import * as Google from 'expo-auth-session/providers/google';
+import * as WebBrowser from 'expo-web-browser';
+import * as LocalAuthentication from 'expo-local-authentication';
 import { AppDispatch, RootState } from '../store';
 import { login, register } from '../store/slices/authSlice';
 import themeConfig from '../theme';
+import { STORAGE_KEYS } from '../utils/constants';
 
 const { colors, typography, spacing, borderRadius, commonStyles } = themeConfig;
+
+WebBrowser.maybeCompleteAuthSession();
 
 export default function LoginScreen() {
   const dispatch = useDispatch<AppDispatch>();
@@ -32,6 +41,21 @@ export default function LoginScreen() {
   const [username, setUsername] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   
+  // Biometric state
+  const [biometricAvailable, setBiometricAvailable] = useState(false);
+  const [biometricType, setBiometricType] = useState<string>('');
+  
+  // Social auth state
+  const [appleAuthAvailable, setAppleAuthAvailable] = useState(false);
+  const [socialLoading, setSocialLoading] = useState(false);
+  
+  // Google Auth - 替换为你自己的 Client IDs
+  const [request, response, promptAsync] = Google.useAuthRequest({
+    clientId: 'YOUR_WEB_CLIENT_ID.apps.googleusercontent.com',
+    iosClientId: 'YOUR_IOS_CLIENT_ID.apps.googleusercontent.com',
+    androidClientId: 'YOUR_ANDROID_CLIENT_ID.apps.googleusercontent.com',
+  });
+  
   // Error state
   const [emailError, setEmailError] = useState('');
   const [passwordError, setPasswordError] = useState('');
@@ -40,6 +64,63 @@ export default function LoginScreen() {
   
   // Animation
   const fadeAnim = useState(new Animated.Value(1))[0];
+
+  // Check for biometric and Apple auth availability
+  useEffect(() => {
+    checkBiometricAvailability();
+    checkAppleAuthAvailability();
+    checkForSavedCredentials();
+  }, []);
+
+  // Handle Google response
+  useEffect(() => {
+    if (response?.type === 'success') {
+      handleGoogleSignIn(response.authentication);
+    }
+  }, [response]);
+
+  const checkBiometricAvailability = async () => {
+    try {
+      const hasHardware = await LocalAuthentication.hasHardwareAsync();
+      const isEnrolled = await LocalAuthentication.isEnrolledAsync();
+      
+      if (hasHardware && isEnrolled) {
+        setBiometricAvailable(true);
+        const authTypes = await LocalAuthentication.supportedAuthenticationTypesAsync();
+        if (authTypes.includes(LocalAuthentication.AuthenticationType.FACIAL_RECOGNITION)) {
+          setBiometricType('Face ID');
+        } else if (authTypes.includes(LocalAuthentication.AuthenticationType.FINGERPRINT)) {
+          setBiometricType('Touch ID');
+        }
+      }
+    } catch (error) {
+      console.log('Error checking biometric availability:', error);
+    }
+  };
+
+  const checkAppleAuthAvailability = async () => {
+    const isAvailable = await AppleAuthentication.isAvailableAsync();
+    setAppleAuthAvailable(isAvailable);
+  };
+
+  const checkForSavedCredentials = async () => {
+    try {
+      const savedEmail = await AsyncStorage.getItem(STORAGE_KEYS.REMEMBER_ME);
+      if (savedEmail) {
+        setEmail(savedEmail);
+        // Check if biometric is enabled for this user
+        const biometricEnabled = await AsyncStorage.getItem(`${STORAGE_KEYS.BIOMETRIC_ENABLED}_${savedEmail}`);
+        if (biometricEnabled === 'true' && biometricAvailable) {
+          // Auto-prompt for biometric login
+          setTimeout(() => {
+            handleBiometricLogin();
+          }, 500);
+        }
+      }
+    } catch (error) {
+      console.log('Error checking saved credentials:', error);
+    }
+  };
 
   // Email validation
   const validateEmail = (email: string) => {
@@ -63,7 +144,6 @@ export default function LoginScreen() {
       return false;
     }
     if (!isLoginMode) {
-      // Stricter validation for registration
       if (password.length < 8) {
         setPasswordError('Password must be at least 8 characters');
         return false;
@@ -80,7 +160,7 @@ export default function LoginScreen() {
     return true;
   };
 
-  // Username validation (registration only)
+  // Username validation
   const validateUsername = (username: string) => {
     if (!username.trim()) {
       setUsernameError('Username is required');
@@ -112,31 +192,8 @@ export default function LoginScreen() {
     return true;
   };
 
-  // Switch between login and register
-  const switchMode = () => {
-    Animated.timing(fadeAnim, {
-      toValue: 0,
-      duration: 150,
-      useNativeDriver: true,
-    }).start(() => {
-      setIsLoginMode(!isLoginMode);
-      // Clear errors when switching
-      setEmailError('');
-      setPasswordError('');
-      setConfirmPasswordError('');
-      setUsernameError('');
-      
-      Animated.timing(fadeAnim, {
-        toValue: 1,
-        duration: 150,
-        useNativeDriver: true,
-      }).start();
-    });
-  };
-
-  // Handle submit
+  // Handle form submission
   const handleSubmit = async () => {
-    // Validate all fields
     const validations = [validateEmail(email), validatePassword(password)];
     
     if (!isLoginMode) {
@@ -151,6 +208,8 @@ export default function LoginScreen() {
     try {
       if (isLoginMode) {
         await dispatch(login({ email: email.toLowerCase().trim(), password })).unwrap();
+        // Save email for remember me
+        await AsyncStorage.setItem(STORAGE_KEYS.REMEMBER_ME, email);
       } else {
         await dispatch(register({ 
           email: email.toLowerCase().trim(), 
@@ -158,7 +217,6 @@ export default function LoginScreen() {
           username: username.trim() 
         })).unwrap();
         
-        // Show success message
         Alert.alert(
           'Registration Successful',
           'Your account has been created. Welcome to Fintellic!',
@@ -166,7 +224,6 @@ export default function LoginScreen() {
         );
       }
     } catch (err: any) {
-      // Error is handled by Redux, but we can show additional alerts for specific cases
       const errorMessage = err.message || err.response?.data?.detail || 'An error occurred';
       
       if (!isLoginMode && errorMessage.includes('already exists')) {
@@ -180,6 +237,103 @@ export default function LoginScreen() {
         );
       }
     }
+  };
+
+  // Handle Apple Sign In
+  const handleAppleSignIn = async () => {
+    try {
+      setSocialLoading(true);
+      const credential = await AppleAuthentication.signInAsync({
+        requestedScopes: [
+          AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
+          AppleAuthentication.AppleAuthenticationScope.EMAIL,
+        ],
+      });
+
+      // TODO: Send credential to your backend
+      console.log('Apple Sign In Success:', credential);
+      
+      // For now, show a message
+      Alert.alert(
+        'Apple Sign In',
+        'Apple Sign In will be fully implemented soon!',
+        [{ text: 'OK' }]
+      );
+
+    } catch (e: any) {
+      setSocialLoading(false);
+      if (e.code !== 'ERR_CANCELED') {
+        Alert.alert('Apple Sign In Failed', e.message);
+      }
+    } finally {
+      setSocialLoading(false);
+    }
+  };
+
+  // Handle Google Sign In
+  const handleGoogleSignIn = async (authentication: any) => {
+    try {
+      setSocialLoading(true);
+      
+      // TODO: Send authentication token to your backend
+      console.log('Google Sign In Success:', authentication);
+      
+      // For now, show a message
+      Alert.alert(
+        'Google Sign In',
+        'Google Sign In will be fully implemented soon!',
+        [{ text: 'OK' }]
+      );
+
+    } catch (error) {
+      Alert.alert('Google Sign In Failed', 'Unable to sign in with Google');
+    } finally {
+      setSocialLoading(false);
+    }
+  };
+
+  // Handle biometric login
+  const handleBiometricLogin = async () => {
+    try {
+      const result = await LocalAuthentication.authenticateAsync({
+        promptMessage: `Sign in with ${biometricType}`,
+        cancelLabel: 'Cancel',
+        fallbackLabel: 'Use Passcode',
+        disableDeviceFallback: false,
+      });
+
+      if (result.success) {
+        // TODO: Implement biometric login with stored credentials
+        Alert.alert(
+          'Biometric Login',
+          'Biometric login will be fully implemented soon!',
+          [{ text: 'OK' }]
+        );
+      }
+    } catch (error) {
+      console.error('Biometric authentication error:', error);
+    }
+  };
+
+  // Switch between login and register
+  const switchMode = () => {
+    Animated.timing(fadeAnim, {
+      toValue: 0,
+      duration: 150,
+      useNativeDriver: true,
+    }).start(() => {
+      setIsLoginMode(!isLoginMode);
+      setEmailError('');
+      setPasswordError('');
+      setConfirmPasswordError('');
+      setUsernameError('');
+      
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 150,
+        useNativeDriver: true,
+      }).start();
+    });
   };
 
   // Handle forgot password
@@ -197,7 +351,6 @@ export default function LoginScreen() {
       return;
     }
 
-    // TODO: Implement password reset API call
     Alert.alert(
       'Password Reset',
       `Instructions have been sent to ${email}`,
@@ -267,7 +420,7 @@ export default function LoginScreen() {
               onBlur={() => validateEmail(email)}
               keyboardType="email-address"
               autoCapitalize="none"
-              returnKeyType={isLoginMode ? "next" : "next"}
+              returnKeyType="next"
               leftIcon={
                 <Icon
                   name="email"
@@ -361,6 +514,23 @@ export default function LoginScreen() {
               </TouchableOpacity>
             )}
 
+            {/* Biometric Login (Login mode only) */}
+            {isLoginMode && biometricAvailable && email && (
+              <TouchableOpacity
+                style={styles.biometricButton}
+                onPress={handleBiometricLogin}
+              >
+                <Icon
+                  name={biometricType === 'Face ID' ? 'face' : 'fingerprint'}
+                  size={24}
+                  color={colors.primary}
+                />
+                <Text style={styles.biometricText}>
+                  Sign in with {biometricType}
+                </Text>
+              </TouchableOpacity>
+            )}
+
             {/* Error Message */}
             {error && (
               <View style={styles.errorContainer}>
@@ -373,14 +543,70 @@ export default function LoginScreen() {
             <Button
               title={isLoading ? (isLoginMode ? 'Signing in...' : 'Creating account...') : (isLoginMode ? 'Sign In' : 'Create Account')}
               onPress={handleSubmit}
-              disabled={isLoading}
+              disabled={isLoading || socialLoading}
               loading={isLoading}
               buttonStyle={[
                 styles.submitButton,
-                isLoading && styles.submitButtonDisabled
+                (isLoading || socialLoading) && styles.submitButtonDisabled
               ]}
               titleStyle={styles.submitButtonText}
             />
+
+            {/* Divider */}
+            {isLoginMode && (
+              <View style={styles.dividerContainer}>
+                <View style={styles.divider} />
+                <Text style={styles.dividerText}>OR</Text>
+                <View style={styles.divider} />
+              </View>
+            )}
+
+            {/* Social Login Buttons (Login mode only) */}
+            {isLoginMode && (
+              <View style={styles.socialContainer}>
+                {/* Apple Sign In */}
+                {Platform.OS === 'ios' && appleAuthAvailable && (
+                  <TouchableOpacity
+                    style={[styles.socialButton, styles.appleButton]}
+                    onPress={handleAppleSignIn}
+                    disabled={isLoading || socialLoading}
+                  >
+                    <Text style={styles.appleIcon}>🍎</Text>
+                    <Text style={[styles.socialButtonText, styles.appleButtonText]}>
+                      Continue with Apple
+                    </Text>
+                    {socialLoading && (
+                      <ActivityIndicator 
+                        size="small" 
+                        color={colors.white} 
+                        style={styles.socialLoader}
+                      />
+                    )}
+                  </TouchableOpacity>
+                )}
+
+                {/* Google Sign In */}
+                <TouchableOpacity
+                  style={[styles.socialButton, styles.googleButton]}
+                  onPress={() => promptAsync()}
+                  disabled={!request || isLoading || socialLoading}
+                >
+                  <View style={styles.googleIconContainer}>
+                    <Text style={styles.googleIcon}>G</Text>
+                  </View>
+                  <Text style={styles.socialButtonText}>
+                    Continue with Google
+                  </Text>
+                  {socialLoading && (
+                    <ActivityIndicator 
+                      size="small" 
+                      color={colors.primary} 
+                      style={styles.socialLoader}
+                    />
+                  )}
+                </TouchableOpacity>
+              </View>
+            )}
 
             {/* Switch Mode Link */}
             <View style={styles.switchContainer}>
@@ -388,7 +614,7 @@ export default function LoginScreen() {
                 {isLoginMode ? "Don't have an account?" : 'Already have an account?'}
                 {' '}
               </Text>
-              <TouchableOpacity onPress={switchMode} disabled={isLoading}>
+              <TouchableOpacity onPress={switchMode} disabled={isLoading || socialLoading}>
                 <Text style={styles.switchLink}>
                   {isLoginMode ? 'Sign Up' : 'Sign In'}
                 </Text>
@@ -474,6 +700,22 @@ const styles = StyleSheet.create({
     fontWeight: typography.fontWeight.medium,
     color: colors.primary,
   },
+  biometricButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: spacing.md,
+    marginBottom: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.primary,
+    borderRadius: borderRadius.md,
+  },
+  biometricText: {
+    marginLeft: spacing.sm,
+    fontSize: typography.fontSize.base,
+    color: colors.primary,
+    fontWeight: typography.fontWeight.medium,
+  },
   errorContainer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -501,6 +743,73 @@ const styles = StyleSheet.create({
   submitButtonText: {
     fontSize: typography.fontSize.base,
     fontWeight: typography.fontWeight.semibold,
+  },
+  dividerContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: spacing.lg,
+  },
+  divider: {
+    flex: 1,
+    height: 1,
+    backgroundColor: colors.border,
+  },
+  dividerText: {
+    marginHorizontal: spacing.md,
+    fontSize: typography.fontSize.sm,
+    color: colors.textSecondary,
+  },
+  socialContainer: {
+    marginBottom: spacing.xl,
+  },
+  socialButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: spacing.md,
+    borderRadius: borderRadius.md,
+    marginBottom: spacing.md,
+    borderWidth: 1,
+    position: 'relative',
+  },
+  appleButton: {
+    backgroundColor: colors.black,
+    borderColor: colors.black,
+  },
+  googleButton: {
+    backgroundColor: colors.white,
+    borderColor: colors.border,
+  },
+  socialIcon: {
+    marginRight: spacing.sm,
+  },
+  appleIcon: {
+    fontSize: 20,
+    marginRight: spacing.sm,
+  },
+  googleIconContainer: {
+    width: 20,
+    height: 20,
+    marginRight: spacing.sm,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  googleIcon: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#4285F4',
+  },
+  socialButtonText: {
+    fontSize: typography.fontSize.base,
+    fontWeight: typography.fontWeight.medium,
+    color: colors.text,
+  },
+  appleButtonText: {
+    color: colors.white,
+  },
+  socialLoader: {
+    position: 'absolute',
+    right: spacing.md,
   },
   switchContainer: {
     flexDirection: 'row',
