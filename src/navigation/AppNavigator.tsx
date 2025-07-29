@@ -6,6 +6,7 @@ import { RootState } from '../store';
 import LoginScreen from '../screens/LoginScreen';
 import DrawerNavigator from './DrawerNavigator';
 import FilingDetailScreen from '../screens/FilingDetailScreen';
+import CompanyFilingsScreen from '../screens/CompanyFilingsScreen';
 import SubscriptionScreen from '../screens/SubscriptionScreen';
 import { RootStackParamList } from '../types';
 
@@ -25,6 +26,11 @@ export default function AppNavigator() {
             <Stack.Screen 
               name="FilingDetail" 
               component={FilingDetailScreen}
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen 
+              name="CompanyFilings" 
+              component={CompanyFilingsScreen}
               options={{ headerShown: false }}
             />
             <Stack.Screen 

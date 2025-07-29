@@ -1,3 +1,4 @@
+// src/navigation/DrawerNavigator.tsx
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { createDrawerNavigator, DrawerContentScrollView, DrawerItemList, DrawerContentComponentProps } from '@react-navigation/drawer';
@@ -7,6 +8,7 @@ import { useSelector, useDispatch } from 'react-redux';
 import { RootState } from '../store';
 import { logout } from '../store/slices/authSlice';
 import { colors, typography, spacing } from '../theme';
+import CustomDrawerHeader from '../components/CustomDrawerHeader';
 
 // Import screens
 import HomeScreen from '../screens/HomeScreen';
@@ -32,15 +34,8 @@ function CustomDrawerContent(props: DrawerContentComponentProps) {
   const navigation = useNavigation();
   const user = useSelector((state: RootState) => state.auth.user);
 
-  // Debug logging
-  console.log('DrawerNavigator - User object:', user);
-  console.log('DrawerNavigator - user?.tier:', user?.tier);
-  console.log('DrawerNavigator - user?.is_pro:', user?.is_pro);
-
   const handleLogout = () => {
-    // Dispatch the logout thunk action
     dispatch(logout() as any);
-    // Navigation will be handled by AppNavigator when auth state changes
   };
 
   return (
@@ -119,14 +114,7 @@ export default function DrawerNavigator() {
           fontFamily: typography.fontFamily.medium,
           fontSize: typography.fontSize.md,
         },
-        headerStyle: {
-          backgroundColor: colors.primary,
-        },
-        headerTintColor: colors.white,
-        headerTitleStyle: {
-          fontFamily: typography.fontFamily.bold,
-          fontSize: typography.fontSize.lg,
-        },
+        header: (props) => <CustomDrawerHeader title={props.options.title || route.name} />,
       })}
     >
       <Drawer.Screen 

@@ -55,6 +55,19 @@ const filingsSlice = createSlice({
       state.currentPage = 1;
       state.hasMore = true;
     },
+    // 新增：更新单个 filing 的投票数据
+    updateFilingVote: (state, action: PayloadAction<{
+      filingId: number;
+      vote_counts: { bullish: number; neutral: number; bearish: number };
+      user_vote: VoteType;
+    }>) => {
+      const { filingId, vote_counts, user_vote } = action.payload;
+      const filing = state.filings.find(f => f.id === filingId);
+      if (filing) {
+        filing.vote_counts = vote_counts;
+        filing.user_vote = user_vote;
+      }
+    },
   },
   extraReducers: (builder) => {
     builder
@@ -88,10 +101,11 @@ const filingsSlice = createSlice({
         state.isRefreshing = false;
         state.error = action.error.message || 'Failed to load filings';
       })
-      // Vote on filing
+      // Vote on filing - 修复类型问题
       .addCase(voteFiling.fulfilled, (state, action) => {
         const { filingId, vote_counts, user_vote } = action.payload;
-        const filing = state.filings.find(f => f.id === filingId);
+        // 注意：filingId 是 string，但 filing.id 是 number，需要转换
+        const filing = state.filings.find(f => f.id.toString() === filingId);
         if (filing) {
           filing.vote_counts = vote_counts;
           filing.user_vote = user_vote;
@@ -100,5 +114,6 @@ const filingsSlice = createSlice({
   },
 });
 
-export const { setFilings, clearFilings } = filingsSlice.actions;
+// 导出 actions - 包含新增的 updateFilingVote
+export const { setFilings, clearFilings, updateFilingVote } = filingsSlice.actions;
 export default filingsSlice.reducer;

@@ -62,187 +62,164 @@ const cleanCommentData = (comment: any): Comment => {
     upvotes: comment.upvotes || 0,
     downvotes: comment.downvotes || 0,
     net_votes: comment.net_votes || 0,
-    user_vote: comment.user_vote || 0,
+    vote_count: comment.vote_count || 0,
+    user_vote: comment.user_vote || null,
   };
 };
 
-// Get filings list with pagination
-export const getFilings = async (page: number = 1, limit: number = 20) => {
-  const response = await apiClient.get('/filings/', {
-    params: {
-      skip: (page - 1) * limit,
-      limit,
-    },
-  });
-  
-  // 处理响应数据
-  const responseData = response.data || response;
-  const filings = responseData.data || responseData || [];
-  
-  return {
-    data: filings.map(cleanFilingData),
-    total: responseData.total || filings.length || 0,
-    skip: responseData.skip || (page - 1) * limit,
-    limit: responseData.limit || limit,
-  };
-};
-
-// Get single filing details
-export const getFilingById = async (id: string) => {
-  const response = await apiClient.get(`/filings/${id}`);
-  return cleanFilingData(response);
-};
-
-export const voteOnFiling = async (filingId: string, voteType: VoteType) => {
-    const response = await apiClient.post(`/filings/${filingId}/vote`, {
-      sentiment: voteType  // Send sentiment in request body
-    });
+// Get filings list with optional ticker filter - UPDATED
+export const getFilings = async (
+  page: number = 1, 
+  ticker?: string
+): Promise<{ data: Filing[]; total: number; page: number; pages: number }> => {
+  try {
+    const skip = (page - 1) * 20;
+    const params: any = { skip, limit: 20 };
     
-    // Direct return vote response
+    // 如果提供了 ticker，添加到查询参数
+    if (ticker) {
+      params.ticker = ticker;
+    }
+    
+    const response = await apiClient.get('/filings/', { params });
+    
+    // 处理响应数据
+    const responseData = response.data || response;
+    const items = Array.isArray(responseData) ? responseData : 
+                  (responseData.items || responseData.results || []);
+    
+    // 使用 cleanFilingData 处理每个 filing
+    const cleanedFilings = items.map(cleanFilingData);
+    
     return {
-      vote_counts: response.vote_counts || {
-        bullish: response.bullish || 0,
-        neutral: response.neutral || 0,
-        bearish: response.bearish || 0,
-      },
-      user_vote: response.user_vote || null,
+      data: cleanedFilings,
+      total: responseData.total || cleanedFilings.length,
+      page: page,
+      pages: responseData.pages || Math.ceil((responseData.total || cleanedFilings.length) / 20)
     };
+  } catch (error) {
+    console.error('Error fetching filings:', error);
+    throw error;
+  }
 };
 
-// Get filing comments - returns Comment array for backward compatibility
-export const getFilingComments = async (filingId: string): Promise<Comment[]> => {
-  const response = await apiClient.get(`/filings/${filingId}/comments`);
-  
-  // Handle different response structures
-  const data = response.data || response;
-  const items = data.items || data || [];
-  
-  return items.map(cleanCommentData);
+// Get filing by ID
+export const getFilingById = async (id: string): Promise<Filing> => {
+  try {
+    const response = await apiClient.get(`/filings/${id}`);
+    return cleanFilingData(response);
+  } catch (error) {
+    console.error('Error fetching filing:', error);
+    throw error;
+  }
 };
 
-// Get filing comments with pagination - new function that returns full response
-export const getFilingCommentsWithPagination = async (
+// Vote on a filing
+export const voteOnFiling = async (
   filingId: string, 
-  skip: number = 0, 
+  voteType: VoteType
+): Promise<{ vote_counts: { bullish: number; neutral: number; bearish: number }; user_vote: VoteType }> => {
+  try {
+    // 根据后端的错误，需要在请求体中发送 sentiment 而不是 vote_type
+    const response = await apiClient.post(`/filings/${filingId}/vote`, {
+      sentiment: voteType
+    });
+    return response;
+  } catch (error) {
+    console.error('Error voting on filing:', error);
+    throw error;
+  }
+};
+
+// Get comments for a filing
+export const getFilingComments = async (
+  filingId: string,
+  skip: number = 0,
   limit: number = 20
 ): Promise<CommentListResponse> => {
-  const response = await apiClient.get(`/filings/${filingId}/comments`, {
-    params: { skip, limit }
-  });
-  
-  const data = response.data || response;
-  const items = data.items || [];
-  
-  return {
-    total: data.total || items.length,
-    items: items.map(cleanCommentData)
-  };
+  try {
+    const response = await apiClient.get(`/filings/${filingId}/comments`, {
+      params: { skip, limit }
+    });
+    
+    // Clean comment data
+    const cleanedComments = response.items.map(cleanCommentData);
+    
+    return {
+      ...response,
+      items: cleanedComments
+    };
+  } catch (error) {
+    console.error('Error fetching comments:', error);
+    throw error;
+  }
 };
 
-// Post a comment with optional reply
-export const postComment = async (
-  filingId: string, 
-  content: string,
-  replyToCommentId?: number
+// Add comment to a filing
+export const addComment = async (
+  filingId: string,
+  content: string
 ): Promise<Comment> => {
-  const response = await apiClient.post(`/filings/${filingId}/comments`, {
-    content: content.trim(),
-    reply_to_comment_id: replyToCommentId
-  });
-  
-  return cleanCommentData(response.data || response);
+  try {
+    const response = await apiClient.post(`/filings/${filingId}/comments`, {
+      content
+    });
+    return cleanCommentData(response);
+  } catch (error) {
+    console.error('Error adding comment:', error);
+    throw error;
+  }
 };
 
-// Vote on a comment
-export const voteComment = async (
-  commentId: string,
-  voteType: 'upvote' | 'downvote' | 'none'
-): Promise<CommentVoteResponse> => {
-  const response = await apiClient.post(
-    `/comments/${commentId}/vote`,
-    { vote_type: voteType }
-  );
-  return response.data || response;
-};
-
-// Update a comment
+// Update comment
 export const updateComment = async (
   commentId: string,
   content: string
 ): Promise<Comment> => {
-  const response = await apiClient.put(`/comments/${commentId}`, {
-    content: content.trim()
-  });
-  
-  return cleanCommentData(response.data || response);
+  try {
+    const response = await apiClient.put(`/comments/${commentId}`, {
+      content
+    });
+    return cleanCommentData(response);
+  } catch (error) {
+    console.error('Error updating comment:', error);
+    throw error;
+  }
 };
 
-// Delete a comment
+// Delete comment
 export const deleteComment = async (commentId: string): Promise<void> => {
-  await apiClient.delete(`/comments/${commentId}`);
+  try {
+    await apiClient.delete(`/comments/${commentId}`);
+  } catch (error) {
+    console.error('Error deleting comment:', error);
+    throw error;
+  }
 };
 
-// Search filings
-export const searchFilings = async (query: string, filters?: {
-  form_type?: string;  // 注意：改为 form_type 以匹配后端
-  start_date?: string;
-  end_date?: string;
-}) => {
-  const response = await apiClient.get('/filings/search', {
-    params: {
-      q: query,
-      ...filters,
-    },
-  });
-  
-  // 处理响应数据
-  const responseData = response.data || response;
-  const filings = responseData.data || responseData || [];
-  
-  return {
-    data: filings.map(cleanFilingData),
-    total: responseData.total || filings.length || 0,
-    skip: responseData.skip || 0,
-    limit: responseData.limit || 20,
-  };
+// Vote on comment
+export const voteOnComment = async (
+  commentId: string,
+  voteType: 'up' | 'down'
+): Promise<CommentVoteResponse> => {
+  try {
+    const response = await apiClient.post(`/comments/${commentId}/vote`, null, {
+      params: { vote_type: voteType }
+    });
+    return response;
+  } catch (error) {
+    console.error('Error voting on comment:', error);
+    throw error;
+  }
 };
 
-// Get popular filings
-export const getPopularFilings = async (period: 'day' | 'week' | 'month' = 'week') => {
-  const response = await apiClient.get(`/filings/popular/${period}`);
-  
-  // 处理响应数据
-  const responseData = response.data || response;
-  const filings = responseData.data || responseData || [];
-  
-  return {
-    data: filings.map(cleanFilingData),
-    total: responseData.total || filings.length || 0,
-    skip: responseData.skip || 0,
-    limit: responseData.limit || 20,
-  };
-};
-
-// Get company filings
-export const getCompanyFilings = async (ticker: string, limit: number = 10) => {
-  const response = await apiClient.get(`/companies/${ticker}/filings`, {
-    params: { limit },
-  });
-  
-  // 处理响应数据
-  const responseData = response.data || response;
-  const filings = responseData.data || responseData || [];
-  
-  return {
-    data: filings.map(cleanFilingData),
-    total: responseData.total || filings.length || 0,
-    skip: responseData.skip || 0,
-    limit: responseData.limit || limit,
-  };
-};
-
-// Check filing access (for free tier limits)
-export const checkFilingAccess = async (filingId: string) => {
-  const response = await apiClient.get(`/filings/check-access/${filingId}`);
-  return response.data;
+// Check view limit
+export const checkViewLimit = async (): Promise<{ can_view: boolean; views_today: number; daily_limit: number }> => {
+  try {
+    const response = await apiClient.get('/check-view-limit');
+    return response;
+  } catch (error) {
+    console.error('Error checking view limit:', error);
+    throw error;
+  }
 };

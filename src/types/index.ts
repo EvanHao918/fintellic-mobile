@@ -1,3 +1,5 @@
+// src/types/index.ts
+
 // Navigation Types
 export type RootStackParamList = {
   Auth: undefined;
@@ -5,7 +7,16 @@ export type RootStackParamList = {
   Login: undefined;
   Register: undefined;
   FilingDetail: { filingId: number };
+  CompanyFilings: { ticker: string; companyName: string };
   Subscription: undefined;
+};
+
+export type DrawerParamList = {
+  Home: undefined;
+  Calendar: undefined;
+  Watchlist: undefined;
+  History: undefined;
+  Profile: undefined;
 };
 
 export type MainTabParamList = {
@@ -108,12 +119,16 @@ export interface Filing {
   // 8-K specific
   item_type?: string;
   items?: string[];
+  event_timeline?: any;
+  event_nature_analysis?: string;
+  market_impact_analysis?: string;
+  key_considerations?: string;
   
   // 10-K/10-Q specific
   fiscal_year?: number;
   guidance_update?: string;
   future_outlook?: string;
-  risk_factors?: string;
+  risk_factors?: string[];
   expectations_comparison?: string;
   beat_miss_analysis?: string;
   
@@ -126,6 +141,13 @@ export interface Filing {
   };
   comment_count?: number;
   view_count?: number;
+  
+  // View limit info
+  view_limit_info?: {
+    views_remaining: number;
+    is_pro: boolean;
+    views_today: number;
+  };
   
   // Processing status
   status: 'pending' | 'processing' | 'completed' | 'failed';
@@ -141,23 +163,58 @@ export interface FilingListResponse {
   pages: number;
 }
 
+// Vote Types
+export type VoteType = 'bullish' | 'neutral' | 'bearish';
+
 // Comment Types
 export interface Comment {
-  id: number;
-  user_id: number;
+  id: string;
+  user_id: string;
   filing_id: number;
   content: string;
   created_at: string;
   updated_at?: string;
+  parent_id?: string;
   
   // User info
-  user_name: string;
+  username: string;
+  user_name?: string;
   user_avatar?: string;
   is_pro_user: boolean;
+  user_tier?: 'free' | 'pro';
   
   // Interaction
   vote_count: number;
-  user_vote?: 'up' | 'down' | null;
+  user_vote?: 'up' | 'down' | null | number;
+  upvotes?: number;
+  downvotes?: number;
+  net_votes?: number;
+  
+  // Reply info
+  reply_to?: {
+    username: string;
+    content_preview: string;
+  };
+  
+  // Edit info
+  is_editable?: boolean;
+}
+
+// Comment Response Types
+export interface CommentVoteResponse {
+  success: boolean;
+  vote_count: number;
+  user_vote: 'up' | 'down' | null | number;
+  upvotes: number;
+  downvotes: number;
+  net_votes: number;
+}
+
+export interface CommentListResponse {
+  items: Comment[];
+  total: number;
+  skip: number;
+  limit: number;
 }
 
 // Company Types
@@ -253,5 +310,27 @@ export interface UserSettings {
     enabled: boolean;
     type?: BiometricType;
     devices: string[];
+  };
+}
+
+// Visual Data Type for Charts
+export interface VisualData {
+  id: string;
+  type: 'trend' | 'comparison' | 'metrics';
+  title: string;
+  subtitle?: string;
+  data: Array<{
+    label?: string;
+    value?: number | string;
+    change?: {
+      value: number;
+      direction: 'up' | 'down';
+    };
+    category?: string;
+  }>;
+  metadata?: {
+    format?: 'currency' | 'percentage' | 'number';
+    unit?: string;
+    decimals?: number;
   };
 }

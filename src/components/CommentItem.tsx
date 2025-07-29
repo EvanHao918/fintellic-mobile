@@ -11,7 +11,7 @@ import {
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { Comment } from '../types';
 import { colors, typography, spacing, borderRadius } from '../theme';
-import { voteComment, updateComment, deleteComment } from '../api/filings';
+import { voteOnComment, updateComment, deleteComment } from '../api/filings';
 import { formatDistanceToNow } from '../utils/dateHelpers';
 
 interface CommentItemProps {
@@ -43,25 +43,29 @@ export const CommentItem: React.FC<CommentItemProps> = ({
 
     setIsVoting(true);
     try {
-      // Determine new vote type
-      let newVoteType: 'upvote' | 'downvote' | 'none' = voteType;
+      // Map to API expected format
+      const apiVoteType = voteType === 'upvote' ? 'up' : 'down';
       
-      // If clicking same vote type, remove vote
-      if (
-        (voteType === 'upvote' && localComment.user_vote === 1) ||
-        (voteType === 'downvote' && localComment.user_vote === -1)
-      ) {
-        newVoteType = 'none';
-      }
+      // Check if removing vote
+      const currentVote = typeof localComment.user_vote === 'number' 
+        ? localComment.user_vote 
+        : localComment.user_vote === 'up' ? 1 : localComment.user_vote === 'down' ? -1 : 0;
+      
+      const shouldRemoveVote = 
+        (voteType === 'upvote' && currentVote === 1) ||
+        (voteType === 'downvote' && currentVote === -1);
 
-      const response = await voteComment(comment.id, newVoteType);
+      const response = await voteOnComment(
+        comment.id, 
+        shouldRemoveVote ? apiVoteType : apiVoteType
+      );
       
       // Update local state
       setLocalComment(prev => ({
         ...prev,
-        upvotes: response.upvotes,
-        downvotes: response.downvotes,
-        net_votes: response.net_votes,
+        upvotes: response.upvotes || 0,
+        downvotes: response.downvotes || 0,
+        net_votes: response.net_votes || 0,
         user_vote: response.user_vote,
       }));
     } catch (error) {
@@ -113,6 +117,13 @@ export const CommentItem: React.FC<CommentItemProps> = ({
       ]
     );
   };
+
+  // Convert user_vote to number for comparison
+  const userVoteNum = typeof localComment.user_vote === 'number' 
+    ? localComment.user_vote 
+    : localComment.user_vote === 'up' ? 1 
+    : localComment.user_vote === 'down' ? -1 
+    : 0;
 
   return (
     <View style={styles.container}>
@@ -208,7 +219,7 @@ export const CommentItem: React.FC<CommentItemProps> = ({
             onPress={() => handleVote('upvote')}
             style={[
               styles.voteButton,
-              localComment.user_vote === 1 && styles.voteButtonActive,
+              userVoteNum === 1 && styles.voteButtonActive,
             ]}
             disabled={isVoting}
           >
@@ -216,16 +227,16 @@ export const CommentItem: React.FC<CommentItemProps> = ({
               name="thumb-up"
               size={16}
               color={
-                localComment.user_vote === 1 ? colors.primary : colors.textSecondary
+                userVoteNum === 1 ? colors.primary : colors.textSecondary
               }
             />
             <Text
               style={[
                 styles.voteCount,
-                localComment.user_vote === 1 && styles.voteCountActive,
+                userVoteNum === 1 && styles.voteCountActive,
               ]}
             >
-              {localComment.upvotes}
+              {localComment.upvotes || 0}
             </Text>
           </TouchableOpacity>
 
@@ -233,7 +244,7 @@ export const CommentItem: React.FC<CommentItemProps> = ({
             onPress={() => handleVote('downvote')}
             style={[
               styles.voteButton,
-              localComment.user_vote === -1 && styles.voteButtonActive,
+              userVoteNum === -1 && styles.voteButtonActive,
             ]}
             disabled={isVoting}
           >
@@ -241,16 +252,16 @@ export const CommentItem: React.FC<CommentItemProps> = ({
               name="thumb-down"
               size={16}
               color={
-                localComment.user_vote === -1 ? colors.error : colors.textSecondary
+                userVoteNum === -1 ? colors.error : colors.textSecondary
               }
             />
             <Text
               style={[
                 styles.voteCount,
-                localComment.user_vote === -1 && styles.voteCountError,
+                userVoteNum === -1 && styles.voteCountError,
               ]}
             >
-              {localComment.downvotes}
+              {localComment.downvotes || 0}
             </Text>
           </TouchableOpacity>
 
@@ -258,10 +269,10 @@ export const CommentItem: React.FC<CommentItemProps> = ({
           <View style={styles.netScore}>
             <Text style={[
               styles.netScoreText,
-              localComment.net_votes > 0 && styles.netScorePositive,
-              localComment.net_votes < 0 && styles.netScoreNegative,
+              (localComment.net_votes || 0) > 0 && styles.netScorePositive,
+              (localComment.net_votes || 0) < 0 && styles.netScoreNegative,
             ]}>
-              {localComment.net_votes > 0 ? '+' : ''}{localComment.net_votes}
+              {(localComment.net_votes || 0) > 0 ? '+' : ''}{localComment.net_votes || 0}
             </Text>
           </View>
         </View>
