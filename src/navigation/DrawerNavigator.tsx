@@ -42,7 +42,7 @@ function CustomDrawerContent(props: DrawerContentComponentProps) {
     <DrawerContentScrollView {...props} style={styles.drawerContainer}>
       {/* Header */}
       <View style={styles.drawerHeader}>
-        <Text style={styles.appName}>Fintellic</Text>
+        <Text style={styles.appName}>HermeSpeed</Text>
         <Text style={styles.userName}>{user?.full_name || 'User'}</Text>
         <View style={styles.membershipBadge}>
           {user?.tier === 'pro' ? (
@@ -121,7 +121,7 @@ export default function DrawerNavigator() {
         name="Home" 
         component={HomeScreen}
         options={{ 
-          title: 'Fintellic',
+          title: 'HermeSpeed',
           drawerLabel: 'Home',
         }}
       />

@@ -37,7 +37,7 @@ interface CompanySearchResult {
 }
 
 export const CustomDrawerHeader: React.FC<CustomDrawerHeaderProps> = ({ 
-  title = 'Fintellic',
+  title = 'HermeSpeed',
   showMenuButton = true 
 }) => {
   const navigation = useNavigation<CombinedNavigationProp>();
@@ -251,7 +251,7 @@ export const CustomDrawerHeader: React.FC<CustomDrawerHeaderProps> = ({
 
 const styles = StyleSheet.create({
   header: {
-    backgroundColor: colors.primary,
+    backgroundColor: colors.primary, // This now uses the dark amber color #D97706
     paddingHorizontal: spacing.md,
     paddingBottom: spacing.md,
     zIndex: 1000,
@@ -352,7 +352,7 @@ const styles = StyleSheet.create({
     gap: spacing.xs,
   },
   indexBadge: {
-    backgroundColor: colors.primary + '20',  // 使用 primary 颜色的透明版本
+    backgroundColor: colors.primary + '20',  // 使用 primary 颜色的透明版本 (现在是暗金色)
     paddingHorizontal: spacing.sm,
     paddingVertical: spacing.xs / 2,  // 使用 xs 的一半作为更小的间距
     borderRadius: 4,
@@ -363,7 +363,7 @@ const styles = StyleSheet.create({
   },
   indexBadgeText: {
     fontSize: typography.fontSize.xs,
-    color: colors.primary,
+    color: colors.primary, // 现在显示暗金色
     fontWeight: typography.fontWeight.medium,
   },
   noResultsWrapper: {

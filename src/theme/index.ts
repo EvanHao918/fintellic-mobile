@@ -1,12 +1,16 @@
 // src/theme/index.ts
 import { Theme } from 'react-native-elements';
 
-// Color palette - Clean & Modern
+// Color palette - Hermes Theme (Dark Gold/Orange)
 export const colors = {
-  // Primary colors - Modern blue
-  primary: '#2563EB',       // Clean blue
-  primaryDark: '#1D4ED8',   // Deeper blue
-  primaryLight: '#3B82F6',  // Lighter blue
+  // Primary colors - Hermes Orange/Dark Gold
+  primary: '#D97706',       // Dark amber/orange (Hermes primary)
+  primaryDark: '#B45309',   // Darker amber
+  primaryLight: '#F59E0B',  // Lighter amber
+  
+  // Accent colors - Complementary dark gold
+  accent: '#92400E',        // Dark bronze
+  accentLight: '#DC2626',   // Warm red accent
   
   // Secondary colors - Neutral grays
   secondary: '#F8FAFC',     // Off white
@@ -15,16 +19,16 @@ export const colors = {
   
   // Status colors - Clear but not harsh
   success: '#10B981',       // Emerald
-  warning: '#F59E0B',       // Amber
+  warning: '#F59E0B',       // Amber (matches primary light)
   error: '#EF4444',         // Red
-  errorLight: '#FEE2E2',    // Light red background - 添加这一行
+  errorLight: '#FEE2E2',    // Light red background
   info: '#3B82F6',          // Blue
   
   // Filing type colors - Distinguished but harmonious
-  filing10K: '#2563EB',     // Blue (annual)
+  filing10K: '#2563EB',     // Blue (annual) - 保持原始蓝色
   filing10Q: '#10B981',     // Emerald (quarterly)
-  filing8K: '#EF4444',      // Red (current)
-  filingS1: '#8B5CF6',      // Purple (IPO)
+  filing8K: '#DC2626',      // Warm red (current)
+  filingS1: '#7C3AED',      // Purple (IPO)
   
   // Sentiment colors - Clear indicators
   bullish: '#10B981',       // Emerald
@@ -55,8 +59,8 @@ export const colors = {
   divider: 'rgba(0, 0, 0, 0.06)',
   overlay: 'rgba(0, 0, 0, 0.5)',
   
-  // Action colors
-  actionPrimary: '#2563EB',
+  // Action colors - Using Hermes theme
+  actionPrimary: '#D97706',
   actionSecondary: '#6B7280',
   actionDisabled: 'rgba(0, 0, 0, 0.26)',
   actionDisabledBackground: 'rgba(0, 0, 0, 0.12)',

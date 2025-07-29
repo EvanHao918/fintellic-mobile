@@ -219,7 +219,7 @@ export default function LoginScreen() {
         
         Alert.alert(
           'Registration Successful',
-          'Your account has been created. Welcome to Fintellic!',
+          'Your account has been created. Welcome to HermeSpeed!',
           [{ text: 'OK' }]
         );
       }
@@ -372,9 +372,9 @@ export default function LoginScreen() {
           {/* Header */}
           <View style={styles.headerContainer}>
             <View style={styles.logoContainer}>
-              <Icon name="analytics" size={40} color={colors.white} />
+              <Icon name="flash-on" size={40} color={colors.white} />
             </View>
-            <Text style={styles.title}>Fintellic</Text>
+            <Text style={styles.title}>HermeSpeed</Text>
             <Text style={styles.subtitle}>
               {isLoginMode ? 'Welcome back!' : 'Create your account'}
             </Text>
