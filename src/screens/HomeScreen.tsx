@@ -19,8 +19,7 @@ import { Icon } from 'react-native-elements';
 import { FilingCard } from '../components';
 import { Filing, RootStackParamList } from '../types';
 import { RootState } from '../store';
-import { fetchFilings, voteFiling, clearFilings } from '../store/slices/filingsSlice';
-import { updateFilings } from '../store/slices/globalFilingsSlice';
+import { fetchFilings, voteFiling, clearFilings, selectShouldRefresh } from '../store/slices/filingsSlice';
 import { AppDispatch } from '../store';
 import { colors, typography, spacing } from '../theme';
 import apiClient from '../api/client';
@@ -42,13 +41,11 @@ export const HomeScreen: React.FC = () => {
     currentPage = 1,
   } = useSelector((state: RootState) => state.filings || {});
   
-  const { isAuthenticated = false } = useSelector((state: RootState) => state.auth || {});
+  const { isAuthenticated = false, user } = useSelector((state: RootState) => state.auth || {});
+  const isProUser = user?.tier === 'pro';
   
-  // 获取全局filings状态
-  const globalFilings = useSelector((state: RootState) => state.globalFilings.filingsById);
-  
-  // 本地状态用于存储同步后的filings
-  const [localFilings, setLocalFilings] = useState<Filing[]>([]);
+  // 检查是否需要刷新
+  const shouldRefresh = useSelector(selectShouldRefresh);
   
   // Search state
   const [showSearch, setShowSearch] = useState(false);
@@ -57,49 +54,17 @@ export const HomeScreen: React.FC = () => {
   const [isSearching, setIsSearching] = useState(false);
   const [searchTimer, setSearchTimer] = useState<NodeJS.Timeout | null>(null);
 
-  // 使用共享的投票 hook
+  // 使用投票 hook（但不直接传给 FilingCard）
   const { handleVote } = useFilingVote();
 
   // Load initial data
   useEffect(() => {
-    if (isAuthenticated && filings.length === 0) {
-      dispatch(fetchFilings({ page: 1, isRefresh: true }));
-    }
-  }, [isAuthenticated]);
-  
-  // 当主页加载数据时，同步到全局状态
-  useEffect(() => {
-    if (filings.length > 0) {
-      dispatch(updateFilings(filings));
-      setLocalFilings(filings);
-    }
-  }, [filings, dispatch]);
-  
-  // 监听全局状态变化，更新本地显示
-  useEffect(() => {
-    const updatedFilings = localFilings.map(filing => {
-      const globalFiling = globalFilings[filing.id.toString()];
-      if (globalFiling) {
-        return {
-          ...filing,
-          vote_counts: globalFiling.vote_counts || filing.vote_counts,
-          user_vote: globalFiling.user_vote !== undefined ? globalFiling.user_vote : filing.user_vote
-        };
+    if (isAuthenticated) {
+      if (filings.length === 0 || shouldRefresh) {
+        dispatch(fetchFilings({ page: 1, isRefresh: true }));
       }
-      return filing;
-    });
-    
-    // 只有当数据真的变化时才更新
-    const hasChanges = updatedFilings.some((filing, index) => {
-      const original = localFilings[index];
-      return JSON.stringify(filing.vote_counts) !== JSON.stringify(original.vote_counts) ||
-             filing.user_vote !== original.user_vote;
-    });
-    
-    if (hasChanges) {
-      setLocalFilings(updatedFilings);
     }
-  }, [globalFilings]);
+  }, [isAuthenticated, dispatch, shouldRefresh]);
 
   // Perform search
   const performSearch = async (query: string) => {
@@ -168,14 +133,14 @@ export const HomeScreen: React.FC = () => {
     navigation.navigate('FilingDetail', { filingId: filing.id });
   }, [navigation]);
 
-  // Render filing item - 使用localFilings
+  // Render filing item
   const renderFiling = useCallback(({ item }: { item: Filing }) => (
     <FilingCard
       filing={item}
       onPress={() => handleFilingPress(item)}
-      onVote={handleVote}
+      isProUser={isProUser}
     />
-  ), [handleFilingPress, handleVote]);
+  ), [handleFilingPress, isProUser]);
   
   // Render footer
   const renderFooter = () => {
@@ -234,7 +199,7 @@ export const HomeScreen: React.FC = () => {
   return (
     <SafeAreaView style={styles.container}>
       <FlatList
-        data={localFilings}
+        data={filings}
         renderItem={renderFiling}
         keyExtractor={(item) => item.id.toString()}
         contentContainerStyle={styles.listContent}
@@ -250,7 +215,6 @@ export const HomeScreen: React.FC = () => {
         ListFooterComponent={renderFooter}
         ListEmptyComponent={renderEmpty}
         showsVerticalScrollIndicator={false}
-        extraData={globalFilings} // 确保全局状态变化时重新渲染
       />
     </SafeAreaView>
   );

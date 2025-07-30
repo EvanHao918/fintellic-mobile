@@ -14,13 +14,12 @@ import { useRoute, useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RouteProp } from '@react-navigation/native';
 import { Icon } from 'react-native-elements';
-import { useDispatch, useSelector } from 'react-redux';
+import { useSelector } from 'react-redux';
 import FilingCard from '../components/FilingCard';
 import { colors, typography, spacing } from '../theme';
 import { getFilings } from '../api/filings';
 import { useFilingVote } from '../hooks/useFilingVote';
-import { updateFilings } from '../store/slices/globalFilingsSlice';
-import { AppDispatch, RootState } from '../store';
+import { RootState } from '../store';
 import type { Filing, RootStackParamList } from '../types';
 
 type CompanyFilingsScreenNavigationProp = StackNavigationProp<RootStackParamList>;
@@ -29,89 +28,49 @@ type CompanyFilingsScreenRouteProp = RouteProp<RootStackParamList, 'CompanyFilin
 const CompanyFilingsScreen: React.FC = () => {
   const route = useRoute<CompanyFilingsScreenRouteProp>();
   const navigation = useNavigation<CompanyFilingsScreenNavigationProp>();
-  const dispatch = useDispatch<AppDispatch>();
   const { ticker, companyName } = route.params;
 
-  const [filings, setFilings] = useState<Filing[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [currentPage, setCurrentPage] = useState(1);
-  const [hasMore, setHasMore] = useState(true);
   
-  // 使用共享的投票 hook
-  const { handleVote } = useFilingVote();
+  // 从 Redux store 获取所有 filings
+  const allFilings = useSelector((state: RootState) => state.filings.filings);
   
-  // 监听全局状态的变化并更新本地状态
-  const globalFilings = useSelector((state: RootState) => state.globalFilings.filingsById);
+  // 筛选出当前公司的 filings
+  const companyFilings = allFilings.filter(filing => filing.company_ticker === ticker);
   
+  // Get user info for Pro status
+  const { user } = useSelector((state: RootState) => state.auth || {});
+  const isProUser = user?.tier === 'pro';
+
+  // 初始加载检查
   useEffect(() => {
-    // 当全局状态更新时，同步更新本地状态
-    setFilings(prevFilings => 
-      prevFilings.map(filing => {
-        const globalFiling = globalFilings[filing.id.toString()];
-        if (globalFiling) {
-          return {
-            ...filing,
-            vote_counts: globalFiling.vote_counts || filing.vote_counts,
-            user_vote: globalFiling.user_vote || filing.user_vote
-          };
-        }
-        return filing;
-      })
-    );
-  }, [globalFilings]);
-
-  // Load filings for specific company
-  const loadFilings = async (page: number = 1, refresh: boolean = false) => {
-    try {
-      if (page === 1) {
-        setIsLoading(true);
-      }
-      
-      console.log('Loading filings for ticker:', ticker);
-      
-      const response = await getFilings(page, ticker);
-      
-      console.log('Filings response:', response);
-
-      const newFilings = response.data || [];
-      
-      // 将新加载的数据更新到全局状态
-      dispatch(updateFilings(newFilings));
-      
-      if (refresh || page === 1) {
-        setFilings(newFilings);
-      } else {
-        setFilings(prev => [...prev, ...newFilings]);
-      }
-      
-      setHasMore(newFilings.length === 20);
-      setCurrentPage(page);
-      setError(null);
-    } catch (err) {
-      console.error('Error loading company filings:', err);
-      setError('Failed to load filings');
-    } finally {
+    // 如果 Redux store 中有该公司的数据，直接使用
+    if (companyFilings.length > 0) {
       setIsLoading(false);
-      setIsRefreshing(false);
+    } else {
+      // 否则需要加载数据
+      setIsLoading(true);
+      // 这里可以触发一个加载所有数据的 action
+      // 或者显示"暂无数据"
+      setTimeout(() => {
+        setIsLoading(false);
+        if (companyFilings.length === 0) {
+          setError('No filings found for this company');
+        }
+      }, 1000);
     }
-  };
-
-  useEffect(() => {
-    loadFilings(1);
-  }, [ticker]);
+  }, [ticker, companyFilings.length]);
 
   const handleRefresh = useCallback(() => {
-    setIsRefreshing(true);
-    loadFilings(1, true);
-  }, []);
+    // 返回主页或重新加载
+    navigation.goBack();
+  }, [navigation]);
 
   const handleLoadMore = useCallback(() => {
-    if (!isLoading && hasMore) {
-      loadFilings(currentPage + 1);
-    }
-  }, [isLoading, hasMore, currentPage]);
+    // 不需要加载更多，因为我们使用的是已有数据
+  }, []);
 
   const handleFilingPress = useCallback((filing: Filing) => {
     navigation.navigate('FilingDetail', { filingId: filing.id });
@@ -121,12 +80,12 @@ const CompanyFilingsScreen: React.FC = () => {
     <FilingCard 
       filing={item} 
       onPress={() => handleFilingPress(item)}
-      onVote={handleVote}
+      isProUser={isProUser}
     />
-  ), [handleFilingPress, handleVote]);
+  ), [handleFilingPress, isProUser]);
 
   const renderFooter = () => {
-    if (!isLoading || filings.length === 0) return null;
+    if (!isLoading || companyFilings.length === 0) return null;
     return (
       <View style={styles.footer}>
         <ActivityIndicator size="small" color={colors.primary} />
@@ -154,7 +113,7 @@ const CompanyFilingsScreen: React.FC = () => {
     );
   };
 
-  if (isLoading && filings.length === 0) {
+  if (isLoading && companyFilings.length === 0) {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
         <View style={styles.header}>
@@ -184,7 +143,7 @@ const CompanyFilingsScreen: React.FC = () => {
     );
   }
 
-  if (error && filings.length === 0) {
+  if (error && companyFilings.length === 0) {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
         <View style={styles.header}>
@@ -218,9 +177,9 @@ const CompanyFilingsScreen: React.FC = () => {
           <Text style={styles.errorText}>{error}</Text>
           <TouchableOpacity
             style={styles.retryButton}
-            onPress={() => loadFilings(1)}
+            onPress={() => navigation.goBack()}
           >
-            <Text style={styles.retryButtonText}>Try Again</Text>
+            <Text style={styles.retryButtonText}>Go Back</Text>
           </TouchableOpacity>
         </View>
       </SafeAreaView>
@@ -250,12 +209,12 @@ const CompanyFilingsScreen: React.FC = () => {
       </View>
       
       <FlatList
-        data={filings}
+        data={companyFilings}
         renderItem={renderItem}
         keyExtractor={(item) => item.id.toString()}
         contentContainerStyle={[
           styles.listContent,
-          filings.length === 0 && styles.emptyListContent
+          companyFilings.length === 0 && styles.emptyListContent
         ]}
         refreshControl={
           <RefreshControl
@@ -264,8 +223,6 @@ const CompanyFilingsScreen: React.FC = () => {
             tintColor={colors.primary}
           />
         }
-        onEndReached={handleLoadMore}
-        onEndReachedThreshold={0.5}
         ListFooterComponent={renderFooter}
         ListEmptyComponent={renderEmpty}
         showsVerticalScrollIndicator={false}

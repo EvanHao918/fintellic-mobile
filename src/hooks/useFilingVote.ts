@@ -7,7 +7,6 @@ import { RootState, AppDispatch } from '../store';
 import { RootStackParamList } from '../types';
 import { voteOnFiling } from '../api/filings';
 import { updateFilingVote } from '../store/slices/filingsSlice';
-import { updateFilingVoteGlobal } from '../store/slices/globalFilingsSlice';
 
 type NavigationProp = StackNavigationProp<RootStackParamList>;
 
@@ -29,18 +28,15 @@ export const useFilingVote = () => {
       // 调用 API
       const response = await voteOnFiling(filingId.toString(), voteType);
       
-      // 更新两个 store：主页的 filings 和全局的 globalFilings
+      // 更新 Redux store
       const voteData = {
         filingId,
         vote_counts: response.vote_counts,
         user_vote: response.user_vote
       };
       
-      // 更新主页 Redux store
+      // 更新 filings store
       dispatch(updateFilingVote(voteData));
-      
-      // 更新全局 store
-      dispatch(updateFilingVoteGlobal(voteData));
       
       return response;
     } catch (error) {

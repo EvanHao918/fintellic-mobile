@@ -10,6 +10,7 @@ interface FilingsState {
   hasMore: boolean;
   error: string | null;
   currentPage: number;
+  lastRefreshTime: number | null; // 追踪最后刷新时间
 }
 
 const initialState: FilingsState = {
@@ -19,6 +20,7 @@ const initialState: FilingsState = {
   hasMore: true,
   error: null,
   currentPage: 1,
+  lastRefreshTime: null,
 };
 
 // Fetch filings
@@ -49,23 +51,56 @@ const filingsSlice = createSlice({
   reducers: {
     setFilings: (state, action: PayloadAction<Filing[]>) => {
       state.filings = action.payload;
+      state.lastRefreshTime = Date.now();
     },
     clearFilings: (state) => {
       state.filings = [];
       state.currentPage = 1;
       state.hasMore = true;
+      state.lastRefreshTime = null;
     },
-    // 新增：更新单个 filing 的投票数据
+    // 更新单个 filing 的投票数据（用于所有页面）
     updateFilingVote: (state, action: PayloadAction<{
       filingId: number;
       vote_counts: { bullish: number; neutral: number; bearish: number };
       user_vote: VoteType;
     }>) => {
       const { filingId, vote_counts, user_vote } = action.payload;
-      const filing = state.filings.find(f => f.id === filingId);
-      if (filing) {
-        filing.vote_counts = vote_counts;
-        filing.user_vote = user_vote;
+      // 更新所有匹配的 filing（可能在多个地方存在）
+      state.filings = state.filings.map(filing => {
+        if (filing.id === filingId) {
+          return {
+            ...filing,
+            vote_counts,
+            user_vote
+          };
+        }
+        return filing;
+      });
+    },
+    // 添加或更新单个 filing（用于详情页）
+    upsertFiling: (state, action: PayloadAction<Filing>) => {
+      const filing = action.payload;
+      const existingIndex = state.filings.findIndex(f => f.id === filing.id);
+      
+      if (existingIndex >= 0) {
+        // 更新现有的 filing
+        state.filings[existingIndex] = filing;
+      } else {
+        // 添加新的 filing（如果需要的话）
+        // 在生产环境中，我们通常不添加单个 filing 到列表
+        // 除非它确实属于当前的查询结果
+      }
+    },
+    // 检查是否需要刷新（超过5分钟）
+    checkRefreshNeeded: (state) => {
+      const now = Date.now();
+      const FIVE_MINUTES = 5 * 60 * 1000;
+      
+      if (!state.lastRefreshTime || (now - state.lastRefreshTime) > FIVE_MINUTES) {
+        state.filings = [];
+        state.currentPage = 1;
+        state.hasMore = true;
       }
     },
   },
@@ -86,8 +121,12 @@ const filingsSlice = createSlice({
         if (isRefresh) {
           state.filings = filings;
           state.currentPage = 1;
+          state.lastRefreshTime = Date.now();
         } else {
-          state.filings = [...state.filings, ...filings];
+          // 避免重复数据
+          const existingIds = new Set(state.filings.map(f => f.id));
+          const newFilings = filings.filter(f => !existingIds.has(f.id));
+          state.filings = [...state.filings, ...newFilings];
           state.currentPage += 1;
         }
         
@@ -101,19 +140,43 @@ const filingsSlice = createSlice({
         state.isRefreshing = false;
         state.error = action.error.message || 'Failed to load filings';
       })
-      // Vote on filing - 修复类型问题
+      // Vote on filing
       .addCase(voteFiling.fulfilled, (state, action) => {
         const { filingId, vote_counts, user_vote } = action.payload;
-        // 注意：filingId 是 string，但 filing.id 是 number，需要转换
-        const filing = state.filings.find(f => f.id.toString() === filingId);
-        if (filing) {
-          filing.vote_counts = vote_counts;
-          filing.user_vote = user_vote;
-        }
+        // 使用 updateFilingVote 逻辑
+        state.filings = state.filings.map(filing => {
+          if (filing.id.toString() === filingId) {
+            return {
+              ...filing,
+              vote_counts,
+              user_vote
+            };
+          }
+          return filing;
+        });
       });
   },
 });
 
-// 导出 actions - 包含新增的 updateFilingVote
-export const { setFilings, clearFilings, updateFilingVote } = filingsSlice.actions;
+// Selectors
+export const selectFilingById = (state: { filings: FilingsState }, filingId: number) => 
+  state.filings.filings.find(f => f.id === filingId);
+
+export const selectShouldRefresh = (state: { filings: FilingsState }) => {
+  const { lastRefreshTime } = state.filings;
+  if (!lastRefreshTime) return true;
+  
+  const FIVE_MINUTES = 5 * 60 * 1000;
+  return Date.now() - lastRefreshTime > FIVE_MINUTES;
+};
+
+// 导出 actions
+export const { 
+  setFilings, 
+  clearFilings, 
+  updateFilingVote, 
+  upsertFiling,
+  checkRefreshNeeded 
+} = filingsSlice.actions;
+
 export default filingsSlice.reducer;

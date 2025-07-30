@@ -8,6 +8,7 @@ import {
 } from 'react-native';
 import { Text, Icon } from 'react-native-elements';
 import { Filing } from '../types';
+import { VotingModule, StatsDisplay } from './interactions';
 import themeConfig from '../theme';
 
 const { colors, typography, spacing, borderRadius, shadows, filingTypes, sentiments } = themeConfig;
@@ -15,22 +16,12 @@ const { colors, typography, spacing, borderRadius, shadows, filingTypes, sentime
 interface FilingCardProps {
   filing: Filing;
   onPress: (filing: Filing) => void;
-  onVote?: (filingId: number, voteType: 'bullish' | 'neutral' | 'bearish') => void;
-  voteCounts?: {
-    bullish: number;
-    neutral: number;
-    bearish: number;
-  };
-  userVote?: 'bullish' | 'neutral' | 'bearish' | null;
   isProUser?: boolean;
 }
 
 export default function FilingCard({ 
   filing, 
   onPress, 
-  onVote, 
-  voteCounts = { bullish: 0, neutral: 0, bearish: 0 },
-  userVote = null,
   isProUser = false 
 }: FilingCardProps) {
   const scaleAnim = React.useRef(new Animated.Value(1)).current;
@@ -110,29 +101,6 @@ export default function FilingCard({
     }).start();
   };
 
-  // 使用从 API 返回的 vote_counts
-  const displayVoteCounts = filing.vote_counts || voteCounts;
-
-  // 计算总投票数
-  const totalVotes = displayVoteCounts.bullish + displayVoteCounts.neutral + displayVoteCounts.bearish;
-  
-  // 计算百分比
-  const getVotePercentage = (count: number) => {
-    if (totalVotes === 0) return 0;
-    return Math.round((count / totalVotes) * 100);
-  };
-
-  // 从filing中提取关键信息作为指标展示
-  const hasFinancials = filing.financial_highlights && 
-    (filing.financial_highlights.revenue || filing.financial_highlights.eps || filing.financial_highlights.net_income);
-  
-  const hasGuidance = filing.guidance_update || filing.future_outlook;
-  
-  const hasRiskFactors = filing.risk_factors && filing.risk_factors.length > 0;
-  
-  // 检查是否有期望对比（季报特有）
-  const hasExpectations = filing.expectations_comparison || filing.beat_miss_analysis;
-
   return (
     <Animated.View style={[styles.container, { transform: [{ scale: scaleAnim }] }]}>
       <TouchableOpacity
@@ -196,21 +164,21 @@ export default function FilingCard({
                 </View>
               )}
               
-              {hasFinancials && (
+              {filing.financial_highlights && (
                 <View style={styles.metricItem}>
                   <Icon name="attach-money" size={12} color={colors.success} />
                   <Text style={styles.metricLabel} numberOfLines={1}>Financials</Text>
                 </View>
               )}
               
-              {hasGuidance && (
+              {(filing.guidance_update || filing.future_outlook) && (
                 <View style={styles.metricItem}>
                   <Icon name="trending-up" size={12} color={colors.primary} />
                   <Text style={styles.metricLabel} numberOfLines={1}>Guidance</Text>
                 </View>
               )}
               
-              {hasRiskFactors && (
+              {filing.risk_factors && filing.risk_factors.length > 0 && (
                 <View style={styles.metricItem}>
                   <Icon name="warning" size={12} color={colors.error} />
                   <Text style={styles.metricLabel} numberOfLines={1}>Risks</Text>
@@ -235,87 +203,23 @@ export default function FilingCard({
 
           {/* Compact Footer */}
           <View style={styles.footer}>
-            {/* Voting Section */}
-            <View style={styles.voteSection}>
-              <View style={styles.voteButtons}>
-                <TouchableOpacity
-                  style={[
-                    styles.voteButton,
-                    userVote === 'bullish' && styles.voteButtonActive,
-                    userVote === 'bullish' && { borderColor: colors.bullish }
-                  ]}
-                  onPress={() => onVote?.(filing.id, 'bullish')}
-                >
-                  <Text style={styles.voteEmoji}>😊</Text>
-                  <Text style={[styles.voteCount, userVote === 'bullish' && { color: colors.bullish }]}>
-                    {displayVoteCounts.bullish}
-                  </Text>
-                  {totalVotes > 0 && (
-                    <Text style={[styles.votePercentage, userVote === 'bullish' && { color: colors.bullish }]}>
-                      {getVotePercentage(displayVoteCounts.bullish)}%
-                    </Text>
-                  )}
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={[
-                    styles.voteButton,
-                    userVote === 'neutral' && styles.voteButtonActive,
-                    userVote === 'neutral' && { borderColor: colors.neutral }
-                  ]}
-                  onPress={() => onVote?.(filing.id, 'neutral')}
-                >
-                  <Text style={styles.voteEmoji}>😐</Text>
-                  <Text style={[styles.voteCount, userVote === 'neutral' && { color: colors.neutral }]}>
-                    {displayVoteCounts.neutral}
-                  </Text>
-                  {totalVotes > 0 && (
-                    <Text style={[styles.votePercentage, userVote === 'neutral' && { color: colors.neutral }]}>
-                      {getVotePercentage(displayVoteCounts.neutral)}%
-                    </Text>
-                  )}
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={[
-                    styles.voteButton,
-                    userVote === 'bearish' && styles.voteButtonActive,
-                    userVote === 'bearish' && { borderColor: colors.bearish }
-                  ]}
-                  onPress={() => onVote?.(filing.id, 'bearish')}
-                >
-                  <Text style={styles.voteEmoji}>😟</Text>
-                  <Text style={[styles.voteCount, userVote === 'bearish' && { color: colors.bearish }]}>
-                    {displayVoteCounts.bearish}
-                  </Text>
-                  {totalVotes > 0 && (
-                    <Text style={[styles.votePercentage, userVote === 'bearish' && { color: colors.bearish }]}>
-                      {getVotePercentage(displayVoteCounts.bearish)}%
-                    </Text>
-                  )}
-                </TouchableOpacity>
-              </View>
-
-              {/* Comments and Stats */}
-              <View style={styles.statsRow}>
-                <TouchableOpacity style={styles.statItem} onPress={() => onPress(filing)}>
-                  <Icon name="chat-bubble-outline" size={14} color={colors.textSecondary} />
-                  <Text style={styles.statText}>{filing.comment_count || 0}</Text>
-                </TouchableOpacity>
-                
-                <View style={styles.statItem}>
-                  <Icon name="visibility" size={14} color={colors.textSecondary} />
-                  <Text style={styles.statText}>{filing.view_count || totalVotes || 0}</Text>
-                </View>
-
-                {!isProUser && (
-                  <View style={styles.proIndicator}>
-                    <Icon name="lock" size={12} color={colors.warning} />
-                    <Text style={styles.proText}>PRO</Text>
-                  </View>
-                )}
-              </View>
-            </View>
+            {/* 使用新的独立 VotingModule */}
+            <VotingModule
+              filingId={filing.id}
+              initialVoteCounts={filing.vote_counts}
+              initialUserVote={filing.user_vote}
+              mode="compact"
+              style={styles.votingModule}
+            />
+            
+            {/* 使用 StatsDisplay 组件 */}
+            <StatsDisplay
+              commentCount={filing.comment_count || 0}
+              viewCount={filing.view_count || 0}
+              onCommentPress={() => onPress(filing)}
+              isProUser={isProUser}
+              mode="compact"
+            />
           </View>
         </View>
       </TouchableOpacity>
@@ -458,74 +362,11 @@ const styles = StyleSheet.create({
     borderTopColor: colors.gray100,
     paddingHorizontal: spacing.sm,
     paddingVertical: spacing.xs,
-  },
-  voteSection: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  voteButtons: {
-    flexDirection: 'row',
+  votingModule: {
     flex: 1,
-  },
-  voteButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: spacing.xs,
-    paddingVertical: spacing.xxs,
-    marginRight: spacing.xs,
-    borderRadius: borderRadius.sm,
-    backgroundColor: colors.white,
-    borderWidth: 1,
-    borderColor: colors.gray200,
-  },
-  voteButtonActive: {
-    backgroundColor: colors.primary + '08',
-    borderWidth: 1.5,
-  },
-  voteEmoji: {
-    fontSize: 14,
-    marginRight: 4,
-  },
-  voteCount: {
-    fontSize: typography.fontSize.xs,
-    fontWeight: typography.fontWeight.bold,
-    color: colors.gray700,
-    marginRight: 2,
-  },
-  votePercentage: {
-    fontSize: 10,
-    color: colors.gray500,
-  },
-  
-  // Stats Row
-  statsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  statItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginLeft: spacing.sm,
-  },
-  statText: {
-    fontSize: typography.fontSize.xs,
-    color: colors.gray600,
-    marginLeft: 4,
-  },
-  proIndicator: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginLeft: spacing.sm,
-    backgroundColor: colors.warning + '20',
-    paddingHorizontal: spacing.xs,
-    paddingVertical: 2,
-    borderRadius: borderRadius.sm,
-  },
-  proText: {
-    fontSize: 10,
-    color: colors.warning,
-    fontWeight: typography.fontWeight.bold,
-    marginLeft: 2,
   },
 });

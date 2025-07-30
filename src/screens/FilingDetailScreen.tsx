@@ -22,11 +22,9 @@ import { colors, typography, spacing, borderRadius, shadows } from '../theme';
 import { Filing, Comment, RootStackParamList, VisualData } from '../types';
 import { getFilingById, getFilingComments, addComment } from '../api/filings';
 import { AdaptiveChart } from '../components/charts';
-import { CommentItem } from '../components';
+import { CommentItem, VotingModule } from '../components';
 import UpgradePromptModal from '../components/UpgradePromptModal';
 import { getFilingDetailComponent } from '../components/filing-details';
-import { useFilingVote } from '../hooks/useFilingVote';
-import { updateFiling, selectFilingById } from '../store/slices/globalFilingsSlice';
 
 // Route types
 type FilingDetailScreenRouteProp = RouteProp<RootStackParamList, 'FilingDetail'>;
@@ -49,31 +47,18 @@ export default function FilingDetailScreen() {
   // Get filing ID from route params
   const { filingId } = route.params;
   
-  // 从全局状态获取filing数据
-  const globalFiling = useSelector((state: RootState) => selectFilingById(state, filingId));
-  
   // State
-  const [filing, setFiling] = useState<Filing | null>(globalFiling || null);
+  const [filing, setFiling] = useState<Filing | null>(null);
   const [comments, setComments] = useState<Comment[]>([]);
   const [newComment, setNewComment] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isSubmittingComment, setIsSubmittingComment] = useState(false);
-  const [isVoting, setIsVoting] = useState(false);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [limitInfo, setLimitInfo] = useState<{ views_today: number; daily_limit: number } | null>(null);
   const [error403, setError403] = useState(false);
   const [replyingTo, setReplyingTo] = useState<Comment | null>(null);
 
-  // 使用共享的投票hook
-  const { handleVote } = useFilingVote();
-
-  // 监听全局状态的变化
-  useEffect(() => {
-    if (globalFiling) {
-      setFiling(globalFiling);
-    }
-  }, [globalFiling]);
 
   // Load filing details and comments
   const loadFilingDetails = async () => {
@@ -83,9 +68,6 @@ export default function FilingDetailScreen() {
       // Load filing details using the API function
       const filingData = await getFilingById(filingId.toString());
       setFiling(filingData);
-      
-      // 更新全局状态
-      dispatch(updateFiling(filingData));
       
       // Load comments
       try {
@@ -108,26 +90,6 @@ export default function FilingDetailScreen() {
       }
     } finally {
       setIsLoading(false);
-    }
-  };
-
-  // Handle voting - 使用共享的hook
-  const handleFilingVote = async (sentiment: 'bullish' | 'neutral' | 'bearish') => {
-    if (!token) {
-      Alert.alert('Login Required', 'Please login to vote');
-      return;
-    }
-    
-    if (isVoting) return;
-    
-    try {
-      setIsVoting(true);
-      await handleVote(filingId, sentiment);
-    } catch (error: any) {
-      console.error('Vote error:', error);
-      Alert.alert('Error', error.response?.data?.detail || 'Failed to submit vote');
-    } finally {
-      setIsVoting(false);
     }
   };
 
@@ -177,7 +139,6 @@ export default function FilingDetailScreen() {
           comment_count: (filing.comment_count || 0) + 1
         };
         setFiling(updatedFiling);
-        dispatch(updateFiling(updatedFiling));
       }
       
     } catch (error: any) {
@@ -206,7 +167,6 @@ export default function FilingDetailScreen() {
         comment_count: Math.max(0, (filing.comment_count || 0) - 1)
       };
       setFiling(updatedFiling);
-      dispatch(updateFiling(updatedFiling));
     }
   };
 
@@ -383,55 +343,14 @@ export default function FilingDetailScreen() {
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>🗳️ Community Sentiment</Text>
             <Text style={styles.voteQuestion}>How do you see this filing?</Text>
-            <View style={styles.voteButtons}>
-              <TouchableOpacity
-                style={[
-                  styles.voteButton,
-                  filing.user_vote === 'bullish' && styles.voteButtonActive
-                ]}
-                onPress={() => handleFilingVote('bullish')}
-                disabled={isVoting}
-              >
-                <Text style={styles.voteEmoji}>🚀</Text>
-                <Text style={[
-                  styles.voteLabel,
-                  filing.user_vote === 'bullish' && styles.voteLabelActive
-                ]}>Bullish</Text>
-                <Text style={styles.voteCount}>{filing.vote_counts?.bullish || 0}</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[
-                  styles.voteButton,
-                  filing.user_vote === 'neutral' && styles.voteButtonActive
-                ]}
-                onPress={() => handleFilingVote('neutral')}
-                disabled={isVoting}
-              >
-                <Text style={styles.voteEmoji}>😐</Text>
-                <Text style={[
-                  styles.voteLabel,
-                  filing.user_vote === 'neutral' && styles.voteLabelActive
-                ]}>Neutral</Text>
-                <Text style={styles.voteCount}>{filing.vote_counts?.neutral || 0}</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[
-                  styles.voteButton,
-                  filing.user_vote === 'bearish' && styles.voteButtonActive
-                ]}
-                onPress={() => handleFilingVote('bearish')}
-                disabled={isVoting}
-              >
-                <Text style={styles.voteEmoji}>😟</Text>
-                <Text style={[
-                  styles.voteLabel,
-                  filing.user_vote === 'bearish' && styles.voteLabelActive
-                ]}>Bearish</Text>
-                <Text style={styles.voteCount}>{filing.vote_counts?.bearish || 0}</Text>
-              </TouchableOpacity>
-            </View>
+            
+            {/* 使用独立的 VotingModule 组件 */}
+            <VotingModule
+              filingId={filingId}
+              initialVoteCounts={filing.vote_counts || { bullish: 0, neutral: 0, bearish: 0 }}
+              initialUserVote={filing.user_vote || null}
+              mode="full"
+            />
           </View>
 
           <View style={[styles.section, styles.lastSection]}>
@@ -658,40 +577,6 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     marginBottom: spacing.md,
     textAlign: 'center',
-  },
-  voteButtons: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-  },
-  voteButton: {
-    alignItems: 'center',
-    padding: spacing.md,
-    borderRadius: borderRadius.md,
-    backgroundColor: colors.backgroundSecondary,
-    minWidth: 100,
-  },
-  voteButtonActive: {
-    backgroundColor: colors.primary + '20',
-    borderWidth: 2,
-    borderColor: colors.primary,
-  },
-  voteEmoji: {
-    fontSize: 28,
-    marginBottom: spacing.xs,
-  },
-  voteLabel: {
-    fontSize: typography.fontSize.sm,
-    color: colors.textSecondary,
-    marginBottom: spacing.xs,
-  },
-  voteLabelActive: {
-    color: colors.primary,
-    fontWeight: typography.fontWeight.semibold,
-  },
-  voteCount: {
-    fontSize: typography.fontSize.lg,
-    fontWeight: typography.fontWeight.bold,
-    color: colors.text,
   },
   replyIndicator: {
     flexDirection: 'row',
