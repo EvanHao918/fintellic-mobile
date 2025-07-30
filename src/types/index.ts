@@ -103,6 +103,16 @@ export interface Filing {
   company_ticker: string;
   company_cik: string;
   
+  // 添加 company 对象，包含指数信息
+  company?: {
+    id: number;
+    name: string;
+    ticker: string;
+    cik: string;
+    is_sp500: boolean;
+    is_nasdaq100: boolean;
+  };
+  
   // AI-generated fields
   ai_summary?: string;
   management_tone?: 'bullish' | 'neutral' | 'bearish';

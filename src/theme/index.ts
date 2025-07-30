@@ -422,6 +422,32 @@ export const commonStyles = {
     fontWeight: typography.fontWeight.semibold,
     color: colors.white,
   },
+  
+  // Index tags - 新增的样式
+  indexTag: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: borderRadius.sm,
+    marginRight: 4,
+    alignSelf: 'center' as 'center',
+  },
+  indexTagText: {
+    fontSize: 10,
+    fontWeight: typography.fontWeight.semibold as any,
+    letterSpacing: 0.2,
+  },
+  sp500TagStyle: {
+    backgroundColor: colors.warning + '20',
+  },
+  sp500TagTextStyle: {
+    color: colors.warning,
+  },
+  nasdaqTagStyle: {
+    backgroundColor: colors.success + '20',
+  },
+  nasdaqTagTextStyle: {
+    color: colors.success,
+  },
 };
 
 // Export all theme utilities

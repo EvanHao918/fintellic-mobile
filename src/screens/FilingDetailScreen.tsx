@@ -132,14 +132,7 @@ export default function FilingDetailScreen() {
       setNewComment('');
       setReplyingTo(null);
       
-      // Update comment count
-      if (filing) {
-        const updatedFiling = {
-          ...filing,
-          comment_count: (filing.comment_count || 0) + 1
-        };
-        setFiling(updatedFiling);
-      }
+      // 不再手动更新 filing.comment_count，直接使用 comments.length
       
     } catch (error: any) {
       console.error('Comment error:', error);
@@ -160,14 +153,7 @@ export default function FilingDetailScreen() {
   const handleCommentDelete = (commentId: string) => {
     setComments(prevComments => prevComments.filter(c => c.id !== commentId));
     
-    // Update comment count
-    if (filing) {
-      const updatedFiling = {
-        ...filing,
-        comment_count: Math.max(0, (filing.comment_count || 0) - 1)
-      };
-      setFiling(updatedFiling);
-    }
+    // 不再手动更新 filing.comment_count，直接使用 comments.length
   };
 
   // Handle refresh
@@ -355,7 +341,7 @@ export default function FilingDetailScreen() {
 
           <View style={[styles.section, styles.lastSection]}>
             <Text style={styles.sectionTitle}>
-              💬 Comments ({filing.comment_count || 0})
+              💬 Comments ({comments.length})
             </Text>
             
             {/* Reply indicator */}

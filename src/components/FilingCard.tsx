@@ -24,6 +24,15 @@ export default function FilingCard({
   onPress, 
   isProUser = false 
 }: FilingCardProps) {
+  // 添加调试日志
+  console.log(`Filing ${filing.id} 数据:`, {
+    id: filing.id,
+    ticker: filing.company_ticker,
+    view_count: filing.view_count,
+    comment_count: filing.comment_count,
+    vote_counts: filing.vote_counts
+  });
+
   const scaleAnim = React.useRef(new Animated.Value(1)).current;
   
   // Get filing type configuration with enhanced labels
@@ -119,9 +128,26 @@ export default function FilingCard({
                   <Text style={styles.filingBadgeText}>{filingConfig.label}</Text>
                 </View>
               </View>
-              <Text style={styles.companyName} numberOfLines={1}>
-                {filing.company_name}
-              </Text>
+              <View style={styles.companyInfoRow}>
+                <Text style={styles.companyName} numberOfLines={1}>
+                  {filing.company_name}
+                </Text>
+                {/* 添加指数标签 */}
+                {(filing.company?.is_sp500 || filing.company?.is_nasdaq100) && (
+                  <View style={styles.indexTagsContainer}>
+                    {filing.company?.is_sp500 && (
+                      <View style={[styles.indexTag, styles.sp500Tag]}>
+                        <Text style={[styles.indexTagText, styles.sp500TagText]}>S&P 500</Text>
+                      </View>
+                    )}
+                    {filing.company?.is_nasdaq100 && (
+                      <View style={[styles.indexTag, styles.nasdaqTag]}>
+                        <Text style={[styles.indexTagText, styles.nasdaqTagText]}>NASDAQ</Text>
+                      </View>
+                    )}
+                  </View>
+                )}
+              </View>
             </View>
             <View style={styles.headerRight}>
               <Text style={styles.date}>{formatDate(filing.filing_date)}</Text>
@@ -277,10 +303,44 @@ const styles = StyleSheet.create({
     color: colors.white,
     letterSpacing: 0.3,
   },
+  companyInfoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+  },
   companyName: {
     fontSize: typography.fontSize.sm,
     color: colors.gray600,
     fontWeight: typography.fontWeight.medium,
+    marginRight: spacing.xs,
+  },
+  // 新增的指数标签样式
+  indexTagsContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  indexTag: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: borderRadius.sm,
+    marginRight: 4,
+  },
+  sp500Tag: {
+    backgroundColor: colors.warning + '20',  // 橙色背景（20%透明度）
+  },
+  nasdaqTag: {
+    backgroundColor: colors.success + '20',  // 绿色背景（20%透明度）
+  },
+  indexTagText: {
+    fontSize: 10,
+    fontWeight: typography.fontWeight.semibold,
+    letterSpacing: 0.2,
+  },
+  sp500TagText: {
+    color: colors.warning,
+  },
+  nasdaqTagText: {
+    color: colors.success,
   },
   headerRight: {
     alignItems: 'flex-end',
