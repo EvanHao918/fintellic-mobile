@@ -89,6 +89,15 @@ export interface AuthResponse {
   user: User;
 }
 
+// Smart Markup Types for Unified Analysis
+export interface SmartMarkupData {
+  numbers: string[];      // Key numbers like "37%", "$5.2B"
+  concepts: string[];     // Important concepts like "transformation"
+  positive: string[];     // Positive trends like "revenue up 15%"
+  negative: string[];     // Negative trends like "margins compressed"
+  insights: string[];     // Key insights prefixed with [!]
+}
+
 // Filing Types
 export interface Filing {
   id: number;
@@ -113,7 +122,25 @@ export interface Filing {
     is_nasdaq100: boolean;
   };
   
-  // AI-generated fields
+  // ==================== UNIFIED ANALYSIS FIELDS (NEW) ====================
+  // Core unified content
+  unified_analysis?: string;           // 800-1200 word narrative analysis
+  unified_feed_summary?: string;       // One-line feed summary (max 100 chars)
+  analysis_version?: 'v1' | 'v2';      // Analysis version indicator
+  smart_markup_data?: SmartMarkupData; // Smart markup metadata
+  analyst_expectations?: {             // Analyst expectations for 10-Q
+    revenue_estimate?: {
+      value: number;
+      analysts: number;
+    };
+    eps_estimate?: {
+      value: number;
+      analysts: number;
+    };
+  };
+  // ========================================================================
+  
+  // AI-generated fields (LEGACY - kept for backward compatibility)
   ai_summary?: string;
   management_tone?: 'bullish' | 'neutral' | 'bearish';
   key_insights?: string[];
@@ -141,6 +168,31 @@ export interface Filing {
   risk_factors?: string[];
   expectations_comparison?: string;
   beat_miss_analysis?: string;
+  
+  // 10-K specific fields
+  auditor_opinion?: string;
+  three_year_financials?: string;
+  business_segments?: string;
+  risk_summary?: string;
+  growth_drivers?: string;
+  management_outlook?: string;
+  strategic_adjustments?: string;
+  market_impact_10k?: string;
+  
+  // 10-Q specific fields
+  core_metrics?: string;
+  cost_structure?: string;
+  growth_decline_analysis?: string;
+  management_tone_analysis?: string;
+  market_impact_10q?: string;
+  
+  // S-1 specific fields
+  ipo_details?: string;
+  company_overview?: string;
+  financial_summary?: string;
+  risk_categories?: string;
+  growth_path_analysis?: string;
+  competitive_moat_analysis?: string;
   
   // User interaction
   user_vote?: 'bullish' | 'neutral' | 'bearish';
@@ -344,3 +396,6 @@ export interface VisualData {
     decimals?: number;
   };
 }
+
+// Helper type to determine if filing has unified analysis
+export type HasUnifiedAnalysis = (filing: Filing) => boolean;

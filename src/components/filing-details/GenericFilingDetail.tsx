@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { colors, typography, spacing, borderRadius } from '../../theme';
+import { parseUnifiedAnalysis, hasUnifiedAnalysis, getDisplayAnalysis } from '../../utils/textHelpers';
 
 // Define FilingDetail interface locally if not exported from types
 interface FilingDetail {
@@ -21,6 +22,13 @@ interface FilingDetail {
   filing_url: string;  // 注意：可能需要从 file_url 改为 filing_url
   accession_number: string;
   cik?: string;
+  
+  // Unified analysis fields
+  unified_analysis?: string;
+  analysis_version?: string;
+  smart_markup_data?: any;
+  
+  // Legacy fields
   ai_summary?: string;
   one_liner?: string;
   business_overview?: string;
@@ -55,6 +63,41 @@ const GenericFilingDetail: React.FC<GenericFilingDetailProps> = ({ filing }) => 
       month: 'long',
       day: 'numeric',
     });
+  };
+
+  // 统一分析内容 - 核心部分
+  const renderUnifiedAnalysis = () => {
+    const content = getDisplayAnalysis(filing);
+    if (!content) return null;
+
+    const isUnified = hasUnifiedAnalysis(filing);
+
+    return (
+      <View style={styles.unifiedSection}>
+        <View style={styles.sectionHeader}>
+          <Icon name="analytics" size={24} color={colors.primary} />
+          <Text style={styles.sectionTitle}>Filing Analysis</Text>
+          {isUnified && (
+            <View style={styles.unifiedBadge}>
+              <Icon name="auto-awesome" size={14} color={colors.primary} />
+              <Text style={styles.unifiedBadgeText}>AI</Text>
+            </View>
+          )}
+        </View>
+
+        <View style={styles.unifiedContent}>
+          {isUnified ? (
+            // 使用智能标记解析
+            <View style={styles.analysisText}>
+              {parseUnifiedAnalysis(content)}
+            </View>
+          ) : (
+            // 降级到普通文本
+            <Text style={styles.legacyText}>{content}</Text>
+          )}
+        </View>
+      </View>
+    );
   };
 
   const renderSection = (title: string, content: any, icon: string = 'info') => {
@@ -117,21 +160,27 @@ const GenericFilingDetail: React.FC<GenericFilingDetailProps> = ({ filing }) => 
         </Text>
       </View>
 
-      {/* 移除了 AI Summary 部分 */}
+      {/* 优先显示统一分析 */}
+      {renderUnifiedAnalysis()}
 
-      {/* Dynamic sections based on available data */}
-      {renderSection('Overview', filing.one_liner || filing.business_overview, 'info')}
-      {renderSection('Key Points', filing.key_points || filing.key_insights, 'lightbulb')}
-      {renderSection('Risk Factors', filing.risks || filing.risk_factors, 'warning')}
-      {renderSection('Opportunities', filing.opportunities, 'trending-up')}
-      
-      {/* Financial Information if available */}
-      {(filing.financial_highlights || filing.financial_metrics) && (
-        renderSection(
-          'Financial Information', 
-          filing.financial_highlights || filing.financial_metrics, 
-          'attach-money'
-        )
+      {/* 如果没有统一分析，显示传统内容 */}
+      {!hasUnifiedAnalysis(filing) && (
+        <>
+          {/* Dynamic sections based on available data */}
+          {renderSection('Overview', filing.one_liner || filing.business_overview, 'info')}
+          {renderSection('Key Points', filing.key_points || filing.key_insights, 'lightbulb')}
+          {renderSection('Risk Factors', filing.risks || filing.risk_factors, 'warning')}
+          {renderSection('Opportunities', filing.opportunities, 'trending-up')}
+          
+          {/* Financial Information if available */}
+          {(filing.financial_highlights || filing.financial_metrics) && (
+            renderSection(
+              'Financial Information', 
+              filing.financial_highlights || filing.financial_metrics, 
+              'attach-money'
+            )
+          )}
+        </>
       )}
 
       {/* Event Information if available - 使用 item_type */}
@@ -256,7 +305,9 @@ const styles = StyleSheet.create({
     color: colors.white + '90',
     textAlign: 'center',
   },
-  section: {
+  
+  // Unified Analysis Section
+  unifiedSection: {
     backgroundColor: colors.white,
     marginHorizontal: spacing.md,
     marginTop: spacing.md,
@@ -284,6 +335,51 @@ const styles = StyleSheet.create({
     fontWeight: typography.fontWeight.semibold,
     color: colors.text,
     marginLeft: spacing.sm,
+    flex: 1,
+  },
+  unifiedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.primary + '10',
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+    borderRadius: borderRadius.sm,
+  },
+  unifiedBadgeText: {
+    fontSize: typography.fontSize.xs,
+    color: colors.primary,
+    marginLeft: spacing.xs,
+    fontWeight: typography.fontWeight.medium,
+  },
+  unifiedContent: {
+    paddingTop: spacing.sm,
+  },
+  analysisText: {
+    // Container for parsed unified analysis
+  },
+  legacyText: {
+    fontSize: typography.fontSize.md,
+    color: colors.text,
+    lineHeight: 24,
+  },
+  
+  section: {
+    backgroundColor: colors.white,
+    marginHorizontal: spacing.md,
+    marginTop: spacing.md,
+    padding: spacing.lg,
+    borderRadius: borderRadius.md,
+    ...Platform.select({
+      ios: {
+        shadowColor: colors.text,
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 2,
+      },
+    }),
   },
   sectionContent: {
     fontSize: typography.fontSize.md,

@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { colors, typography, spacing, borderRadius } from '../../theme';
+import { parseUnifiedAnalysis, hasUnifiedAnalysis, getDisplayAnalysis } from '../../utils/textHelpers';
 
 interface FilingDetail {
   id: number;
@@ -20,7 +21,14 @@ interface FilingDetail {
   filing_url: string;
   fiscal_year?: string;
   period_end_date?: string;
-  // 10-K specific fields - 全部改为字符串类型
+  
+  // Unified analysis fields
+  unified_analysis?: string;
+  analysis_version?: string;
+  smart_markup_data?: any;
+  
+  // Legacy fields
+  ai_summary?: string;
   auditor_opinion?: string;
   financial_metrics?: {
     revenue: number;
@@ -31,9 +39,9 @@ interface FilingDetail {
     roe: number;
     debt_to_equity: number;
   };
-  three_year_financials?: string;  // 改为string
-  business_segments?: string;  // 改为string
-  risk_summary?: string;  // 改为string
+  three_year_financials?: string;
+  business_segments?: string;
+  risk_summary?: string;
   growth_drivers?: string;
   management_outlook?: string;
   strategic_adjustments?: string;
@@ -71,7 +79,7 @@ const Annual10KDetail: React.FC<Annual10KDetailProps> = ({ filing }) => {
     });
   };
 
-  // 条目1: 公司元信息卡
+  // 简化的元信息卡
   const renderCompanyMetaCard = () => (
     <View style={styles.metaCard}>
       <View style={styles.metaHeader}>
@@ -106,177 +114,52 @@ const Annual10KDetail: React.FC<Annual10KDetailProps> = ({ filing }) => {
     </View>
   );
 
-  // 条目2: 审计意见提炼
-  const renderAuditorOpinion = () => {
-    if (!filing.auditor_opinion) return null;
-    
+  // 统一分析内容 - 核心部分
+  const renderUnifiedAnalysis = () => {
+    const content = getDisplayAnalysis(filing);
+    if (!content) return null;
+
+    const isUnified = hasUnifiedAnalysis(filing);
+
     return (
-      <View style={styles.section}>
+      <View style={styles.unifiedSection}>
         <View style={styles.sectionHeader}>
-          <Icon name="gavel" size={24} color={colors.primary} />
-          <Text style={styles.sectionTitle}>Auditor Opinion</Text>
+          <Icon name="analytics" size={24} color={colors.primary} />
+          <Text style={styles.sectionTitle}>Annual Report Analysis</Text>
+          {isUnified && (
+            <View style={styles.unifiedBadge}>
+              <Icon name="auto-awesome" size={14} color={colors.primary} />
+              <Text style={styles.unifiedBadgeText}>AI</Text>
+            </View>
+          )}
         </View>
-        
-        <View style={styles.narrativeCard}>
-          <Text style={styles.narrativeText}>{filing.auditor_opinion}</Text>
+
+        <View style={styles.unifiedContent}>
+          {isUnified ? (
+            // 使用智能标记解析
+            <View style={styles.analysisText}>
+              {parseUnifiedAnalysis(content)}
+            </View>
+          ) : (
+            // 降级到普通文本
+            <Text style={styles.legacyText}>{content}</Text>
+          )}
         </View>
       </View>
     );
   };
 
-  // 条目3: 三年财务关键指标卡 - 修正版
-  const renderThreeYearFinancials = () => {
-    if (!filing.three_year_financials) return null;
-
-    return (
-      <View style={styles.section}>
-        <View style={styles.sectionHeader}>
-          <Icon name="trending-up" size={24} color={colors.primary} />
-          <Text style={styles.sectionTitle}>3-Year Financial Highlights</Text>
-        </View>
-
-        <View style={styles.narrativeCard}>
-          <Text style={styles.narrativeText}>{filing.three_year_financials}</Text>
-        </View>
-      </View>
-    );
-  };
-
-  // 条目4: 主营业务结构摘要 - 修正版
-  const renderBusinessSegments = () => {
-    if (!filing.business_segments) return null;
-
-    return (
-      <View style={styles.section}>
-        <View style={styles.sectionHeader}>
-          <Icon name="pie-chart" size={24} color={colors.primary} />
-          <Text style={styles.sectionTitle}>Business Segments</Text>
-        </View>
-
-        <View style={styles.narrativeCard}>
-          <Text style={styles.narrativeText}>{filing.business_segments}</Text>
-        </View>
-      </View>
-    );
-  };
-
-  // 条目5: 风险因素摘要卡 - 修正版
-  const renderRiskFactorsSummary = () => {
-    if (!filing.risk_summary) return null;
-
-    return (
-      <View style={styles.section}>
-        <View style={styles.sectionHeader}>
-          <Icon name="warning" size={24} color={colors.error} />
-          <Text style={styles.sectionTitle}>Risk Factors Summary</Text>
-        </View>
-
-        <View style={styles.narrativeCard}>
-          <Text style={styles.narrativeText}>{filing.risk_summary}</Text>
-        </View>
-      </View>
-    );
-  };
-
-  // 条目6: GPT增长驱动总结
-  const renderGrowthDrivers = () => {
-    if (!filing.growth_drivers) return null;
-
-    return (
-      <View style={styles.section}>
-        <View style={styles.sectionHeader}>
-          <Icon name="rocket-launch" size={24} color={colors.success} />
-          <Text style={styles.sectionTitle}>Growth Drivers Analysis</Text>
-          <View style={styles.gptBadge}>
-            <Icon name="auto-awesome" size={14} color={colors.primary} />
-            <Text style={styles.gptBadgeText}>AI</Text>
-          </View>
-        </View>
-
-        <View style={styles.insightCard}>
-          <Text style={styles.insightText}>{filing.growth_drivers}</Text>
-        </View>
-      </View>
-    );
-  };
-
-  // 条目7: GPT管理层展望重点
-  const renderManagementOutlook = () => {
-    if (!filing.management_outlook) return null;
-
-    return (
-      <View style={styles.section}>
-        <View style={styles.sectionHeader}>
-          <Icon name="visibility" size={24} color={colors.primary} />
-          <Text style={styles.sectionTitle}>Management Outlook Highlights</Text>
-          <View style={styles.gptBadge}>
-            <Icon name="auto-awesome" size={14} color={colors.primary} />
-            <Text style={styles.gptBadgeText}>AI</Text>
-          </View>
-        </View>
-
-        <View style={styles.outlookCard}>
-          <Text style={styles.narrativeText}>{filing.management_outlook}</Text>
-        </View>
-      </View>
-    );
-  };
-
-  // 条目8: GPT战略调整判断
-  const renderStrategicAdjustments = () => {
-    if (!filing.strategic_adjustments) return null;
-
-    return (
-      <View style={styles.section}>
-        <View style={styles.sectionHeader}>
-          <Icon name="transform" size={24} color={colors.warning} />
-          <Text style={styles.sectionTitle}>Strategic Adjustments</Text>
-          <View style={styles.gptBadge}>
-            <Icon name="auto-awesome" size={14} color={colors.primary} />
-            <Text style={styles.gptBadgeText}>AI</Text>
-          </View>
-        </View>
-
-        <View style={styles.strategyCard}>
-          <Text style={styles.narrativeText}>{filing.strategic_adjustments}</Text>
-        </View>
-      </View>
-    );
-  };
-
-  // 条目9: GPT市场影响分析
-  const renderMarketImpact = () => {
-    if (!filing.market_impact_10k) return null;
-  
-    return (
-      <View style={styles.section}>
-        <View style={styles.sectionHeader}>
-          <Icon name="trending-up" size={24} color={colors.primary} />
-          <Text style={styles.sectionTitle}>Market Impact Analysis</Text>
-          <View style={styles.gptBadge}>
-            <Icon name="auto-awesome" size={14} color={colors.primary} />
-            <Text style={styles.gptBadgeText}>AI</Text>
-          </View>
-        </View>
-  
-        <View style={styles.insightCard}>
-          <Text style={styles.insightText}>{filing.market_impact_10k}</Text>
-        </View>
-      </View>
-    );
-  };
-
-  // 财务指标卡（保持原有的结构化数据）
+  // 财务指标卡（如果有结构化数据）
   const renderFinancialMetrics = () => {
-    if (!filing.financial_highlights) return null;
+    if (!filing.financial_highlights && !filing.financial_metrics) return null;
 
-    const metrics = filing.financial_highlights;
+    const metrics = filing.financial_highlights || filing.financial_metrics;
 
     return (
-      <View style={styles.section}>
+      <View style={styles.metricsSection}>
         <View style={styles.sectionHeader}>
           <Icon name="attach-money" size={24} color={colors.primary} />
-          <Text style={styles.sectionTitle}>Financial Metrics</Text>
+          <Text style={styles.sectionTitle}>Key Financial Metrics</Text>
         </View>
 
         <View style={styles.metricsGrid}>
@@ -304,20 +187,41 @@ const Annual10KDetail: React.FC<Annual10KDetailProps> = ({ filing }) => {
               <Text style={styles.metricValue}>{formatPercentage(metrics.gross_margin / 100)}</Text>
             </View>
           )}
-          {metrics.operating_margin && (
-            <View style={styles.metricCard}>
-              <Text style={styles.metricLabel}>Operating Margin</Text>
-              <Text style={styles.metricValue}>{formatPercentage(metrics.operating_margin / 100)}</Text>
-            </View>
-          )}
-          {metrics.cash && (
-            <View style={styles.metricCard}>
-              <Text style={styles.metricLabel}>Cash & Equivalents</Text>
-              <Text style={styles.metricValue}>{formatCurrency(metrics.cash)}</Text>
-            </View>
-          )}
         </View>
       </View>
+    );
+  };
+
+  // 仅在旧版本时显示的传统内容
+  const renderLegacyContent = () => {
+    if (hasUnifiedAnalysis(filing)) return null;
+
+    return (
+      <>
+        {filing.auditor_opinion && (
+          <View style={styles.legacySection}>
+            <View style={styles.sectionHeader}>
+              <Icon name="gavel" size={24} color={colors.primary} />
+              <Text style={styles.sectionTitle}>Auditor Opinion</Text>
+            </View>
+            <View style={styles.narrativeCard}>
+              <Text style={styles.narrativeText}>{filing.auditor_opinion}</Text>
+            </View>
+          </View>
+        )}
+
+        {filing.risk_summary && (
+          <View style={styles.legacySection}>
+            <View style={styles.sectionHeader}>
+              <Icon name="warning" size={24} color={colors.error} />
+              <Text style={styles.sectionTitle}>Risk Factors Summary</Text>
+            </View>
+            <View style={styles.narrativeCard}>
+              <Text style={styles.narrativeText}>{filing.risk_summary}</Text>
+            </View>
+          </View>
+        )}
+      </>
     );
   };
 
@@ -334,17 +238,11 @@ const Annual10KDetail: React.FC<Annual10KDetailProps> = ({ filing }) => {
         </Text>
       </View>
 
-      {/* All sections for 10-K */}
+      {/* 简化后的内容结构 */}
       {renderCompanyMetaCard()}
+      {renderUnifiedAnalysis()}
       {renderFinancialMetrics()}
-      {renderAuditorOpinion()}
-      {renderThreeYearFinancials()}
-      {renderBusinessSegments()}
-      {renderRiskFactorsSummary()}
-      {renderGrowthDrivers()}
-      {renderManagementOutlook()}
-      {renderStrategicAdjustments()}
-      {renderMarketImpact()}
+      {renderLegacyContent()}
 
       {/* Footer with SEC Link */}
       <View style={styles.footer}>
@@ -458,8 +356,8 @@ const styles = StyleSheet.create({
     color: colors.text,
   },
 
-  // Section Styles
-  section: {
+  // Unified Analysis Section
+  unifiedSection: {
     backgroundColor: colors.white,
     marginHorizontal: spacing.md,
     marginTop: spacing.md,
@@ -480,7 +378,10 @@ const styles = StyleSheet.create({
   sectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: spacing.md,
+    marginBottom: spacing.lg,
+    paddingBottom: spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
   },
   sectionTitle: {
     fontSize: typography.fontSize.lg,
@@ -489,7 +390,7 @@ const styles = StyleSheet.create({
     marginLeft: spacing.sm,
     flex: 1,
   },
-  gptBadge: {
+  unifiedBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: colors.primary + '10',
@@ -497,26 +398,43 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.xs,
     borderRadius: borderRadius.sm,
   },
-  gptBadgeText: {
+  unifiedBadgeText: {
     fontSize: typography.fontSize.xs,
     color: colors.primary,
     marginLeft: spacing.xs,
     fontWeight: typography.fontWeight.medium,
   },
-
-  // Narrative Cards - 新增的文本显示样式
-  narrativeCard: {
-    backgroundColor: colors.background,
-    padding: spacing.md,
-    borderRadius: borderRadius.sm,
+  unifiedContent: {
+    paddingTop: spacing.sm,
   },
-  narrativeText: {
+  analysisText: {
+    // Container for parsed unified analysis
+  },
+  legacyText: {
     fontSize: typography.fontSize.md,
     color: colors.text,
     lineHeight: 24,
   },
 
-  // Metrics Grid
+  // Metrics Section
+  metricsSection: {
+    backgroundColor: colors.white,
+    marginHorizontal: spacing.md,
+    marginTop: spacing.md,
+    padding: spacing.lg,
+    borderRadius: borderRadius.md,
+    ...Platform.select({
+      ios: {
+        shadowColor: colors.text,
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 2,
+      },
+    }),
+  },
   metricsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -537,32 +455,34 @@ const styles = StyleSheet.create({
     color: colors.text,
   },
 
-  // Insight Cards
-  insightCard: {
-    backgroundColor: colors.primary + '05',
+  // Legacy sections (for backward compatibility)
+  legacySection: {
+    backgroundColor: colors.white,
+    marginHorizontal: spacing.md,
+    marginTop: spacing.md,
+    padding: spacing.lg,
+    borderRadius: borderRadius.md,
+    ...Platform.select({
+      ios: {
+        shadowColor: colors.text,
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 2,
+      },
+    }),
+  },
+  narrativeCard: {
+    backgroundColor: colors.background,
     padding: spacing.md,
     borderRadius: borderRadius.sm,
-    borderLeftWidth: 3,
-    borderLeftColor: colors.primary,
   },
-  insightText: {
+  narrativeText: {
     fontSize: typography.fontSize.md,
     color: colors.text,
     lineHeight: 24,
-  },
-
-  // Outlook Card
-  outlookCard: {
-    backgroundColor: colors.success + '05',
-    padding: spacing.md,
-    borderRadius: borderRadius.sm,
-  },
-
-  // Strategy Card
-  strategyCard: {
-    backgroundColor: colors.warning + '05',
-    padding: spacing.md,
-    borderRadius: borderRadius.sm,
   },
 
   // Footer

@@ -7,7 +7,7 @@ import {
   CommentVoteResponse,
   CommentListResponse 
 } from '../types';
-import { cleanAISummary, cleanTags } from '../utils/textHelpers';
+import { cleanAISummary, cleanTags, getDisplaySummary } from '../utils/textHelpers';
 
 // Helper function to clean filing data
 const cleanFilingData = (filing: any): Filing => {
@@ -20,6 +20,15 @@ const cleanFilingData = (filing: any): Filing => {
     company_ticker: filing.company?.ticker || filing.company_ticker || '',
     company_cik: filing.company?.cik || filing.company_cik || '',
     
+    // ==================== UNIFIED ANALYSIS FIELDS (NEW) ====================
+    // Pass through unified analysis fields if they exist
+    unified_analysis: filing.unified_analysis,
+    unified_feed_summary: filing.unified_feed_summary,
+    analysis_version: filing.analysis_version,
+    smart_markup_data: filing.smart_markup_data,
+    analyst_expectations: filing.analyst_expectations,
+    // ========================================================================
+    
     // 字段映射（后端返回 -> 前端期望）
     key_tags: cleanTags(filing.tags || filing.key_tags || []),
     item_type: filing.event_type || filing.item_type || null,
@@ -31,7 +40,8 @@ const cleanFilingData = (filing: any): Filing => {
     ai_summary: cleanAISummary(filing.ai_summary),
     // 处理 one_liner，移除 "FEED_SUMMARY: " 前缀
     one_liner: filing.one_liner ? filing.one_liner.replace('FEED_SUMMARY: ', '') : null,
-    feed_summary: cleanAISummary(filing.one_liner || filing.feed_summary),
+    // Use helper function to get best feed summary
+    feed_summary: getDisplaySummary(filing),
     
     // 确保其他重要字段存在
     filing_date: filing.filing_date || '',
@@ -46,6 +56,47 @@ const cleanFilingData = (filing: any): Filing => {
     // 处理情绪/语调
     sentiment: filing.sentiment || filing.management_tone || null,
     management_tone: filing.management_tone || filing.sentiment || null,
+    
+    // 10-K specific fields
+    auditor_opinion: filing.auditor_opinion,
+    three_year_financials: filing.three_year_financials,
+    business_segments: filing.business_segments,
+    risk_summary: filing.risk_summary,
+    growth_drivers: filing.growth_drivers,
+    management_outlook: filing.management_outlook,
+    strategic_adjustments: filing.strategic_adjustments,
+    market_impact_10k: filing.market_impact_10k,
+    
+    // 10-Q specific fields
+    core_metrics: filing.core_metrics,
+    cost_structure: filing.cost_structure,
+    growth_decline_analysis: filing.growth_decline_analysis,
+    management_tone_analysis: filing.management_tone_analysis,
+    market_impact_10q: filing.market_impact_10q,
+    expectations_comparison: filing.expectations_comparison,
+    beat_miss_analysis: filing.beat_miss_analysis,
+    
+    // 8-K specific fields
+    items: filing.items,
+    event_timeline: filing.event_timeline,
+    event_nature_analysis: filing.event_nature_analysis,
+    market_impact_analysis: filing.market_impact_analysis,
+    key_considerations: filing.key_considerations,
+    
+    // S-1 specific fields
+    ipo_details: filing.ipo_details,
+    company_overview: filing.company_overview,
+    financial_summary: filing.financial_summary,
+    risk_categories: filing.risk_categories,
+    growth_path_analysis: filing.growth_path_analysis,
+    competitive_moat_analysis: filing.competitive_moat_analysis,
+    
+    // Common fields
+    fiscal_year: filing.fiscal_year,
+    fiscal_quarter: filing.fiscal_quarter,
+    period_end_date: filing.period_end_date,
+    guidance_update: filing.guidance_update,
+    financial_highlights: filing.financial_highlights,
   };
 };
 

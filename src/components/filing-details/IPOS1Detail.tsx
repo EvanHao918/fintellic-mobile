@@ -8,6 +8,7 @@ import {
   Linking,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { parseUnifiedAnalysis, hasUnifiedAnalysis, getDisplayAnalysis } from '../../utils/textHelpers';
 
 interface Filing {
   id: number;
@@ -16,9 +17,14 @@ interface Filing {
   company_ticker: string;
   filing_date: string;
   filing_url: string;
-  ai_summary?: string;
   
-  // S-1 specific fields - 全部改为字符串类型
+  // Unified analysis fields
+  unified_analysis?: string;
+  analysis_version?: string;
+  smart_markup_data?: any;
+  
+  // Legacy S-1 specific fields
+  ai_summary?: string;
   ipo_details?: string;
   company_overview?: string;
   financial_summary?: string;
@@ -56,105 +62,90 @@ const IPOS1Detail: React.FC<IPOS1DetailProps> = ({ filing }) => {
     }
   };
 
-  // 渲染IPO基本信息
-  const renderIPODetails = () => {
-    if (!filing.ipo_details) return null;
+  // 统一分析内容 - 核心部分
+  const renderUnifiedAnalysis = () => {
+    const content = getDisplayAnalysis(filing);
+    if (!content) return null;
+
+    const isUnified = hasUnifiedAnalysis(filing);
 
     return (
-      <View style={styles.section}>
+      <View style={styles.unifiedSection}>
         <View style={styles.sectionHeader}>
-          <MaterialCommunityIcons name="chart-line" size={20} color="#E88A36" />
-          <Text style={styles.sectionTitle}>IPO Details</Text>
+          <MaterialCommunityIcons name="rocket-launch" size={20} color="#E88A36" />
+          <Text style={styles.sectionTitle}>IPO Analysis</Text>
+          {isUnified && (
+            <View style={styles.unifiedBadge}>
+              <MaterialCommunityIcons name="auto-fix" size={14} color="#E88A36" />
+              <Text style={styles.unifiedBadgeText}>AI</Text>
+            </View>
+          )}
         </View>
-        <View style={styles.card}>
-          <Text style={styles.narrativeText}>{filing.ipo_details}</Text>
+
+        <View style={styles.unifiedContent}>
+          {isUnified ? (
+            // 使用智能标记解析
+            <View style={styles.analysisText}>
+              {parseUnifiedAnalysis(content)}
+            </View>
+          ) : (
+            // 降级到普通文本
+            <Text style={styles.legacyText}>{content}</Text>
+          )}
         </View>
       </View>
     );
   };
 
-  // 渲染公司概述
-  const renderCompanyOverview = () => {
-    if (!filing.company_overview) return null;
+  // IPO基本信息（如果有）
+  const renderIPOHighlights = () => {
+    if (!filing.ipo_details && !hasUnifiedAnalysis(filing)) return null;
 
     return (
-      <View style={styles.section}>
+      <View style={styles.highlightsCard}>
         <View style={styles.sectionHeader}>
-          <MaterialCommunityIcons name="office-building" size={20} color="#E88A36" />
-          <Text style={styles.sectionTitle}>Company Overview</Text>
+          <MaterialCommunityIcons name="information" size={20} color="#E88A36" />
+          <Text style={styles.sectionTitle}>IPO Overview</Text>
         </View>
-        <View style={styles.card}>
-          <Text style={styles.narrativeText}>{filing.company_overview}</Text>
-        </View>
+        {filing.ipo_details && (
+          <View style={styles.card}>
+            <Text style={styles.narrativeText}>{filing.ipo_details}</Text>
+          </View>
+        )}
       </View>
     );
   };
 
-  // 渲染财务摘要
-  const renderFinancialSummary = () => {
-    if (!filing.financial_summary) return null;
+  // 仅在旧版本时显示的传统内容
+  const renderLegacyContent = () => {
+    if (hasUnifiedAnalysis(filing)) return null;
 
     return (
-      <View style={styles.section}>
-        <View style={styles.sectionHeader}>
-          <MaterialCommunityIcons name="currency-usd" size={20} color="#E88A36" />
-          <Text style={styles.sectionTitle}>Financial Summary</Text>
-        </View>
-        <View style={styles.card}>
-          <Text style={styles.narrativeText}>{filing.financial_summary}</Text>
-        </View>
-      </View>
-    );
-  };
+      <>
+        {filing.company_overview && (
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <MaterialCommunityIcons name="office-building" size={20} color="#E88A36" />
+              <Text style={styles.sectionTitle}>Company Overview</Text>
+            </View>
+            <View style={styles.card}>
+              <Text style={styles.narrativeText}>{filing.company_overview}</Text>
+            </View>
+          </View>
+        )}
 
-  // 渲染风险分类
-  const renderRiskCategories = () => {
-    if (!filing.risk_categories) return null;
-
-    return (
-      <View style={styles.section}>
-        <View style={styles.sectionHeader}>
-          <MaterialCommunityIcons name="alert-circle" size={20} color="#E88A36" />
-          <Text style={styles.sectionTitle}>Risk Factors</Text>
-        </View>
-        <View style={styles.card}>
-          <Text style={styles.narrativeText}>{filing.risk_categories}</Text>
-        </View>
-      </View>
-    );
-  };
-
-  // 渲染成长路径分析
-  const renderGrowthAnalysis = () => {
-    if (!filing.growth_path_analysis) return null;
-
-    return (
-      <View style={styles.section}>
-        <View style={styles.sectionHeader}>
-          <MaterialCommunityIcons name="trending-up" size={20} color="#E88A36" />
-          <Text style={styles.sectionTitle}>Growth Path Analysis</Text>
-        </View>
-        <View style={styles.card}>
-          <Text style={styles.narrativeText}>{filing.growth_path_analysis}</Text>
-        </View>
-      </View>
-    );
-  };
-
-  // 渲染护城河分析
-  const renderCompetitiveMoat = () => {
-    if (!filing.competitive_moat_analysis) return null;
-
-    return (
-      <View style={styles.section}>
-        <View style={styles.sectionHeader}>
-          <MaterialCommunityIcons name="shield-check" size={20} color="#E88A36" />
-          <Text style={styles.sectionTitle}>Competitive Moat</Text>
-        </View>
-        <View style={styles.card}>
-          <Text style={styles.narrativeText}>{filing.competitive_moat_analysis}</Text>
-        </View>
-      </View>
+        {filing.financial_summary && (
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <MaterialCommunityIcons name="currency-usd" size={20} color="#E88A36" />
+              <Text style={styles.sectionTitle}>Financial Summary</Text>
+            </View>
+            <View style={styles.card}>
+              <Text style={styles.narrativeText}>{filing.financial_summary}</Text>
+            </View>
+          </View>
+        )}
+      </>
     );
   };
 
@@ -178,23 +169,10 @@ const IPOS1Detail: React.FC<IPOS1DetailProps> = ({ filing }) => {
       </View>
 
       <ScrollView style={styles.scrollContainer}>
-        {/* IPO详情 */}
-        {renderIPODetails()}
-
-        {/* 公司概述 */}
-        {renderCompanyOverview()}
-
-        {/* 财务摘要 */}
-        {renderFinancialSummary()}
-
-        {/* 风险因素 */}
-        {renderRiskCategories()}
-
-        {/* 成长路径 */}
-        {renderGrowthAnalysis()}
-
-        {/* 护城河分析 */}
-        {renderCompetitiveMoat()}
+        {/* 简化后的内容结构 */}
+        {renderIPOHighlights()}
+        {renderUnifiedAnalysis()}
+        {renderLegacyContent()}
 
         {/* 查看原始文件按钮 */}
         <TouchableOpacity style={styles.viewFilingButton} onPress={openSECFiling}>
@@ -262,7 +240,9 @@ const styles = StyleSheet.create({
   scrollContainer: {
     flex: 1,
   },
-  section: {
+
+  // Unified Analysis Section
+  unifiedSection: {
     marginBottom: 28,
     paddingHorizontal: 16,
   },
@@ -276,8 +256,52 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#1a1a1a',
     marginLeft: 8,
-    fontFamily: 'System',
+    flex: 1,
     letterSpacing: -0.3,
+  },
+  unifiedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#E88A36',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 4,
+  },
+  unifiedBadgeText: {
+    color: 'white',
+    fontSize: 11,
+    fontWeight: '600',
+    marginLeft: 4,
+  },
+  unifiedContent: {
+    backgroundColor: 'white',
+    borderRadius: 16,
+    padding: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  analysisText: {
+    // Container for parsed unified analysis
+  },
+  legacyText: {
+    fontSize: 15,
+    lineHeight: 23,
+    color: '#444',
+  },
+
+  // Highlights Card
+  highlightsCard: {
+    marginBottom: 28,
+    paddingHorizontal: 16,
+  },
+
+  // Legacy sections
+  section: {
+    marginBottom: 28,
+    paddingHorizontal: 16,
   },
   card: {
     backgroundColor: 'white',
@@ -294,6 +318,8 @@ const styles = StyleSheet.create({
     lineHeight: 23,
     color: '#444',
   },
+
+  // View Filing Button
   viewFilingButton: {
     backgroundColor: '#E88A36',
     flexDirection: 'row',

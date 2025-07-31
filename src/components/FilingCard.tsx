@@ -9,6 +9,7 @@ import {
 import { Text, Icon } from 'react-native-elements';
 import { Filing } from '../types';
 import { VotingModule, StatsDisplay } from './interactions';
+import { getDisplaySummary } from '../utils/textHelpers';
 import themeConfig from '../theme';
 
 const { colors, typography, spacing, borderRadius, shadows, filingTypes, sentiments } = themeConfig;
@@ -30,7 +31,9 @@ export default function FilingCard({
     ticker: filing.company_ticker,
     view_count: filing.view_count,
     comment_count: filing.comment_count,
-    vote_counts: filing.vote_counts
+    vote_counts: filing.vote_counts,
+    analysis_version: filing.analysis_version,
+    has_unified_feed_summary: !!filing.unified_feed_summary
   });
 
   const scaleAnim = React.useRef(new Animated.Value(1)).current;
@@ -90,8 +93,8 @@ export default function FilingCard({
   // Extract important tags
   const tags = filing.key_tags?.slice(0, 3) || [];
 
-  // 获取显示的摘要文本
-  const summaryText = filing.one_liner || filing.ai_summary || filing.feed_summary || 'Processing summary...';
+  // 获取显示的摘要文本 - 使用新的优先级逻辑
+  const summaryText = getDisplaySummary(filing) || 'Processing summary...';
 
   // Handle press animations
   const handlePressIn = () => {
@@ -127,6 +130,12 @@ export default function FilingCard({
                 <View style={[styles.filingBadge, { backgroundColor: filingConfig.color }]}>
                   <Text style={styles.filingBadgeText}>{filingConfig.label}</Text>
                 </View>
+                {/* Add v2 indicator if using unified analysis */}
+                {filing.analysis_version === 'v2' && (
+                  <View style={styles.v2Badge}>
+                    <Icon name="auto-awesome" size={12} color={colors.primary} />
+                  </View>
+                )}
               </View>
               <View style={styles.companyInfoRow}>
                 <Text style={styles.companyName} numberOfLines={1}>
@@ -302,6 +311,12 @@ const styles = StyleSheet.create({
     fontWeight: typography.fontWeight.semibold,
     color: colors.white,
     letterSpacing: 0.3,
+  },
+  v2Badge: {
+    marginLeft: spacing.xs,
+    backgroundColor: colors.primary + '20',
+    padding: 2,
+    borderRadius: borderRadius.sm,
   },
   companyInfoRow: {
     flexDirection: 'row',

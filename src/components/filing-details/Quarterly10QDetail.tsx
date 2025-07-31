@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { colors, typography, spacing, borderRadius } from '../../theme';
+import { parseUnifiedAnalysis, hasUnifiedAnalysis, getDisplayAnalysis } from '../../utils/textHelpers';
 
 interface FilingDetail {
   id: number;
@@ -20,7 +21,15 @@ interface FilingDetail {
   filing_url: string;
   fiscal_quarter?: string;
   period_end_date?: string;
-  // 10-Q specific fields
+  
+  // Unified analysis fields
+  unified_analysis?: string;
+  analysis_version?: string;
+  smart_markup_data?: any;
+  analyst_expectations?: any;
+  
+  // Legacy 10-Q specific fields
+  ai_summary?: string;
   core_metrics?: string;
   financial_highlights?: any;
   expectations_comparison?: string;
@@ -46,7 +55,7 @@ const Quarterly10QDetail: React.FC<Quarterly10QDetailProps> = ({ filing }) => {
     return `Q${quarter} ${date.getFullYear()}`;
   };
 
-  // 条目1: 季报元信息卡 - 极简设计
+  // 简化的季报元信息卡
   const renderQuarterlyMetaCard = () => (
     <View style={styles.metaCard}>
       <View style={styles.metaHeader}>
@@ -83,175 +92,119 @@ const Quarterly10QDetail: React.FC<Quarterly10QDetailProps> = ({ filing }) => {
     </View>
   );
 
-  // 条目2: 财务快照 - 重点突出设计
-  const renderFinancialSnapshot = () => {
-    if (!filing.core_metrics || typeof filing.core_metrics !== 'string') {
-      return null;
-    }
+  // 统一分析内容 - 核心部分
+  const renderUnifiedAnalysis = () => {
+    const content = getDisplayAnalysis(filing);
+    if (!content) return null;
+
+    const isUnified = hasUnifiedAnalysis(filing);
 
     return (
-      <View style={styles.section}>
-        <View style={styles.sectionHeader}>
-          <Icon name="attach-money" size={24} color={colors.primary} />
-          <Text style={styles.sectionTitle}>Financial Snapshot</Text>
-          <View style={styles.keyBadge}>
-            <Icon name="star" size={14} color={colors.warning} />
-            <Text style={styles.keyBadgeText}>KEY</Text>
-          </View>
-        </View>
-
-        <View style={styles.snapshotCard}>
-          <Text style={styles.snapshotText}>{filing.core_metrics}</Text>
-        </View>
-      </View>
-    );
-  };
-
-  // 条目3: 核心业绩 & 预期对比卡
-  const renderPerformanceVsExpectations = () => {
-    if (!filing.expectations_comparison) return null;
-
-    return (
-      <View style={styles.section}>
+      <View style={styles.unifiedSection}>
         <View style={styles.sectionHeader}>
           <Icon name="analytics" size={24} color={colors.primary} />
-          <Text style={styles.sectionTitle}>Performance vs. Expectations</Text>
+          <Text style={styles.sectionTitle}>Quarterly Results Analysis</Text>
+          {isUnified && (
+            <View style={styles.unifiedBadge}>
+              <Icon name="auto-awesome" size={14} color={colors.primary} />
+              <Text style={styles.unifiedBadgeText}>AI</Text>
+            </View>
+          )}
         </View>
 
-        <View style={styles.contentCard}>
-          <Text style={styles.contentText}>{filing.expectations_comparison}</Text>
-        </View>
-      </View>
-    );
-  };
-
-  // 条目4: 成本结构与费用摘要
-  const renderCostStructure = () => {
-    if (!filing.cost_structure) return null;
-
-    return (
-      <View style={styles.section}>
-        <View style={styles.sectionHeader}>
-          <Icon name="pie-chart" size={24} color={colors.primary} />
-          <Text style={styles.sectionTitle}>Cost Structure Analysis</Text>
-        </View>
-
-        <View style={styles.contentCard}>
-          <Text style={styles.contentText}>{filing.cost_structure}</Text>
+        <View style={styles.unifiedContent}>
+          {isUnified ? (
+            // 使用智能标记解析
+            <View style={styles.analysisText}>
+              {parseUnifiedAnalysis(content)}
+            </View>
+          ) : (
+            // 降级到普通文本
+            <Text style={styles.legacyText}>{content}</Text>
+          )}
         </View>
       </View>
     );
   };
 
-  // 条目5: 是否更新业绩指引
-  const renderGuidanceUpdate = () => {
-    if (!filing.guidance_update) return null;
+  // 分析师预期对比（如果有）
+  const renderExpectationsComparison = () => {
+    if (!filing.analyst_expectations || !hasUnifiedAnalysis(filing)) return null;
+
+    const expectations = filing.analyst_expectations;
 
     return (
-      <View style={styles.section}>
-        <View style={styles.sectionHeader}>
-          <Icon name="update" size={24} color={colors.primary} />
-          <Text style={styles.sectionTitle}>Guidance Update</Text>
+      <View style={styles.expectationsCard}>
+        <View style={styles.expectationsHeader}>
+          <Icon name="assessment" size={20} color={colors.primary} />
+          <Text style={styles.expectationsTitle}>vs. Analyst Expectations</Text>
         </View>
-
-        <View style={styles.contentCard}>
-          <Text style={styles.contentText}>{filing.guidance_update}</Text>
+        
+        <View style={styles.expectationsGrid}>
+          {expectations.revenue_estimate && (
+            <View style={styles.expectationItem}>
+              <Text style={styles.expectationLabel}>Revenue Estimate</Text>
+              <Text style={styles.expectationValue}>
+                ${expectations.revenue_estimate.value}B
+              </Text>
+              <Text style={styles.expectationAnalysts}>
+                ({expectations.revenue_estimate.analysts} analysts)
+              </Text>
+            </View>
+          )}
+          
+          {expectations.eps_estimate && (
+            <View style={styles.expectationItem}>
+              <Text style={styles.expectationLabel}>EPS Estimate</Text>
+              <Text style={styles.expectationValue}>
+                ${expectations.eps_estimate.value}
+              </Text>
+              <Text style={styles.expectationAnalysts}>
+                ({expectations.eps_estimate.analysts} analysts)
+              </Text>
+            </View>
+          )}
         </View>
       </View>
     );
   };
 
-  // 条目6: GPT增长/下滑驱动分析
-  const renderGrowthDeclineAnalysis = () => {
-    if (!filing.growth_decline_analysis) return null;
+  // 仅在旧版本时显示的传统内容
+  const renderLegacyContent = () => {
+    if (hasUnifiedAnalysis(filing)) return null;
 
     return (
-      <View style={styles.section}>
-        <View style={styles.sectionHeader}>
-          <Icon name="insights" size={24} color={colors.primary} />
-          <Text style={styles.sectionTitle}>Growth/Decline Drivers</Text>
-          <View style={styles.aiBadge}>
-            <Icon name="auto-awesome" size={14} color={colors.primary} />
-            <Text style={styles.aiBadgeText}>AI</Text>
+      <>
+        {filing.expectations_comparison && (
+          <View style={styles.legacySection}>
+            <View style={styles.sectionHeader}>
+              <Icon name="analytics" size={24} color={colors.primary} />
+              <Text style={styles.sectionTitle}>Performance vs. Expectations</Text>
+            </View>
+            <View style={styles.contentCard}>
+              <Text style={styles.contentText}>{filing.expectations_comparison}</Text>
+            </View>
           </View>
-        </View>
+        )}
 
-        <View style={styles.aiContentCard}>
-          <Text style={styles.aiContentText}>{filing.growth_decline_analysis}</Text>
-        </View>
-      </View>
-    );
-  };
-
-  // 条目7: GPT管理层语气分析
-  const renderManagementToneAnalysis = () => {
-    if (!filing.management_tone_analysis) return null;
-
-    return (
-      <View style={styles.section}>
-        <View style={styles.sectionHeader}>
-          <Icon name="record-voice-over" size={24} color={colors.primary} />
-          <Text style={styles.sectionTitle}>Management Tone Analysis</Text>
-          <View style={styles.aiBadge}>
-            <Icon name="auto-awesome" size={14} color={colors.primary} />
-            <Text style={styles.aiBadgeText}>AI</Text>
+        {filing.guidance_update && (
+          <View style={styles.legacySection}>
+            <View style={styles.sectionHeader}>
+              <Icon name="update" size={24} color={colors.primary} />
+              <Text style={styles.sectionTitle}>Guidance Update</Text>
+            </View>
+            <View style={styles.contentCard}>
+              <Text style={styles.contentText}>{filing.guidance_update}</Text>
+            </View>
           </View>
-        </View>
-
-        <View style={styles.aiContentCard}>
-          <Text style={styles.aiContentText}>{filing.management_tone_analysis}</Text>
-        </View>
-      </View>
-    );
-  };
-
-  // 条目8: GPT超预期/不及预期原因分析
-  const renderBeatMissAnalysis = () => {
-    if (!filing.beat_miss_analysis) return null;
-
-    return (
-      <View style={styles.section}>
-        <View style={styles.sectionHeader}>
-          <Icon name="psychology" size={24} color={colors.primary} />
-          <Text style={styles.sectionTitle}>Beat/Miss Analysis</Text>
-          <View style={styles.aiBadge}>
-            <Icon name="auto-awesome" size={14} color={colors.primary} />
-            <Text style={styles.aiBadgeText}>AI</Text>
-          </View>
-        </View>
-
-        <View style={styles.aiContentCard}>
-          <Text style={styles.aiContentText}>{filing.beat_miss_analysis}</Text>
-        </View>
-      </View>
-    );
-  };
-
-  // 条目9: GPT市场影响分析
-  const renderMarketImpact = () => {
-    if (!filing.market_impact_10q) return null;
-  
-    return (
-      <View style={styles.section}>
-        <View style={styles.sectionHeader}>
-          <Icon name="trending-up" size={24} color={colors.primary} />
-          <Text style={styles.sectionTitle}>Market Impact Analysis</Text>
-          <View style={styles.aiBadge}>
-            <Icon name="auto-awesome" size={14} color={colors.primary} />
-            <Text style={styles.aiBadgeText}>AI</Text>
-          </View>
-        </View>
-  
-        <View style={styles.aiContentCard}>
-          <Text style={styles.aiContentText}>{filing.market_impact_10q}</Text>
-        </View>
-      </View>
+        )}
+      </>
     );
   };
 
   return (
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
-      {/* 10-Q Header - 极简设计 */}
+      {/* 10-Q Header - 简约设计 */}
       <View style={styles.header}>
         <View style={styles.headerContent}>
           <View style={styles.headerIcon}>
@@ -264,17 +217,12 @@ const Quarterly10QDetail: React.FC<Quarterly10QDetailProps> = ({ filing }) => {
         </View>
       </View>
 
-      {/* All sections */}
+      {/* 简化后的内容结构 */}
       <View style={styles.contentContainer}>
         {renderQuarterlyMetaCard()}
-        {renderFinancialSnapshot()}
-        {renderPerformanceVsExpectations()}
-        {renderCostStructure()}
-        {renderGuidanceUpdate()}
-        {renderGrowthDeclineAnalysis()}
-        {renderManagementToneAnalysis()}
-        {renderBeatMissAnalysis()}
-        {renderMarketImpact()}
+        {renderUnifiedAnalysis()}
+        {renderExpectationsComparison()}
+        {renderLegacyContent()}
       </View>
 
       {/* Footer with SEC Link */}
@@ -294,7 +242,7 @@ const Quarterly10QDetail: React.FC<Quarterly10QDetailProps> = ({ filing }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.gray50, // 浅灰背景增加层次
+    backgroundColor: colors.gray50,
   },
   
   // Header - 简约设计
@@ -337,7 +285,7 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.md,
   },
   
-  // Meta Card - 信息卡片 - 报纸风格
+  // Meta Card - 信息卡片
   metaCard: {
     backgroundColor: colors.white,
     marginHorizontal: spacing.md,
@@ -375,11 +323,6 @@ const styles = StyleSheet.create({
     fontWeight: '900',
     color: colors.gray900,
     letterSpacing: -1,
-    fontFamily: Platform.select({
-      ios: 'Georgia',
-      android: 'Roboto Slab',
-      default: 'System',
-    }),
   },
   companyName: {
     fontSize: typography.fontSize.md,
@@ -387,11 +330,6 @@ const styles = StyleSheet.create({
     marginTop: spacing.xxs,
     fontWeight: typography.fontWeight.medium,
     fontStyle: 'italic',
-    fontFamily: Platform.select({
-      ios: 'Georgia',
-      android: 'Roboto Slab',
-      default: 'System',
-    }),
   },
   filingBadge: {
     backgroundColor: colors.filing10Q,
@@ -426,8 +364,8 @@ const styles = StyleSheet.create({
     color: colors.gray900,
   },
 
-  // Section - 通用卡片样式
-  section: {
+  // Unified Analysis Section
+  unifiedSection: {
     backgroundColor: colors.white,
     marginHorizontal: spacing.md,
     marginBottom: spacing.md,
@@ -464,32 +402,8 @@ const styles = StyleSheet.create({
     marginLeft: spacing.sm,
     flex: 1,
     letterSpacing: -0.5,
-    fontFamily: Platform.select({
-      ios: 'Georgia',
-      android: 'Roboto Slab', 
-      default: 'System',
-    }),
   },
-
-  // 重点标记 - 添加flexDirection
-  keyBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.warning + '20',
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xs,
-    borderRadius: borderRadius.sm,
-  },
-  keyBadgeText: {
-    fontSize: typography.fontSize.xs,
-    color: colors.warning,
-    fontWeight: typography.fontWeight.bold,
-    letterSpacing: 0.5,
-    marginLeft: spacing.xs,
-  },
-
-  // AI标记 - 使用主色调
-  aiBadge: {
+  unifiedBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: colors.primary + '10',
@@ -497,30 +411,81 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.xs,
     borderRadius: borderRadius.sm,
   },
-  aiBadgeText: {
+  unifiedBadgeText: {
     fontSize: typography.fontSize.xs,
     color: colors.primary,
     marginLeft: spacing.xxs,
     fontWeight: typography.fontWeight.medium,
     letterSpacing: 0.5,
   },
-
-  // 财务快照卡片 - 重点内容特殊处理
-  snapshotCard: {
-    backgroundColor: colors.white,
-    paddingTop: spacing.md,
+  unifiedContent: {
+    paddingTop: spacing.sm,
   },
-  snapshotText: {
+  analysisText: {
+    // Container for parsed unified analysis
+  },
+  legacyText: {
     fontSize: typography.fontSize.md,
-    color: colors.gray900,
-    lineHeight: 30,
-    fontWeight: typography.fontWeight.regular,
-    letterSpacing: 0.3,
-    // 首行缩进效果
-    textAlign: 'justify' as 'justify',
+    color: colors.text,
+    lineHeight: 24,
   },
 
-  // 普通内容卡片
+  // Expectations Card
+  expectationsCard: {
+    backgroundColor: colors.primary + '05',
+    marginHorizontal: spacing.md,
+    marginBottom: spacing.md,
+    padding: spacing.lg,
+    borderRadius: borderRadius.lg,
+    borderWidth: 1,
+    borderColor: colors.primary + '20',
+  },
+  expectationsHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: spacing.md,
+  },
+  expectationsTitle: {
+    fontSize: typography.fontSize.md,
+    fontWeight: typography.fontWeight.semibold,
+    color: colors.text,
+    marginLeft: spacing.sm,
+  },
+  expectationsGrid: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+  },
+  expectationItem: {
+    alignItems: 'center',
+  },
+  expectationLabel: {
+    fontSize: typography.fontSize.sm,
+    color: colors.textSecondary,
+    marginBottom: spacing.xs,
+  },
+  expectationValue: {
+    fontSize: typography.fontSize.lg,
+    fontWeight: typography.fontWeight.bold,
+    color: colors.primary,
+  },
+  expectationAnalysts: {
+    fontSize: typography.fontSize.xs,
+    color: colors.textSecondary,
+    marginTop: spacing.xs,
+  },
+
+  // Legacy sections
+  legacySection: {
+    backgroundColor: colors.white,
+    marginHorizontal: spacing.md,
+    marginBottom: spacing.md,
+    paddingTop: spacing.lg,
+    paddingHorizontal: spacing.lg,
+    paddingBottom: spacing.lg + spacing.xs,
+    borderRadius: borderRadius.lg,
+    borderWidth: 1,
+    borderColor: colors.gray100,
+  },
   contentCard: {
     backgroundColor: colors.white,
     paddingTop: spacing.xs,
@@ -530,26 +495,9 @@ const styles = StyleSheet.create({
     color: colors.gray800,
     lineHeight: 28,
     letterSpacing: 0.2,
-    textAlign: 'justify' as 'justify',
   },
 
-  // AI内容卡片 - 引用样式
-  aiContentCard: {
-    backgroundColor: colors.white,
-    paddingLeft: spacing.md,
-    marginTop: spacing.xs,
-    borderLeftWidth: 2,
-    borderLeftColor: colors.gray200,
-  },
-  aiContentText: {
-    fontSize: typography.fontSize.base,
-    color: colors.gray700,
-    lineHeight: 28,
-    letterSpacing: 0.2,
-    fontStyle: 'italic',
-  },
-
-  // Footer - 优雅设计
+  // Footer
   footer: {
     paddingVertical: spacing.xxl,
     paddingHorizontal: spacing.lg,

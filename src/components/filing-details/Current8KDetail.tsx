@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { colors, typography, spacing, borderRadius } from '../../theme';
+import { parseUnifiedAnalysis, hasUnifiedAnalysis, getDisplayAnalysis } from '../../utils/textHelpers';
 
 interface FilingDetail {
   id: number;
@@ -19,12 +20,17 @@ interface FilingDetail {
   filing_date: string;
   filing_url: string;
   accession_number: string;
-  ai_summary?: string;
   
-  // 8-K specific fields - 全部改为字符串类型
+  // Unified analysis fields
+  unified_analysis?: string;
+  analysis_version?: string;
+  smart_markup_data?: any;
+  
+  // Legacy 8-K specific fields
+  ai_summary?: string;
   item_type?: string;
-  items?: string;  // 改为string
-  event_timeline?: string;  // 改为string
+  items?: string;
+  event_timeline?: string;
   event_nature_analysis?: string;
   market_impact_analysis?: string;
   key_considerations?: string;
@@ -38,18 +44,6 @@ interface Current8KDetailProps {
 const Current8KDetail: React.FC<Current8KDetailProps> = ({ filing }) => {
   const redColor = '#EF4444'; // 8-K signature color
 
-  // Format date with time if available
-  const formatDateTime = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-  };
-
   // Format relative time
   const getRelativeTime = (dateString: string) => {
     const date = new Date(dateString);
@@ -60,6 +54,105 @@ const Current8KDetail: React.FC<Current8KDetailProps> = ({ filing }) => {
     if (diffInHours < 24) return `${diffInHours} hours ago`;
     if (diffInHours < 48) return 'Yesterday';
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  };
+
+  // 统一分析内容 - 核心部分
+  const renderUnifiedAnalysis = () => {
+    const content = getDisplayAnalysis(filing);
+    if (!content) return null;
+
+    const isUnified = hasUnifiedAnalysis(filing);
+
+    return (
+      <View style={styles.unifiedSection}>
+        <View style={styles.sectionHeader}>
+          <Icon name="flash-on" size={24} color={redColor} />
+          <Text style={styles.sectionTitle}>Event Analysis</Text>
+          {isUnified && (
+            <View style={styles.unifiedBadge}>
+              <Icon name="auto-awesome" size={14} color={redColor} />
+              <Text style={styles.unifiedBadgeText}>AI</Text>
+            </View>
+          )}
+        </View>
+
+        <View style={styles.unifiedContent}>
+          {isUnified ? (
+            // 使用智能标记解析
+            <View style={styles.analysisText}>
+              {parseUnifiedAnalysis(content)}
+            </View>
+          ) : (
+            // 降级到普通文本
+            <Text style={styles.legacyText}>{content}</Text>
+          )}
+        </View>
+      </View>
+    );
+  };
+
+  // 事件元信息卡（精简版）
+  const renderEventMetaCard = () => (
+    <View style={styles.metaCard}>
+      <View style={styles.metaGrid}>
+        <View style={styles.metaItem}>
+          <Text style={styles.metaLabel}>Company</Text>
+          <Text style={styles.metaValue}>{filing.company_ticker}</Text>
+          <Text style={styles.metaSubvalue}>{filing.company_name}</Text>
+        </View>
+        
+        <View style={styles.metaItem}>
+          <Text style={styles.metaLabel}>Filing Date</Text>
+          <Text style={styles.metaValue}>
+            {new Date(filing.filing_date).toLocaleDateString('en-US', {
+              month: 'short',
+              day: 'numeric',
+              year: 'numeric',
+            })}
+          </Text>
+        </View>
+        
+        {filing.item_type && (
+          <View style={styles.metaItem}>
+            <Text style={styles.metaLabel}>Item Type</Text>
+            <Text style={styles.metaValue}>Item {filing.item_type}</Text>
+          </View>
+        )}
+      </View>
+    </View>
+  );
+
+  // 仅在旧版本时显示的传统内容
+  const renderLegacyContent = () => {
+    if (hasUnifiedAnalysis(filing)) return null;
+
+    return (
+      <>
+        {filing.items && (
+          <View style={styles.legacySection}>
+            <View style={styles.sectionHeader}>
+              <Icon name="article" size={24} color={redColor} />
+              <Text style={styles.sectionTitle}>What Happened</Text>
+            </View>
+            <View style={styles.narrativeCard}>
+              <Text style={styles.narrativeText}>{filing.items}</Text>
+            </View>
+          </View>
+        )}
+
+        {filing.market_impact_analysis && (
+          <View style={styles.legacySection}>
+            <View style={styles.sectionHeader}>
+              <Icon name="show-chart" size={24} color={redColor} />
+              <Text style={styles.sectionTitle}>Potential Market Impact</Text>
+            </View>
+            <View style={styles.impactCard}>
+              <Text style={styles.narrativeText}>{filing.market_impact_analysis}</Text>
+            </View>
+          </View>
+        )}
+      </>
+    );
   };
 
   return (
@@ -79,107 +172,10 @@ const Current8KDetail: React.FC<Current8KDetailProps> = ({ filing }) => {
         </View>
       </View>
 
-      {/* 1. 披露元信息卡 */}
-      <View style={styles.section}>
-        <View style={styles.sectionHeader}>
-          <Icon name="info" size={24} color={redColor} />
-          <Text style={styles.sectionTitle}>Filing Information</Text>
-        </View>
-        
-        <View style={styles.infoGrid}>
-          <View style={styles.infoItem}>
-            <Text style={styles.infoLabel}>Company</Text>
-            <Text style={styles.infoValue}>{filing.company_ticker}</Text>
-            <Text style={styles.infoSubvalue}>{filing.company_name}</Text>
-          </View>
-          
-          <View style={styles.infoItem}>
-            <Text style={styles.infoLabel}>Filing Date</Text>
-            <Text style={styles.infoValue}>
-              {new Date(filing.filing_date).toLocaleDateString('en-US', {
-                month: 'short',
-                day: 'numeric',
-                year: 'numeric',
-              })}
-            </Text>
-            <Text style={styles.infoSubvalue}>
-              {new Date(filing.filing_date).toLocaleTimeString('en-US', {
-                hour: '2-digit',
-                minute: '2-digit',
-              })}
-            </Text>
-          </View>
-          
-          <View style={styles.infoItem}>
-            <Text style={styles.infoLabel}>Accession No.</Text>
-            <Text style={[styles.infoValue, styles.accessionNumber]}>
-              {filing.accession_number}
-            </Text>
-          </View>
-        </View>
-      </View>
-
-      {/* 2. Item Type 摘要卡 */}
-      {filing.item_type && (
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Icon name="assignment" size={24} color={redColor} />
-            <Text style={styles.sectionTitle}>Item Type</Text>
-          </View>
-          
-          <View style={styles.narrativeCard}>
-            <Text style={styles.itemTypeText}>Item {filing.item_type}</Text>
-          </View>
-        </View>
-      )}
-
-      {/* 3. What Happened - 原Items */}
-      {filing.items && (
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Icon name="article" size={24} color={redColor} />
-            <Text style={styles.sectionTitle}>What Happened</Text>
-          </View>
-          
-          <View style={styles.narrativeCard}>
-            <Text style={styles.narrativeText}>{filing.items}</Text>
-          </View>
-        </View>
-      )}
-
-      {/* 4. Potential Market Impact - 原market_impact_analysis */}
-      {filing.market_impact_analysis && (
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Icon name="show-chart" size={24} color={redColor} />
-            <Text style={styles.sectionTitle}>Potential Market Impact</Text>
-            <View style={styles.gptBadge}>
-              <Text style={styles.gptBadgeText}>AI</Text>
-            </View>
-          </View>
-          
-          <View style={styles.impactCard}>
-            <Text style={styles.narrativeText}>{filing.market_impact_analysis}</Text>
-          </View>
-        </View>
-      )}
-
-      {/* 5. What to Watch - 原key_considerations */}
-      {filing.key_considerations && (
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Icon name="visibility" size={24} color={redColor} />
-            <Text style={styles.sectionTitle}>What to Watch</Text>
-            <View style={styles.gptBadge}>
-              <Text style={styles.gptBadgeText}>AI</Text>
-            </View>
-          </View>
-          
-          <View style={styles.considerationsCard}>
-            <Text style={styles.narrativeText}>{filing.key_considerations}</Text>
-          </View>
-        </View>
-      )}
+      {/* 简化后的内容结构 */}
+      {renderEventMetaCard()}
+      {renderUnifiedAnalysis()}
+      {renderLegacyContent()}
 
       {/* Footer with SEC Link */}
       <View style={styles.footer}>
@@ -239,7 +235,54 @@ const styles = StyleSheet.create({
     fontWeight: typography.fontWeight.medium,
     marginLeft: spacing.xs,
   },
-  section: {
+
+  // Meta Card
+  metaCard: {
+    backgroundColor: colors.white,
+    marginHorizontal: spacing.md,
+    marginTop: spacing.md,
+    padding: spacing.lg,
+    borderRadius: borderRadius.md,
+    ...Platform.select({
+      ios: {
+        shadowColor: colors.text,
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 2,
+      },
+    }),
+  },
+  metaGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginHorizontal: -spacing.xs,
+  },
+  metaItem: {
+    flex: 1,
+    minWidth: '33%',
+    padding: spacing.xs,
+  },
+  metaLabel: {
+    fontSize: typography.fontSize.sm,
+    color: colors.textSecondary,
+    marginBottom: spacing.xs,
+  },
+  metaValue: {
+    fontSize: typography.fontSize.md,
+    fontWeight: typography.fontWeight.semibold,
+    color: colors.text,
+  },
+  metaSubvalue: {
+    fontSize: typography.fontSize.sm,
+    color: colors.textSecondary,
+    marginTop: spacing.xs,
+  },
+
+  // Unified Analysis Section
+  unifiedSection: {
     backgroundColor: colors.white,
     marginHorizontal: spacing.md,
     marginTop: spacing.md,
@@ -269,49 +312,48 @@ const styles = StyleSheet.create({
     marginLeft: spacing.sm,
     flex: 1,
   },
-  gptBadge: {
+  unifiedBadge: {
     backgroundColor: '#EF4444',
     paddingHorizontal: spacing.sm,
     paddingVertical: spacing.xs,
     borderRadius: borderRadius.sm,
   },
-  gptBadgeText: {
+  unifiedBadgeText: {
     color: colors.white,
     fontSize: typography.fontSize.xs,
     fontWeight: typography.fontWeight.bold,
   },
-  
-  // Info Grid
-  infoGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    marginHorizontal: -spacing.xs,
+  unifiedContent: {
+    paddingTop: spacing.sm,
   },
-  infoItem: {
-    flex: 1,
-    minWidth: '33%',
-    padding: spacing.xs,
+  analysisText: {
+    // Container for parsed unified analysis
   },
-  infoLabel: {
-    fontSize: typography.fontSize.sm,
-    color: colors.textSecondary,
-    marginBottom: spacing.xs,
-  },
-  infoValue: {
+  legacyText: {
     fontSize: typography.fontSize.md,
-    fontWeight: typography.fontWeight.semibold,
     color: colors.text,
+    lineHeight: 24,
   },
-  infoSubvalue: {
-    fontSize: typography.fontSize.sm,
-    color: colors.textSecondary,
-    marginTop: spacing.xs,
+
+  // Legacy sections
+  legacySection: {
+    backgroundColor: colors.white,
+    marginHorizontal: spacing.md,
+    marginTop: spacing.md,
+    padding: spacing.lg,
+    borderRadius: borderRadius.md,
+    ...Platform.select({
+      ios: {
+        shadowColor: colors.text,
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 2,
+      },
+    }),
   },
-  accessionNumber: {
-    fontSize: typography.fontSize.sm,
-  },
-  
-  // Narrative Cards - 文本显示样式
   narrativeCard: {
     backgroundColor: colors.background,
     padding: spacing.md,
@@ -322,31 +364,13 @@ const styles = StyleSheet.create({
     color: colors.text,
     lineHeight: 24,
   },
-  itemTypeText: {
-    fontSize: typography.fontSize.lg,
-    fontWeight: typography.fontWeight.semibold,
-    color: colors.text,
-  },
-  
-  // Analysis Cards
-  analysisCard: {
-    backgroundColor: colors.background,
-    padding: spacing.md,
-    borderRadius: borderRadius.sm,
-  },
   impactCard: {
     backgroundColor: '#FEE2E2',
     padding: spacing.md,
     borderRadius: borderRadius.md,
   },
-  considerationsCard: {
-    backgroundColor: colors.background,
-    padding: spacing.md,
-    borderRadius: borderRadius.md,
-    borderWidth: 1,
-    borderColor: '#EF4444' + '30',
-  },
-  
+
+  // Footer
   footer: {
     padding: spacing.xl,
     alignItems: 'center',
