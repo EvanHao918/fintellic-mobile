@@ -62,7 +62,7 @@ const IPOS1Detail: React.FC<IPOS1DetailProps> = ({ filing }) => {
     }
   };
 
-  // 统一分析内容 - 核心部分
+  // 统一分析内容 - 唯一的内容区域
   const renderUnifiedAnalysis = () => {
     const content = getDisplayAnalysis(filing);
     if (!content) return null;
@@ -97,58 +97,6 @@ const IPOS1Detail: React.FC<IPOS1DetailProps> = ({ filing }) => {
     );
   };
 
-  // IPO基本信息（如果有）
-  const renderIPOHighlights = () => {
-    if (!filing.ipo_details && !hasUnifiedAnalysis(filing)) return null;
-
-    return (
-      <View style={styles.highlightsCard}>
-        <View style={styles.sectionHeader}>
-          <MaterialCommunityIcons name="information" size={20} color="#E88A36" />
-          <Text style={styles.sectionTitle}>IPO Overview</Text>
-        </View>
-        {filing.ipo_details && (
-          <View style={styles.card}>
-            <Text style={styles.narrativeText}>{filing.ipo_details}</Text>
-          </View>
-        )}
-      </View>
-    );
-  };
-
-  // 仅在旧版本时显示的传统内容
-  const renderLegacyContent = () => {
-    if (hasUnifiedAnalysis(filing)) return null;
-
-    return (
-      <>
-        {filing.company_overview && (
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <MaterialCommunityIcons name="office-building" size={20} color="#E88A36" />
-              <Text style={styles.sectionTitle}>Company Overview</Text>
-            </View>
-            <View style={styles.card}>
-              <Text style={styles.narrativeText}>{filing.company_overview}</Text>
-            </View>
-          </View>
-        )}
-
-        {filing.financial_summary && (
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <MaterialCommunityIcons name="currency-usd" size={20} color="#E88A36" />
-              <Text style={styles.sectionTitle}>Financial Summary</Text>
-            </View>
-            <View style={styles.card}>
-              <Text style={styles.narrativeText}>{filing.financial_summary}</Text>
-            </View>
-          </View>
-        )}
-      </>
-    );
-  };
-
   return (
     <View style={styles.container}>
       {/* 紫色报头 */}
@@ -169,10 +117,8 @@ const IPOS1Detail: React.FC<IPOS1DetailProps> = ({ filing }) => {
       </View>
 
       <ScrollView style={styles.scrollContainer}>
-        {/* 简化后的内容结构 */}
-        {renderIPOHighlights()}
+        {/* 极简的内容结构 - 只有统一分析 */}
         {renderUnifiedAnalysis()}
-        {renderLegacyContent()}
 
         {/* 查看原始文件按钮 */}
         <TouchableOpacity style={styles.viewFilingButton} onPress={openSECFiling}>
@@ -241,9 +187,10 @@ const styles = StyleSheet.create({
     flex: 1,
   },
 
-  // Unified Analysis Section
+  // Unified Analysis Section - 唯一的内容区域
   unifiedSection: {
     marginBottom: 28,
+    marginTop: 20,
     paddingHorizontal: 16,
   },
   sectionHeader: {
@@ -285,35 +232,9 @@ const styles = StyleSheet.create({
   },
   analysisText: {
     // Container for parsed unified analysis
+    // 实际样式在 textHelpers.ts 中定义
   },
   legacyText: {
-    fontSize: 15,
-    lineHeight: 23,
-    color: '#444',
-  },
-
-  // Highlights Card
-  highlightsCard: {
-    marginBottom: 28,
-    paddingHorizontal: 16,
-  },
-
-  // Legacy sections
-  section: {
-    marginBottom: 28,
-    paddingHorizontal: 16,
-  },
-  card: {
-    backgroundColor: 'white',
-    borderRadius: 16,
-    padding: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  narrativeText: {
     fontSize: 15,
     lineHeight: 23,
     color: '#444',

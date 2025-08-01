@@ -56,7 +56,7 @@ const Current8KDetail: React.FC<Current8KDetailProps> = ({ filing }) => {
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   };
 
-  // 统一分析内容 - 核心部分
+  // 统一分析内容 - 唯一的内容区域
   const renderUnifiedAnalysis = () => {
     const content = getDisplayAnalysis(filing);
     if (!content) return null;
@@ -122,39 +122,6 @@ const Current8KDetail: React.FC<Current8KDetailProps> = ({ filing }) => {
     </View>
   );
 
-  // 仅在旧版本时显示的传统内容
-  const renderLegacyContent = () => {
-    if (hasUnifiedAnalysis(filing)) return null;
-
-    return (
-      <>
-        {filing.items && (
-          <View style={styles.legacySection}>
-            <View style={styles.sectionHeader}>
-              <Icon name="article" size={24} color={redColor} />
-              <Text style={styles.sectionTitle}>What Happened</Text>
-            </View>
-            <View style={styles.narrativeCard}>
-              <Text style={styles.narrativeText}>{filing.items}</Text>
-            </View>
-          </View>
-        )}
-
-        {filing.market_impact_analysis && (
-          <View style={styles.legacySection}>
-            <View style={styles.sectionHeader}>
-              <Icon name="show-chart" size={24} color={redColor} />
-              <Text style={styles.sectionTitle}>Potential Market Impact</Text>
-            </View>
-            <View style={styles.impactCard}>
-              <Text style={styles.narrativeText}>{filing.market_impact_analysis}</Text>
-            </View>
-          </View>
-        )}
-      </>
-    );
-  };
-
   return (
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
       {/* 8-K Header */}
@@ -172,10 +139,9 @@ const Current8KDetail: React.FC<Current8KDetailProps> = ({ filing }) => {
         </View>
       </View>
 
-      {/* 简化后的内容结构 */}
+      {/* 极简的内容结构 - 只有三个部分 */}
       {renderEventMetaCard()}
       {renderUnifiedAnalysis()}
-      {renderLegacyContent()}
 
       {/* Footer with SEC Link */}
       <View style={styles.footer}>
@@ -281,11 +247,12 @@ const styles = StyleSheet.create({
     marginTop: spacing.xs,
   },
 
-  // Unified Analysis Section
+  // Unified Analysis Section - 唯一的内容区域
   unifiedSection: {
     backgroundColor: colors.white,
     marginHorizontal: spacing.md,
     marginTop: spacing.md,
+    marginBottom: spacing.md,
     padding: spacing.lg,
     borderRadius: borderRadius.md,
     ...Platform.select({
@@ -328,46 +295,12 @@ const styles = StyleSheet.create({
   },
   analysisText: {
     // Container for parsed unified analysis
+    // 实际样式在 textHelpers.ts 中定义
   },
   legacyText: {
     fontSize: typography.fontSize.md,
     color: colors.text,
     lineHeight: 24,
-  },
-
-  // Legacy sections
-  legacySection: {
-    backgroundColor: colors.white,
-    marginHorizontal: spacing.md,
-    marginTop: spacing.md,
-    padding: spacing.lg,
-    borderRadius: borderRadius.md,
-    ...Platform.select({
-      ios: {
-        shadowColor: colors.text,
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
-      },
-      android: {
-        elevation: 2,
-      },
-    }),
-  },
-  narrativeCard: {
-    backgroundColor: colors.background,
-    padding: spacing.md,
-    borderRadius: borderRadius.sm,
-  },
-  narrativeText: {
-    fontSize: typography.fontSize.md,
-    color: colors.text,
-    lineHeight: 24,
-  },
-  impactCard: {
-    backgroundColor: '#FEE2E2',
-    padding: spacing.md,
-    borderRadius: borderRadius.md,
   },
 
   // Footer

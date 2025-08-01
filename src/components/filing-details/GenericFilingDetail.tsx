@@ -65,7 +65,7 @@ const GenericFilingDetail: React.FC<GenericFilingDetailProps> = ({ filing }) => 
     });
   };
 
-  // 统一分析内容 - 核心部分
+  // 统一分析内容 - 唯一的内容区域
   const renderUnifiedAnalysis = () => {
     const content = getDisplayAnalysis(filing);
     if (!content) return null;
@@ -100,52 +100,34 @@ const GenericFilingDetail: React.FC<GenericFilingDetailProps> = ({ filing }) => 
     );
   };
 
-  const renderSection = (title: string, content: any, icon: string = 'info') => {
-    if (!content) return null;
-
-    const isArray = Array.isArray(content);
-    const isString = typeof content === 'string';
-    const isEmpty = isArray ? content.length === 0 : !content;
-
-    if (isEmpty) return null;
-
-    return (
-      <View style={styles.section}>
-        <View style={styles.sectionHeader}>
-          <Icon name={icon} size={24} color={colors.primary} />
-          <Text style={styles.sectionTitle}>{title}</Text>
+  // 简化的元信息卡
+  const renderMetaCard = () => (
+    <View style={styles.metaCard}>
+      <View style={styles.metaHeader}>
+        <View style={styles.companyInfo}>
+          <Text style={styles.ticker}>{filing.company_ticker}</Text>
+          <Text style={styles.companyName}>{filing.company_name}</Text>
         </View>
-
-        {isString && (
-          <Text style={styles.sectionContent}>{content}</Text>
-        )}
-
-        {isArray && (
-          <View style={styles.itemsList}>
-            {content.map((item: string, idx: number) => (
-              <View key={idx} style={styles.itemRow}>
-                <Icon name="chevron-right" size={20} color={colors.textSecondary} />
-                <Text style={styles.itemText}>{item}</Text>
-              </View>
-            ))}
-          </View>
-        )}
-
-        {!isString && !isArray && typeof content === 'object' && (
-          <View style={styles.dataGrid}>
-            {Object.entries(content).map(([key, value]) => (
-              <View key={key} style={styles.dataItem}>
-                <Text style={styles.dataLabel}>
-                  {key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
-                </Text>
-                <Text style={styles.dataValue}>{String(value)}</Text>
-              </View>
-            ))}
-          </View>
-        )}
+        <View style={[styles.filingBadge, { backgroundColor: colors.primary }]}>
+          <Text style={styles.filingBadgeText}>{filing.form_type}</Text>
+        </View>
       </View>
-    );
-  };
+      
+      <View style={styles.metaDetails}>
+        <View style={styles.metaRow}>
+          <Icon name="calendar-today" size={16} color={colors.textSecondary} />
+          <Text style={styles.metaLabel}>Filing Date:</Text>
+          <Text style={styles.metaValue}>{formatDate(filing.filing_date)}</Text>
+        </View>
+        
+        <View style={styles.metaRow}>
+          <Icon name="fingerprint" size={16} color={colors.textSecondary} />
+          <Text style={styles.metaLabel}>Accession:</Text>
+          <Text style={styles.metaValue}>{filing.accession_number}</Text>
+        </View>
+      </View>
+    </View>
+  );
 
   return (
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
@@ -156,110 +138,13 @@ const GenericFilingDetail: React.FC<GenericFilingDetailProps> = ({ filing }) => 
         </View>
         <Text style={styles.headerTitle}>{filing.form_type}</Text>
         <Text style={styles.headerSubtitle}>
-          {filing.company_name} • {formatDate(filing.filing_date)}
+          SEC Filing Document
         </Text>
       </View>
 
-      {/* 优先显示统一分析 */}
+      {/* 极简的内容结构 - 只有三个部分 */}
+      {renderMetaCard()}
       {renderUnifiedAnalysis()}
-
-      {/* 如果没有统一分析，显示传统内容 */}
-      {!hasUnifiedAnalysis(filing) && (
-        <>
-          {/* Dynamic sections based on available data */}
-          {renderSection('Overview', filing.one_liner || filing.business_overview, 'info')}
-          {renderSection('Key Points', filing.key_points || filing.key_insights, 'lightbulb')}
-          {renderSection('Risk Factors', filing.risks || filing.risk_factors, 'warning')}
-          {renderSection('Opportunities', filing.opportunities, 'trending-up')}
-          
-          {/* Financial Information if available */}
-          {(filing.financial_highlights || filing.financial_metrics) && (
-            renderSection(
-              'Financial Information', 
-              filing.financial_highlights || filing.financial_metrics, 
-              'attach-money'
-            )
-          )}
-        </>
-      )}
-
-      {/* Event Information if available - 使用 item_type */}
-      {filing.item_type && (
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Icon name="event" size={24} color={colors.primary} />
-            <Text style={styles.sectionTitle}>Event Type</Text>
-          </View>
-          <View style={styles.eventBadge}>
-            <Text style={styles.eventText}>{filing.item_type}</Text>
-          </View>
-        </View>
-      )}
-
-      {/* Tags - 使用 key_tags */}
-      {filing.key_tags && filing.key_tags.length > 0 && (
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Icon name="label" size={24} color={colors.primary} />
-            <Text style={styles.sectionTitle}>Topics</Text>
-          </View>
-          <View style={styles.tagsContainer}>
-            {filing.key_tags.map((tag: string, index: number) => (
-              <View key={index} style={styles.tag}>
-                <Text style={styles.tagText}>{tag}</Text>
-              </View>
-            ))}
-          </View>
-        </View>
-      )}
-
-      {/* Management Tone/Sentiment */}
-      {(filing.management_tone || filing.sentiment) && (
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Icon name="mood" size={24} color={colors.primary} />
-            <Text style={styles.sectionTitle}>Management Sentiment</Text>
-          </View>
-          <View style={styles.sentimentCard}>
-            <Text style={styles.sentimentLabel}>
-              {filing.management_tone || filing.sentiment}
-            </Text>
-            {filing.sentiment_explanation && (
-              <Text style={styles.sentimentExplanation}>
-                {filing.sentiment_explanation}
-              </Text>
-            )}
-          </View>
-        </View>
-      )}
-
-      {/* Additional Information */}
-      <View style={styles.section}>
-        <View style={styles.sectionHeader}>
-          <Icon name="info" size={24} color={colors.primary} />
-          <Text style={styles.sectionTitle}>Filing Information</Text>
-        </View>
-        <View style={styles.filingInfo}>
-          <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>Filing Type:</Text>
-            <Text style={styles.infoValue}>{filing.form_type}</Text>
-          </View>
-          <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>Filing Date:</Text>
-            <Text style={styles.infoValue}>{formatDate(filing.filing_date)}</Text>
-          </View>
-          <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>Accession Number:</Text>
-            <Text style={styles.infoValue}>{filing.accession_number}</Text>
-          </View>
-          {filing.cik && (
-            <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>CIK:</Text>
-              <Text style={styles.infoValue}>{filing.cik}</Text>
-            </View>
-          )}
-        </View>
-      </View>
 
       {/* Footer with SEC Link */}
       <View style={styles.footer}>
@@ -306,11 +191,81 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   
-  // Unified Analysis Section
+  // Meta Card Styles
+  metaCard: {
+    backgroundColor: colors.white,
+    marginHorizontal: spacing.md,
+    marginTop: spacing.md,
+    padding: spacing.lg,
+    borderRadius: borderRadius.md,
+    ...Platform.select({
+      ios: {
+        shadowColor: colors.text,
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 2,
+      },
+    }),
+  },
+  metaHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: spacing.lg,
+  },
+  companyInfo: {
+    flex: 1,
+  },
+  ticker: {
+    fontSize: typography.fontSize.xxl,
+    fontWeight: typography.fontWeight.bold,
+    color: colors.text,
+  },
+  companyName: {
+    fontSize: typography.fontSize.md,
+    color: colors.textSecondary,
+    marginTop: spacing.xs,
+  },
+  filingBadge: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
+    borderRadius: borderRadius.md,
+  },
+  filingBadgeText: {
+    color: colors.white,
+    fontSize: typography.fontSize.sm,
+    fontWeight: typography.fontWeight.semibold,
+  },
+  metaDetails: {
+    gap: spacing.sm,
+  },
+  metaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: spacing.sm,
+  },
+  metaLabel: {
+    fontSize: typography.fontSize.sm,
+    color: colors.textSecondary,
+    marginLeft: spacing.sm,
+    flex: 1,
+  },
+  metaValue: {
+    fontSize: typography.fontSize.sm,
+    fontWeight: typography.fontWeight.medium,
+    color: colors.text,
+    flex: 2,
+  },
+  
+  // Unified Analysis Section - 唯一的内容区域
   unifiedSection: {
     backgroundColor: colors.white,
     marginHorizontal: spacing.md,
     marginTop: spacing.md,
+    marginBottom: spacing.md,
     padding: spacing.lg,
     borderRadius: borderRadius.md,
     ...Platform.select({
@@ -356,6 +311,7 @@ const styles = StyleSheet.create({
   },
   analysisText: {
     // Container for parsed unified analysis
+    // 实际样式在 textHelpers.ts 中定义
   },
   legacyText: {
     fontSize: typography.fontSize.md,
@@ -363,130 +319,7 @@ const styles = StyleSheet.create({
     lineHeight: 24,
   },
   
-  section: {
-    backgroundColor: colors.white,
-    marginHorizontal: spacing.md,
-    marginTop: spacing.md,
-    padding: spacing.lg,
-    borderRadius: borderRadius.md,
-    ...Platform.select({
-      ios: {
-        shadowColor: colors.text,
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
-      },
-      android: {
-        elevation: 2,
-      },
-    }),
-  },
-  sectionContent: {
-    fontSize: typography.fontSize.md,
-    color: colors.textSecondary,
-    lineHeight: 24,
-  },
-  itemsList: {
-    marginTop: spacing.sm,
-  },
-  itemRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    marginBottom: spacing.sm,
-  },
-  itemText: {
-    flex: 1,
-    fontSize: typography.fontSize.md,
-    color: colors.textSecondary,
-    marginLeft: spacing.xs,
-    lineHeight: 22,
-  },
-  dataGrid: {
-    gap: spacing.sm,
-  },
-  dataItem: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingVertical: spacing.xs,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  dataLabel: {
-    fontSize: typography.fontSize.sm,
-    color: colors.textSecondary,
-    flex: 1,
-  },
-  dataValue: {
-    fontSize: typography.fontSize.sm,
-    fontWeight: typography.fontWeight.medium,
-    color: colors.text,
-    flex: 1,
-    textAlign: 'right',
-  },
-  eventBadge: {
-    backgroundColor: colors.primary + '10',
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    borderRadius: borderRadius.sm,
-    alignSelf: 'flex-start',
-  },
-  eventText: {
-    color: colors.primary,
-    fontSize: typography.fontSize.md,
-    fontWeight: typography.fontWeight.medium,
-  },
-  tagsContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: spacing.sm,
-  },
-  tag: {
-    backgroundColor: colors.background,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.xs,
-    borderRadius: borderRadius.xl,
-  },
-  tagText: {
-    fontSize: typography.fontSize.sm,
-    color: colors.textSecondary,
-  },
-  sentimentCard: {
-    backgroundColor: colors.background,
-    padding: spacing.md,
-    borderRadius: borderRadius.sm,
-  },
-  sentimentLabel: {
-    fontSize: typography.fontSize.lg,
-    fontWeight: typography.fontWeight.semibold,
-    color: colors.text,
-    textTransform: 'capitalize',
-  },
-  sentimentExplanation: {
-    fontSize: typography.fontSize.sm,
-    color: colors.textSecondary,
-    marginTop: spacing.sm,
-    lineHeight: 20,
-  },
-  filingInfo: {
-    gap: spacing.sm,
-  },
-  infoRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingVertical: spacing.xs,
-  },
-  infoLabel: {
-    fontSize: typography.fontSize.sm,
-    color: colors.textSecondary,
-  },
-  infoValue: {
-    fontSize: typography.fontSize.sm,
-    fontWeight: typography.fontWeight.medium,
-    color: colors.text,
-    flex: 1,
-    textAlign: 'right',
-    marginLeft: spacing.md,
-  },
+  // Footer
   footer: {
     padding: spacing.xl,
     alignItems: 'center',

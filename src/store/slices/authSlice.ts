@@ -2,6 +2,7 @@ import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AuthState, User, LoginCredentials, AuthResponse } from '../../types';
 import { STORAGE_KEYS } from '../../utils/constants';
+import { HISTORY_CONSTANTS } from '../../constants/history';
 import apiClient from '../../api/client';
 
 // Add register credentials interface
@@ -133,6 +134,9 @@ export const logout = createAsyncThunk('auth/logout', async () => {
       STORAGE_KEYS.REFRESH_TOKEN,
       STORAGE_KEYS.USER_INFO,
     ]);
+    
+    // Optional: Clear history on logout (uncomment if desired)
+    // await AsyncStorage.removeItem(HISTORY_CONSTANTS.STORAGE_KEY);
     
     // Clear the auth token from API client
     apiClient.removeAuthToken();

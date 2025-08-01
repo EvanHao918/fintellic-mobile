@@ -25,6 +25,7 @@ import { AdaptiveChart } from '../components/charts';
 import { CommentItem, VotingModule } from '../components';
 import UpgradePromptModal from '../components/UpgradePromptModal';
 import { getFilingDetailComponent } from '../components/filing-details';
+import { useAddToHistory } from '../hooks/useHistory';
 
 // Route types
 type FilingDetailScreenRouteProp = RouteProp<RootStackParamList, 'FilingDetail'>;
@@ -59,6 +60,8 @@ export default function FilingDetailScreen() {
   const [error403, setError403] = useState(false);
   const [replyingTo, setReplyingTo] = useState<Comment | null>(null);
 
+  // Use the history hook to automatically add to history when filing is loaded
+  useAddToHistory(filing);
 
   // Load filing details and comments
   const loadFilingDetails = async () => {

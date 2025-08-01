@@ -73,147 +73,188 @@ export const cleanText = (text: string | undefined): string => {
   return cleaned.trim();
 };
 
-// ==================== NEW: Smart Markup Parsing ====================
+// ==================== ENHANCED: Smart Markup Parsing ====================
 
-interface MarkupRule {
-  pattern: RegExp;
-  className?: string;
-  prefix?: string;
-  suffix?: string;
-  icon?: string;
-  component?: 'text' | 'highlight' | 'insight-box';
+interface ParsedSegment {
+  type: 'plain' | 'number' | 'concept' | 'positive' | 'negative' | 'insight';
+  content: string;
+  raw?: string;
 }
 
-// Define markup rules matching backend patterns
-const markupRules: MarkupRule[] = [
-  {
-    // Key numbers: *37%* or *$5.2B*
-    pattern: /\*([^*]+)\*/g,
-    className: 'keyNumber',
-    component: 'text'
-  },
-  {
-    // Important concepts: **transformation** or **market leadership**
-    pattern: /\*\*([^*]+)\*\*/g,
-    className: 'keyConcept',
-    component: 'highlight'
-  },
-  {
-    // Positive trends: +[revenue up 15%]
-    pattern: /\+\[([^\]]+)\]/g,
-    className: 'positiveTrend',
-    prefix: '↑ ',
-    component: 'text'
-  },
-  {
-    // Negative trends: -[margins compressed 120bps]
-    pattern: /-\[([^\]]+)\]/g,
-    className: 'negativeTrend',
-    prefix: '↓ ',
-    component: 'text'
-  },
-  {
-    // Critical insights: [!This marks a strategic inflection point]
-    pattern: /\[!([^\]]+)\]/g,
-    className: 'criticalInsight',
-    icon: 'lightbulb',
-    component: 'insight-box'
-  }
-];
-
-// Parse unified analysis with smart markup
-export const parseUnifiedAnalysis = (content: string | undefined): React.ReactElement[] => {
-  if (!content) return [React.createElement(Text, { key: 'empty' }, '')];
+// Parse content into segments
+const parseContentSegments = (content: string): ParsedSegment[] => {
+  const segments: ParsedSegment[] = [];
   
-  const elements: React.ReactElement[] = [];
+  // Combined regex pattern for all markup types
+  const markupPattern = /(\*\*[^*]+\*\*|\*[^*]+\*|\+\[[^\]]+\]|-\[[^\]]+\]|\[![^\]]+\])/g;
+  
   let lastIndex = 0;
-  let elementKey = 0;
+  let match;
   
-  // Create a combined pattern to find all markup
-  const allPatterns = markupRules.map(rule => rule.pattern.source).join('|');
-  const combinedPattern = new RegExp(`(${allPatterns})`, 'g');
-  
-  // Find all matches
-  const matches = Array.from(content.matchAll(combinedPattern));
-  
-  matches.forEach((match) => {
-    const matchIndex = match.index || 0;
-    
-    // Add text before the match
-    if (matchIndex > lastIndex) {
-      const plainText = content.substring(lastIndex, matchIndex);
-      elements.push(
-        React.createElement(Text, {
-          key: `text-${elementKey++}`,
-          style: styles.plainText
-        }, plainText)
-      );
-    }
-    
-    // Find which rule matched
-    const matchedText = match[0];
-    const rule = markupRules.find(r => new RegExp(r.pattern).test(matchedText));
-    
-    if (rule) {
-      // Extract the actual content without markup
-      const extractedMatch = matchedText.match(rule.pattern);
-      if (extractedMatch && extractedMatch[1]) {
-        const content = extractedMatch[1];
-        
-        switch (rule.component) {
-          case 'highlight':
-            elements.push(
-              React.createElement(Text, {
-                key: `highlight-${elementKey++}`,
-                style: [styles.baseMarkup, styles[rule.className || 'baseMarkup'] as TextStyle]
-              }, content)
-            );
-            break;
-            
-          case 'insight-box':
-            elements.push(
-              React.createElement(View, {
-                key: `insight-${elementKey++}`,
-                style: styles.insightBox
-              }, [
-                React.createElement(Icon, {
-                  key: 'icon',
-                  name: rule.icon || 'lightbulb',
-                  size: 20,
-                  color: colors.primary
-                }),
-                React.createElement(Text, {
-                  key: 'text',
-                  style: styles.insightText
-                }, content)
-              ])
-            );
-            break;
-            
-          default: // 'text'
-            elements.push(
-              React.createElement(Text, {
-                key: `markup-${elementKey++}`,
-                style: [styles.baseMarkup, styles[rule.className || 'baseMarkup'] as TextStyle]
-              }, `${rule.prefix || ''}${content}${rule.suffix || ''}`)
-            );
-        }
+  while ((match = markupPattern.exec(content)) !== null) {
+    // Add plain text before markup
+    if (match.index > lastIndex) {
+      const plainText = content.substring(lastIndex, match.index);
+      if (plainText) {
+        segments.push({ type: 'plain', content: plainText });
       }
     }
     
-    lastIndex = matchIndex + matchedText.length;
-  });
+    const markup = match[0];
+    
+    // Identify markup type and extract content
+    if (markup.startsWith('**') && markup.endsWith('**')) {
+      // Important concept
+      segments.push({
+        type: 'concept',
+        content: markup.slice(2, -2),
+        raw: markup
+      });
+    } else if (markup.startsWith('*') && markup.endsWith('*')) {
+      // Key number
+      segments.push({
+        type: 'number',
+        content: markup.slice(1, -1),
+        raw: markup
+      });
+    } else if (markup.startsWith('+[') && markup.endsWith(']')) {
+      // Positive trend
+      segments.push({
+        type: 'positive',
+        content: markup.slice(2, -1),
+        raw: markup
+      });
+    } else if (markup.startsWith('-[') && markup.endsWith(']')) {
+      // Negative trend
+      segments.push({
+        type: 'negative',
+        content: markup.slice(2, -1),
+        raw: markup
+      });
+    } else if (markup.startsWith('[!') && markup.endsWith(']')) {
+      // Critical insight
+      segments.push({
+        type: 'insight',
+        content: markup.slice(2, -1),
+        raw: markup
+      });
+    }
+    
+    lastIndex = match.index + match[0].length;
+  }
   
   // Add remaining text
   if (lastIndex < content.length) {
     const remainingText = content.substring(lastIndex);
-    elements.push(
-      React.createElement(Text, {
-        key: `text-${elementKey++}`,
-        style: styles.plainText
-      }, remainingText)
-    );
+    if (remainingText) {
+      segments.push({ type: 'plain', content: remainingText });
+    }
   }
+  
+  return segments;
+};
+
+// Render a single segment
+const renderSegment = (segment: ParsedSegment, index: number): React.ReactElement => {
+  const key = `segment-${index}`;
+  
+  switch (segment.type) {
+    case 'number':
+      return React.createElement(Text, {
+        key,
+        style: styles.keyNumber
+      }, segment.content);
+      
+    case 'concept':
+      return React.createElement(Text, {
+        key,
+        style: styles.keyConcept
+      }, segment.content);
+      
+    case 'positive':
+      return React.createElement(Text, {
+        key,
+        style: styles.positiveTrend
+      }, `↑ ${segment.content}`);
+      
+    case 'negative':
+      return React.createElement(Text, {
+        key,
+        style: styles.negativeTrend
+      }, `↓ ${segment.content}`);
+      
+    case 'insight':
+      // Insights are handled separately as block elements
+      return React.createElement(Text, { key }, ''); // Empty placeholder
+      
+    default:
+      return React.createElement(Text, {
+        key,
+        style: styles.plainText
+      }, segment.content);
+  }
+};
+
+// Parse unified analysis with smart markup - MAIN FUNCTION
+export const parseUnifiedAnalysis = (content: string | undefined): React.ReactElement[] => {
+  if (!content) return [React.createElement(Text, { key: 'empty' }, '')];
+  
+  const elements: React.ReactElement[] = [];
+  
+  // Split content into paragraphs
+  const paragraphs = content.split(/\n\n+/);
+  
+  paragraphs.forEach((paragraph, pIndex) => {
+    if (!paragraph.trim()) return;
+    
+    // Check if this paragraph is an insight box
+    if (paragraph.includes('[!') && paragraph.includes(']')) {
+      // Extract insight content
+      const insightMatch = paragraph.match(/\[!([^\]]+)\]/);
+      if (insightMatch) {
+        elements.push(
+          React.createElement(View, {
+            key: `insight-box-${pIndex}`,
+            style: styles.insightBox
+          }, [
+            React.createElement(View, {
+              key: 'icon-container',
+              style: styles.insightIconContainer
+            }, React.createElement(Icon, {
+              name: 'lightbulb',
+              size: 24,
+              color: colors.primary
+            })),
+            React.createElement(Text, {
+              key: 'text',
+              style: styles.insightText
+            }, insightMatch[1])
+          ])
+        );
+        return;
+      }
+    }
+    
+    // Parse segments within the paragraph
+    const segments = parseContentSegments(paragraph);
+    const paragraphElements: React.ReactElement[] = [];
+    
+    segments.forEach((segment, sIndex) => {
+      if (segment.type !== 'insight') {
+        paragraphElements.push(renderSegment(segment, sIndex));
+      }
+    });
+    
+    // Wrap paragraph elements in a Text container
+    if (paragraphElements.length > 0) {
+      elements.push(
+        React.createElement(Text, {
+          key: `paragraph-${pIndex}`,
+          style: styles.paragraph
+        }, paragraphElements)
+      );
+    }
+  });
   
   return elements;
 };
@@ -239,72 +280,86 @@ export const getDisplayAnalysis = (filing: any): string => {
   return filing?.ai_summary || '';
 };
 
-// Define styles interface
-interface MarkupStyles {
-  plainText: TextStyle;
-  baseMarkup: TextStyle;
-  keyNumber: TextStyle;
-  keyConcept: TextStyle;
-  positiveTrend: TextStyle;
-  negativeTrend: TextStyle;
-  insightBox: ViewStyle;
-  insightText: TextStyle;
-  [key: string]: TextStyle | ViewStyle;
-}
-
 // Styles for markup elements
-const styles = StyleSheet.create<MarkupStyles>({
+const styles = StyleSheet.create({
+  // Paragraph container
+  paragraph: {
+    fontSize: typography.fontSize.base,
+    color: colors.text,
+    lineHeight: 26,
+    marginBottom: spacing.md,
+  },
+  
   // Base text styles
   plainText: {
     fontSize: typography.fontSize.base,
     color: colors.text,
-    lineHeight: 24,
-  },
-  baseMarkup: {
-    fontSize: typography.fontSize.base,
-    lineHeight: 24,
+    lineHeight: 26,
   },
   
-  // Markup-specific styles
+  // Key numbers: *37%* or *$5.2B*
   keyNumber: {
     color: colors.primary,
     fontWeight: typography.fontWeight.bold as any,
     fontSize: typography.fontSize.lg,
   },
+  
+  // Important concepts: **transformation**
   keyConcept: {
-    backgroundColor: colors.warning ? `${colors.warning}20` : '#FFC10720',
-    paddingHorizontal: 4,
-    paddingVertical: 1,
-    borderRadius: 3,
+    backgroundColor: '#FEF3C7', // Warm yellow background
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
     fontWeight: typography.fontWeight.semibold as any,
     color: colors.text,
   },
+  
+  // Positive trends: +[revenue up 15%]
   positiveTrend: {
-    color: colors.success || '#10B981',
+    color: '#10B981', // Green
     fontWeight: typography.fontWeight.semibold as any,
-  },
-  negativeTrend: {
-    color: colors.error || '#EF4444',
-    fontWeight: typography.fontWeight.semibold as any,
+    fontSize: typography.fontSize.base,
   },
   
-  // Insight box styles
+  // Negative trends: -[margins down 5%]
+  negativeTrend: {
+    color: '#EF4444', // Red
+    fontWeight: typography.fontWeight.semibold as any,
+    fontSize: typography.fontSize.base,
+  },
+  
+  // Insight box container
   insightBox: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    backgroundColor: `${colors.primary}10`,
-    padding: spacing.md,
+    backgroundColor: '#EBF8FF', // Light blue background
+    padding: spacing.lg,
     borderRadius: borderRadius.md,
-    marginVertical: spacing.sm,
-    borderLeftWidth: 3,
+    marginVertical: spacing.md,
+    borderLeftWidth: 4,
     borderLeftColor: colors.primary,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 4,
+    elevation: 2,
   },
+  
+  insightIconContainer: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: colors.primary + '20',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: spacing.md,
+  },
+  
   insightText: {
     flex: 1,
-    marginLeft: spacing.sm,
     fontSize: typography.fontSize.base,
     color: colors.text,
-    lineHeight: 22,
+    lineHeight: 24,
     fontWeight: typography.fontWeight.medium as any,
   },
 });

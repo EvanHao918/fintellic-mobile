@@ -92,7 +92,7 @@ const Quarterly10QDetail: React.FC<Quarterly10QDetailProps> = ({ filing }) => {
     </View>
   );
 
-  // 统一分析内容 - 核心部分
+  // 统一分析内容 - 唯一的内容区域（包含所有信息：分析、预期对比、指引更新等）
   const renderUnifiedAnalysis = () => {
     const content = getDisplayAnalysis(filing);
     if (!content) return null;
@@ -114,91 +114,16 @@ const Quarterly10QDetail: React.FC<Quarterly10QDetailProps> = ({ filing }) => {
 
         <View style={styles.unifiedContent}>
           {isUnified ? (
-            // 使用智能标记解析
+            // 使用智能标记解析 - 所有内容都在这里
             <View style={styles.analysisText}>
               {parseUnifiedAnalysis(content)}
             </View>
           ) : (
-            // 降级到普通文本
+            // 降级到普通文本 - 为了向后兼容
             <Text style={styles.legacyText}>{content}</Text>
           )}
         </View>
       </View>
-    );
-  };
-
-  // 分析师预期对比（如果有）
-  const renderExpectationsComparison = () => {
-    if (!filing.analyst_expectations || !hasUnifiedAnalysis(filing)) return null;
-
-    const expectations = filing.analyst_expectations;
-
-    return (
-      <View style={styles.expectationsCard}>
-        <View style={styles.expectationsHeader}>
-          <Icon name="assessment" size={20} color={colors.primary} />
-          <Text style={styles.expectationsTitle}>vs. Analyst Expectations</Text>
-        </View>
-        
-        <View style={styles.expectationsGrid}>
-          {expectations.revenue_estimate && (
-            <View style={styles.expectationItem}>
-              <Text style={styles.expectationLabel}>Revenue Estimate</Text>
-              <Text style={styles.expectationValue}>
-                ${expectations.revenue_estimate.value}B
-              </Text>
-              <Text style={styles.expectationAnalysts}>
-                ({expectations.revenue_estimate.analysts} analysts)
-              </Text>
-            </View>
-          )}
-          
-          {expectations.eps_estimate && (
-            <View style={styles.expectationItem}>
-              <Text style={styles.expectationLabel}>EPS Estimate</Text>
-              <Text style={styles.expectationValue}>
-                ${expectations.eps_estimate.value}
-              </Text>
-              <Text style={styles.expectationAnalysts}>
-                ({expectations.eps_estimate.analysts} analysts)
-              </Text>
-            </View>
-          )}
-        </View>
-      </View>
-    );
-  };
-
-  // 仅在旧版本时显示的传统内容
-  const renderLegacyContent = () => {
-    if (hasUnifiedAnalysis(filing)) return null;
-
-    return (
-      <>
-        {filing.expectations_comparison && (
-          <View style={styles.legacySection}>
-            <View style={styles.sectionHeader}>
-              <Icon name="analytics" size={24} color={colors.primary} />
-              <Text style={styles.sectionTitle}>Performance vs. Expectations</Text>
-            </View>
-            <View style={styles.contentCard}>
-              <Text style={styles.contentText}>{filing.expectations_comparison}</Text>
-            </View>
-          </View>
-        )}
-
-        {filing.guidance_update && (
-          <View style={styles.legacySection}>
-            <View style={styles.sectionHeader}>
-              <Icon name="update" size={24} color={colors.primary} />
-              <Text style={styles.sectionTitle}>Guidance Update</Text>
-            </View>
-            <View style={styles.contentCard}>
-              <Text style={styles.contentText}>{filing.guidance_update}</Text>
-            </View>
-          </View>
-        )}
-      </>
     );
   };
 
@@ -217,12 +142,10 @@ const Quarterly10QDetail: React.FC<Quarterly10QDetailProps> = ({ filing }) => {
         </View>
       </View>
 
-      {/* 简化后的内容结构 */}
+      {/* 极简的内容结构 - 只有三个部分 */}
       <View style={styles.contentContainer}>
         {renderQuarterlyMetaCard()}
         {renderUnifiedAnalysis()}
-        {renderExpectationsComparison()}
-        {renderLegacyContent()}
       </View>
 
       {/* Footer with SEC Link */}
@@ -364,7 +287,7 @@ const styles = StyleSheet.create({
     color: colors.gray900,
   },
 
-  // Unified Analysis Section
+  // Unified Analysis Section - 唯一的内容区域
   unifiedSection: {
     backgroundColor: colors.white,
     marginHorizontal: spacing.md,
@@ -423,78 +346,12 @@ const styles = StyleSheet.create({
   },
   analysisText: {
     // Container for parsed unified analysis
+    // 实际样式在 textHelpers.ts 中定义
   },
   legacyText: {
     fontSize: typography.fontSize.md,
     color: colors.text,
     lineHeight: 24,
-  },
-
-  // Expectations Card
-  expectationsCard: {
-    backgroundColor: colors.primary + '05',
-    marginHorizontal: spacing.md,
-    marginBottom: spacing.md,
-    padding: spacing.lg,
-    borderRadius: borderRadius.lg,
-    borderWidth: 1,
-    borderColor: colors.primary + '20',
-  },
-  expectationsHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: spacing.md,
-  },
-  expectationsTitle: {
-    fontSize: typography.fontSize.md,
-    fontWeight: typography.fontWeight.semibold,
-    color: colors.text,
-    marginLeft: spacing.sm,
-  },
-  expectationsGrid: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-  },
-  expectationItem: {
-    alignItems: 'center',
-  },
-  expectationLabel: {
-    fontSize: typography.fontSize.sm,
-    color: colors.textSecondary,
-    marginBottom: spacing.xs,
-  },
-  expectationValue: {
-    fontSize: typography.fontSize.lg,
-    fontWeight: typography.fontWeight.bold,
-    color: colors.primary,
-  },
-  expectationAnalysts: {
-    fontSize: typography.fontSize.xs,
-    color: colors.textSecondary,
-    marginTop: spacing.xs,
-  },
-
-  // Legacy sections
-  legacySection: {
-    backgroundColor: colors.white,
-    marginHorizontal: spacing.md,
-    marginBottom: spacing.md,
-    paddingTop: spacing.lg,
-    paddingHorizontal: spacing.lg,
-    paddingBottom: spacing.lg + spacing.xs,
-    borderRadius: borderRadius.lg,
-    borderWidth: 1,
-    borderColor: colors.gray100,
-  },
-  contentCard: {
-    backgroundColor: colors.white,
-    paddingTop: spacing.xs,
-  },
-  contentText: {
-    fontSize: typography.fontSize.base,
-    color: colors.gray800,
-    lineHeight: 28,
-    letterSpacing: 0.2,
   },
 
   // Footer

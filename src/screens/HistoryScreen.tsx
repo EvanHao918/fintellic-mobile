@@ -1,108 +1,55 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   FlatList,
   TouchableOpacity,
-  Alert,
   RefreshControl,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Icon } from 'react-native-elements';
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { colors, typography, spacing, borderRadius } from '../theme';
 import { FilingCard } from '../components';
-import { Filing, RootStackParamList } from '../types';
+import { RootStackParamList } from '../types';
+import { useHistory } from '../hooks/useHistory';
+import { HistoryManager, HistoryItem } from '../utils/historyManager';
+import { HISTORY_CONSTANTS } from '../constants/history';
 
 type HistoryScreenNavigationProp = StackNavigationProp<RootStackParamList>;
 
-// History item with timestamp
-interface HistoryItem {
-  filing: Filing;
-  viewedAt: string;
-}
-
 export default function HistoryScreen() {
   const navigation = useNavigation<HistoryScreenNavigationProp>();
-  const [history, setHistory] = useState<HistoryItem[]>([]);
-  const [refreshing, setRefreshing] = useState(false);
+  
+  // Use the history hook for state management
+  const {
+    history,
+    isLoading,
+    isRefreshing,
+    error,
+    loadHistory,
+    removeFromHistory,
+    clearHistory,
+    refreshHistory,
+    historyCount,
+    isEmpty,
+  } = useHistory();
 
-  // Load history from AsyncStorage
-  const loadHistory = async () => {
-    try {
-      const historyData = await AsyncStorage.getItem('@fintellic_history');
-      if (historyData) {
-        const parsedHistory: HistoryItem[] = JSON.parse(historyData);
-        // Sort by most recent first
-        parsedHistory.sort((a, b) => 
-          new Date(b.viewedAt).getTime() - new Date(a.viewedAt).getTime()
-        );
-        setHistory(parsedHistory);
-      }
-    } catch (error) {
-      console.error('Failed to load history:', error);
-    } finally {
-      setRefreshing(false);
-    }
-  };
-
+  // Reload history when screen comes into focus
   useEffect(() => {
-    loadHistory();
-    
-    // Reload history when screen comes into focus
     const unsubscribe = navigation.addListener('focus', () => {
       loadHistory();
     });
     
     return unsubscribe;
-  }, [navigation]);
-
-  const onRefresh = () => {
-    setRefreshing(true);
-    loadHistory();
-  };
-
-  // Clear history
-  const clearHistory = () => {
-    Alert.alert(
-      'Clear History',
-      'Are you sure you want to clear all browsing history?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Clear',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await AsyncStorage.removeItem('@fintellic_history');
-              setHistory([]);
-              Alert.alert('Success', 'History cleared');
-            } catch (error) {
-              Alert.alert('Error', 'Failed to clear history');
-            }
-          }
-        }
-      ]
-    );
-  };
-
-  // Remove single item from history
-  const removeFromHistory = async (filingId: string) => {
-    try {
-      const updatedHistory = history.filter(item => item.filing.id !== filingId);
-      await AsyncStorage.setItem('@fintellic_history', JSON.stringify(updatedHistory));
-      setHistory(updatedHistory);
-    } catch (error) {
-      console.error('Failed to remove item from history:', error);
-    }
-  };
+  }, [navigation, loadHistory]);
 
   // Navigate to filing detail
-  const handleFilingPress = (filing: Filing) => {
-    navigation.navigate('FilingDetail', { filingId: filing.id });
+  const handleFilingPress = (item: HistoryItem) => {
+    navigation.navigate('FilingDetail', { filingId: item.filing.id });
   };
 
   // Format time ago
@@ -111,10 +58,18 @@ export default function HistoryScreen() {
     const past = new Date(dateString);
     const diffInSeconds = Math.floor((now.getTime() - past.getTime()) / 1000);
 
-    if (diffInSeconds < 60) return 'just now';
-    if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)} minutes ago`;
-    if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)} hours ago`;
-    if (diffInSeconds < 604800) return `${Math.floor(diffInSeconds / 86400)} days ago`;
+    if (diffInSeconds < HISTORY_CONSTANTS.TIME_THRESHOLDS.JUST_NOW) {
+      return 'just now';
+    }
+    if (diffInSeconds < HISTORY_CONSTANTS.TIME_THRESHOLDS.MINUTES) {
+      return `${Math.floor(diffInSeconds / 60)} minutes ago`;
+    }
+    if (diffInSeconds < HISTORY_CONSTANTS.TIME_THRESHOLDS.HOURS) {
+      return `${Math.floor(diffInSeconds / 3600)} hours ago`;
+    }
+    if (diffInSeconds < HISTORY_CONSTANTS.TIME_THRESHOLDS.DAYS) {
+      return `${Math.floor(diffInSeconds / 86400)} days ago`;
+    }
     
     return past.toLocaleDateString();
   };
@@ -123,17 +78,18 @@ export default function HistoryScreen() {
   const groupHistoryByDate = (items: HistoryItem[]) => {
     const groups: { [key: string]: HistoryItem[] } = {};
     
+    const today = new Date();
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+    
     items.forEach(item => {
       const date = new Date(item.viewedAt);
-      const today = new Date();
-      const yesterday = new Date(today);
-      yesterday.setDate(yesterday.getDate() - 1);
-      
       let key: string;
+      
       if (date.toDateString() === today.toDateString()) {
-        key = 'Today';
+        key = HISTORY_CONSTANTS.DATE_GROUPS.TODAY;
       } else if (date.toDateString() === yesterday.toDateString()) {
-        key = 'Yesterday';
+        key = HISTORY_CONSTANTS.DATE_GROUPS.YESTERDAY;
       } else {
         key = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
       }
@@ -153,7 +109,7 @@ export default function HistoryScreen() {
       <Text style={styles.viewedTime}>{formatTimeAgo(item.viewedAt)}</Text>
       <FilingCard
         filing={item.filing}
-        onPress={() => handleFilingPress(item.filing)}
+        onPress={() => handleFilingPress(item)}
       />
       <TouchableOpacity
         style={styles.removeButton}
@@ -182,6 +138,23 @@ export default function HistoryScreen() {
     </View>
   );
 
+  // Render loading state
+  if (isLoading) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.header}>
+          <View>
+            <Text style={styles.headerTitle}>History</Text>
+            <Text style={styles.headerSubtitle}>Loading...</Text>
+          </View>
+        </View>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={colors.primary} />
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   // Group history for display
   const groupedHistory = groupHistoryByDate(history);
   const sections = Object.entries(groupedHistory);
@@ -193,16 +166,23 @@ export default function HistoryScreen() {
         <View>
           <Text style={styles.headerTitle}>History</Text>
           <Text style={styles.headerSubtitle}>
-            {history.length} {history.length === 1 ? 'filing' : 'filings'} viewed
+            {historyCount} {historyCount === 1 ? 'filing' : 'filings'} viewed
           </Text>
         </View>
-        {history.length > 0 && (
+        {!isEmpty && (
           <TouchableOpacity onPress={clearHistory} style={styles.clearButton}>
             <Icon name="delete-outline" type="material" size={24} color={colors.error} />
             <Text style={styles.clearButtonText}>Clear</Text>
           </TouchableOpacity>
         )}
       </View>
+
+      {/* Error message if any */}
+      {error && (
+        <View style={styles.errorBanner}>
+          <Text style={styles.errorText}>{error}</Text>
+        </View>
+      )}
 
       {/* History List */}
       {sections.length > 0 ? (
@@ -213,16 +193,20 @@ export default function HistoryScreen() {
             <View>
               {renderSectionHeader(date)}
               {items.map((historyItem) => (
-                <View key={historyItem.filing.id}>
+                <View key={`${historyItem.filing.id}-${historyItem.viewedAt}`}>
                   {renderHistoryItem({ item: historyItem })}
                 </View>
               ))}
             </View>
           )}
           refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+            <RefreshControl 
+              refreshing={isRefreshing} 
+              onRefresh={refreshHistory}
+              tintColor={colors.primary}
+            />
           }
-          contentContainerStyle={history.length === 0 ? styles.emptyListContainer : undefined}
+          contentContainerStyle={isEmpty ? styles.emptyListContainer : undefined}
         />
       ) : (
         <View style={styles.emptyListContainer}>
@@ -243,6 +227,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     padding: spacing.lg,
+    backgroundColor: colors.white,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   },
@@ -266,6 +251,23 @@ const styles = StyleSheet.create({
     fontFamily: typography.fontFamily.medium,
     color: colors.error,
     marginLeft: spacing.xs,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  errorBanner: {
+    backgroundColor: colors.error + '10',
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.error + '20',
+  },
+  errorText: {
+    fontSize: typography.fontSize.sm,
+    color: colors.error,
+    textAlign: 'center',
   },
   sectionHeader: {
     backgroundColor: colors.backgroundSecondary,

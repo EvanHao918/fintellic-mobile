@@ -56,21 +56,6 @@ interface Annual10KDetailProps {
 
 const Annual10KDetail: React.FC<Annual10KDetailProps> = ({ filing }) => {
   // Format helper functions
-  const formatCurrency = (value: number | undefined) => {
-    if (!value) return 'N/A';
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-      notation: 'compact',
-      maximumFractionDigits: 1,
-    }).format(value);
-  };
-
-  const formatPercentage = (value: number | undefined) => {
-    if (!value) return 'N/A';
-    return `${(value * 100).toFixed(1)}%`;
-  };
-
   const formatDate = (date: string) => {
     return new Date(date).toLocaleDateString('en-US', {
       year: 'numeric',
@@ -114,7 +99,7 @@ const Annual10KDetail: React.FC<Annual10KDetailProps> = ({ filing }) => {
     </View>
   );
 
-  // 统一分析内容 - 核心部分
+  // 统一分析内容 - 唯一的内容区域
   const renderUnifiedAnalysis = () => {
     const content = getDisplayAnalysis(filing);
     if (!content) return null;
@@ -141,87 +126,11 @@ const Annual10KDetail: React.FC<Annual10KDetailProps> = ({ filing }) => {
               {parseUnifiedAnalysis(content)}
             </View>
           ) : (
-            // 降级到普通文本
+            // 降级到普通文本 - 为了向后兼容
             <Text style={styles.legacyText}>{content}</Text>
           )}
         </View>
       </View>
-    );
-  };
-
-  // 财务指标卡（如果有结构化数据）
-  const renderFinancialMetrics = () => {
-    if (!filing.financial_highlights && !filing.financial_metrics) return null;
-
-    const metrics = filing.financial_highlights || filing.financial_metrics;
-
-    return (
-      <View style={styles.metricsSection}>
-        <View style={styles.sectionHeader}>
-          <Icon name="attach-money" size={24} color={colors.primary} />
-          <Text style={styles.sectionTitle}>Key Financial Metrics</Text>
-        </View>
-
-        <View style={styles.metricsGrid}>
-          {metrics.revenue && (
-            <View style={styles.metricCard}>
-              <Text style={styles.metricLabel}>Revenue</Text>
-              <Text style={styles.metricValue}>{formatCurrency(metrics.revenue)}</Text>
-            </View>
-          )}
-          {metrics.net_income && (
-            <View style={styles.metricCard}>
-              <Text style={styles.metricLabel}>Net Income</Text>
-              <Text style={styles.metricValue}>{formatCurrency(metrics.net_income)}</Text>
-            </View>
-          )}
-          {metrics.eps && (
-            <View style={styles.metricCard}>
-              <Text style={styles.metricLabel}>EPS</Text>
-              <Text style={styles.metricValue}>${metrics.eps.toFixed(2)}</Text>
-            </View>
-          )}
-          {metrics.gross_margin && (
-            <View style={styles.metricCard}>
-              <Text style={styles.metricLabel}>Gross Margin</Text>
-              <Text style={styles.metricValue}>{formatPercentage(metrics.gross_margin / 100)}</Text>
-            </View>
-          )}
-        </View>
-      </View>
-    );
-  };
-
-  // 仅在旧版本时显示的传统内容
-  const renderLegacyContent = () => {
-    if (hasUnifiedAnalysis(filing)) return null;
-
-    return (
-      <>
-        {filing.auditor_opinion && (
-          <View style={styles.legacySection}>
-            <View style={styles.sectionHeader}>
-              <Icon name="gavel" size={24} color={colors.primary} />
-              <Text style={styles.sectionTitle}>Auditor Opinion</Text>
-            </View>
-            <View style={styles.narrativeCard}>
-              <Text style={styles.narrativeText}>{filing.auditor_opinion}</Text>
-            </View>
-          </View>
-        )}
-
-        {filing.risk_summary && (
-          <View style={styles.legacySection}>
-            <View style={styles.sectionHeader}>
-              <Icon name="warning" size={24} color={colors.error} />
-              <Text style={styles.sectionTitle}>Risk Factors Summary</Text>
-            </View>
-            <View style={styles.narrativeCard}>
-              <Text style={styles.narrativeText}>{filing.risk_summary}</Text>
-            </View>
-          </View>
-        )}
-      </>
     );
   };
 
@@ -238,11 +147,9 @@ const Annual10KDetail: React.FC<Annual10KDetailProps> = ({ filing }) => {
         </Text>
       </View>
 
-      {/* 简化后的内容结构 */}
+      {/* 极简的内容结构 - 只有三个部分 */}
       {renderCompanyMetaCard()}
       {renderUnifiedAnalysis()}
-      {renderFinancialMetrics()}
-      {renderLegacyContent()}
 
       {/* Footer with SEC Link */}
       <View style={styles.footer}>
@@ -356,11 +263,12 @@ const styles = StyleSheet.create({
     color: colors.text,
   },
 
-  // Unified Analysis Section
+  // Unified Analysis Section - 唯一的内容区域
   unifiedSection: {
     backgroundColor: colors.white,
     marginHorizontal: spacing.md,
     marginTop: spacing.md,
+    marginBottom: spacing.md,
     padding: spacing.lg,
     borderRadius: borderRadius.md,
     ...Platform.select({
@@ -409,77 +317,9 @@ const styles = StyleSheet.create({
   },
   analysisText: {
     // Container for parsed unified analysis
+    // 实际样式在 textHelpers.ts 中定义
   },
   legacyText: {
-    fontSize: typography.fontSize.md,
-    color: colors.text,
-    lineHeight: 24,
-  },
-
-  // Metrics Section
-  metricsSection: {
-    backgroundColor: colors.white,
-    marginHorizontal: spacing.md,
-    marginTop: spacing.md,
-    padding: spacing.lg,
-    borderRadius: borderRadius.md,
-    ...Platform.select({
-      ios: {
-        shadowColor: colors.text,
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
-      },
-      android: {
-        elevation: 2,
-      },
-    }),
-  },
-  metricsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    marginHorizontal: -spacing.xs,
-  },
-  metricCard: {
-    width: '50%',
-    padding: spacing.xs,
-  },
-  metricLabel: {
-    fontSize: typography.fontSize.sm,
-    color: colors.textSecondary,
-    marginBottom: spacing.xs,
-  },
-  metricValue: {
-    fontSize: typography.fontSize.lg,
-    fontWeight: typography.fontWeight.semibold,
-    color: colors.text,
-  },
-
-  // Legacy sections (for backward compatibility)
-  legacySection: {
-    backgroundColor: colors.white,
-    marginHorizontal: spacing.md,
-    marginTop: spacing.md,
-    padding: spacing.lg,
-    borderRadius: borderRadius.md,
-    ...Platform.select({
-      ios: {
-        shadowColor: colors.text,
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
-      },
-      android: {
-        elevation: 2,
-      },
-    }),
-  },
-  narrativeCard: {
-    backgroundColor: colors.background,
-    padding: spacing.md,
-    borderRadius: borderRadius.sm,
-  },
-  narrativeText: {
     fontSize: typography.fontSize.md,
     color: colors.text,
     lineHeight: 24,
