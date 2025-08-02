@@ -97,6 +97,9 @@ const cleanFilingData = (filing: any): Filing => {
     period_end_date: filing.period_end_date,
     guidance_update: filing.guidance_update,
     financial_highlights: filing.financial_highlights,
+    
+    // 确保 company 对象也被传递（用于显示指数标签）
+    company: filing.company,
   };
 };
 

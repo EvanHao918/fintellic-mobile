@@ -195,23 +195,33 @@ const renderSegment = (segment: ParsedSegment, index: number): React.ReactElemen
   }
 };
 
-// Parse unified analysis with smart markup - MAIN FUNCTION
+// Parse unified analysis with smart markup - MAIN FUNCTION (FIXED)
 export const parseUnifiedAnalysis = (content: string | undefined): React.ReactElement[] => {
   if (!content) return [React.createElement(Text, { key: 'empty' }, '')];
   
+  // 添加调试日志
+  console.log('=== parseUnifiedAnalysis 调试 ===');
+  console.log('内容长度:', content.length);
+  console.log('前500字符:', content.substring(0, 500));
+  console.log('包含###?', content.includes('###'));
+  
   const elements: React.ReactElement[] = [];
   
-  // Split content into paragraphs
-  const paragraphs = content.split(/\n\n+/);
-  
-  paragraphs.forEach((paragraph, pIndex) => {
-    if (!paragraph.trim()) return;
+  try {
+    // Split content into paragraphs
+    const paragraphs = content.split(/\n\n+/);
+    console.log('段落数量:', paragraphs.length);
+    console.log('各段落长度:', paragraphs.map(p => p.length));
+    console.log('前3段内容预览:', paragraphs.slice(0, 3).map(p => p.substring(0, 100) + '...'));
     
-    // Check if this paragraph is an insight box
-    if (paragraph.includes('[!') && paragraph.includes(']')) {
-      // Extract insight content
+    paragraphs.forEach((paragraph, pIndex) => {
+      if (!paragraph.trim()) return;
+      
+      // Check if this paragraph contains an insight box
       const insightMatch = paragraph.match(/\[!([^\]]+)\]/);
+      
       if (insightMatch) {
+        // Create insight box element
         elements.push(
           React.createElement(View, {
             key: `insight-box-${pIndex}`,
@@ -231,37 +241,104 @@ export const parseUnifiedAnalysis = (content: string | undefined): React.ReactEl
             }, insightMatch[1])
           ])
         );
-        return;
-      }
-    }
-    
-    // Parse segments within the paragraph
-    const segments = parseContentSegments(paragraph);
-    const paragraphElements: React.ReactElement[] = [];
-    
-    segments.forEach((segment, sIndex) => {
-      if (segment.type !== 'insight') {
-        paragraphElements.push(renderSegment(segment, sIndex));
+        
+        // IMPORTANT: Process any remaining content in the paragraph after the insight
+        const beforeInsight = paragraph.substring(0, insightMatch.index);
+        const afterInsight = paragraph.substring(insightMatch.index! + insightMatch[0].length);
+        
+        // Process text before insight
+        if (beforeInsight.trim()) {
+          const segments = parseContentSegments(beforeInsight);
+          const beforeElements: React.ReactElement[] = [];
+          
+          segments.forEach((segment, sIndex) => {
+            if (segment.type !== 'insight') {
+              beforeElements.push(renderSegment(segment, sIndex));
+            }
+          });
+          
+          if (beforeElements.length > 0) {
+            elements.push(
+              React.createElement(Text, {
+                key: `paragraph-${pIndex}-before`,
+                style: styles.paragraph
+              }, beforeElements)
+            );
+          }
+        }
+        
+        // Process text after insight
+        if (afterInsight.trim()) {
+          const segments = parseContentSegments(afterInsight);
+          const afterElements: React.ReactElement[] = [];
+          
+          segments.forEach((segment, sIndex) => {
+            if (segment.type !== 'insight') {
+              afterElements.push(renderSegment(segment, sIndex));
+            }
+          });
+          
+          if (afterElements.length > 0) {
+            elements.push(
+              React.createElement(Text, {
+                key: `paragraph-${pIndex}-after`,
+                style: styles.paragraph
+              }, afterElements)
+            );
+          }
+        }
+      } else {
+        // Normal paragraph without insight box
+        const segments = parseContentSegments(paragraph);
+        const paragraphElements: React.ReactElement[] = [];
+        
+        segments.forEach((segment, sIndex) => {
+          if (segment.type !== 'insight') {
+            paragraphElements.push(renderSegment(segment, sIndex));
+          }
+        });
+        
+        // Only add paragraph if it has content
+        if (paragraphElements.length > 0) {
+          elements.push(
+            React.createElement(Text, {
+              key: `paragraph-${pIndex}`,
+              style: styles.paragraph
+            }, paragraphElements)
+          );
+        }
       }
     });
     
-    // Wrap paragraph elements in a Text container
-    if (paragraphElements.length > 0) {
+    // If no elements were created (shouldn't happen with valid content), add the raw text
+    if (elements.length === 0 && content.trim()) {
+      console.warn('No elements created from unified analysis, falling back to raw text');
       elements.push(
         React.createElement(Text, {
-          key: `paragraph-${pIndex}`,
+          key: 'fallback',
           style: styles.paragraph
-        }, paragraphElements)
+        }, content)
       );
     }
-  });
+    
+  } catch (error) {
+    console.error('Error parsing unified analysis:', error);
+    // Fallback to simple text display
+    return [
+      React.createElement(Text, {
+        key: 'error-fallback',
+        style: styles.paragraph
+      }, content)
+    ];
+  }
   
   return elements;
 };
 
 // Check if filing has unified analysis
 export const hasUnifiedAnalysis = (filing: any): boolean => {
-  return filing?.analysis_version === 'v2' && !!filing?.unified_analysis;
+  // 更灵活的判断：只要有 unified_analysis 就使用它
+  return !!filing?.unified_analysis && !!filing?.analysis_version;
 };
 
 // Get display summary (prefer unified over legacy)
