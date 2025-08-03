@@ -76,17 +76,49 @@ export const cleanText = (text: string | undefined): string => {
 // ==================== ENHANCED: Smart Markup Parsing ====================
 
 interface ParsedSegment {
-  type: 'plain' | 'number' | 'concept' | 'positive' | 'negative' | 'insight';
+  type: 'plain' | 'number' | 'concept' | 'positive' | 'negative' | 'insight' | 'heading1' | 'heading2' | 'heading3' | 'heading4' | 'italic' | 'boldItalic';
   content: string;
   raw?: string;
+  level?: number;
 }
 
-// Parse content into segments
+// Parse content into segments with heading support
 const parseContentSegments = (content: string): ParsedSegment[] => {
   const segments: ParsedSegment[] = [];
   
-  // Combined regex pattern for all markup types
-  const markupPattern = /(\*\*[^*]+\*\*|\*[^*]+\*|\+\[[^\]]+\]|-\[[^\]]+\]|\[![^\]]+\])/g;
+  // Check if this is a heading line
+  const headingMatch = content.match(/^(#{1,4})\s+(.+)$/);
+  if (headingMatch) {
+    const level = headingMatch[1].length;
+    const headingContent = headingMatch[2];
+    
+    // Parse the heading content for inline markup
+    const headingSegments = parseInlineMarkup(headingContent);
+    
+    // Return heading segments with appropriate type
+    return headingSegments.map(segment => {
+      if (segment.type === 'plain') {
+        return {
+          ...segment,
+          type: `heading${level}` as ParsedSegment['type'],
+          level
+        };
+      }
+      return segment;
+    });
+  }
+  
+  // If not a heading, parse normally
+  return parseInlineMarkup(content);
+};
+
+// Parse inline markup within text
+const parseInlineMarkup = (content: string): ParsedSegment[] => {
+  const segments: ParsedSegment[] = [];
+  
+  // Enhanced regex pattern including italic patterns
+  // Order matters: check triple asterisks/underscores first, then double, then single
+  const markupPattern = /(\*\*\*[^*]+\*\*\*|___[^_]+___|__[^_]+__|_[^_]+_|\*\*[^*]+\*\*|\*[^*\s][^*]*[^*\s]\*|\*[^*\s]\*|\+\[[^\]]+\]|-\[[^\]]+\]|\[![^\]]+\])/g;
   
   let lastIndex = 0;
   let match;
@@ -103,20 +135,48 @@ const parseContentSegments = (content: string): ParsedSegment[] => {
     const markup = match[0];
     
     // Identify markup type and extract content
-    if (markup.startsWith('**') && markup.endsWith('**')) {
-      // Important concept
+    if ((markup.startsWith('***') && markup.endsWith('***')) || 
+        (markup.startsWith('___') && markup.endsWith('___'))) {
+      // Bold + Italic
+      segments.push({
+        type: 'boldItalic',
+        content: markup.slice(3, -3),
+        raw: markup
+      });
+    } else if (markup.startsWith('**') && markup.endsWith('**')) {
+      // Important concept (bold)
       segments.push({
         type: 'concept',
         content: markup.slice(2, -2),
         raw: markup
       });
-    } else if (markup.startsWith('*') && markup.endsWith('*')) {
-      // Key number
+    } else if ((markup.startsWith('__') && markup.endsWith('__')) ||
+               (markup.startsWith('_') && markup.endsWith('_') && !markup.startsWith('__'))) {
+      // Italic (underscores)
+      const startChars = markup.startsWith('__') ? 2 : 1;
       segments.push({
-        type: 'number',
-        content: markup.slice(1, -1),
+        type: 'italic',
+        content: markup.slice(startChars, -startChars),
         raw: markup
       });
+    } else if (markup.startsWith('*') && markup.endsWith('*') && !markup.startsWith('**')) {
+      // Check if this is italic or number
+      const innerContent = markup.slice(1, -1);
+      // If it contains numbers or financial symbols, treat as number
+      if (/[\d$%,.]/.test(innerContent)) {
+        segments.push({
+          type: 'number',
+          content: innerContent,
+          raw: markup
+        });
+      } else {
+        // Otherwise treat as italic
+        segments.push({
+          type: 'italic',
+          content: innerContent,
+          raw: markup
+        });
+      }
     } else if (markup.startsWith('+[') && markup.endsWith(']')) {
       // Positive trend
       segments.push({
@@ -171,6 +231,18 @@ const renderSegment = (segment: ParsedSegment, index: number): React.ReactElemen
         style: styles.keyConcept
       }, segment.content);
       
+    case 'italic':
+      return React.createElement(Text, {
+        key,
+        style: styles.italicText
+      }, segment.content);
+      
+    case 'boldItalic':
+      return React.createElement(Text, {
+        key,
+        style: styles.boldItalicText
+      }, segment.content);
+      
     case 'positive':
       return React.createElement(Text, {
         key,
@@ -182,6 +254,30 @@ const renderSegment = (segment: ParsedSegment, index: number): React.ReactElemen
         key,
         style: styles.negativeTrend
       }, `↓ ${segment.content}`);
+      
+    case 'heading1':
+      return React.createElement(Text, {
+        key,
+        style: styles.heading1
+      }, segment.content);
+      
+    case 'heading2':
+      return React.createElement(Text, {
+        key,
+        style: styles.heading2
+      }, segment.content);
+      
+    case 'heading3':
+      return React.createElement(Text, {
+        key,
+        style: styles.heading3
+      }, segment.content);
+      
+    case 'heading4':
+      return React.createElement(Text, {
+        key,
+        style: styles.heading4
+      }, segment.content);
       
     case 'insight':
       // Insights are handled separately as block elements
@@ -195,124 +291,79 @@ const renderSegment = (segment: ParsedSegment, index: number): React.ReactElemen
   }
 };
 
-// Parse unified analysis with smart markup - MAIN FUNCTION (FIXED)
+// Parse unified analysis with smart markup - MAIN FUNCTION (ENHANCED)
 export const parseUnifiedAnalysis = (content: string | undefined): React.ReactElement[] => {
   if (!content) return [React.createElement(Text, { key: 'empty' }, '')];
-  
-  // 添加调试日志
-  console.log('=== parseUnifiedAnalysis 调试 ===');
-  console.log('内容长度:', content.length);
-  console.log('前500字符:', content.substring(0, 500));
-  console.log('包含###?', content.includes('###'));
   
   const elements: React.ReactElement[] = [];
   
   try {
-    // Split content into paragraphs
-    const paragraphs = content.split(/\n\n+/);
-    console.log('段落数量:', paragraphs.length);
-    console.log('各段落长度:', paragraphs.map(p => p.length));
-    console.log('前3段内容预览:', paragraphs.slice(0, 3).map(p => p.substring(0, 100) + '...'));
+    // Split content into lines first to properly handle headings
+    const lines = content.split(/\n/);
+    let currentParagraph: string[] = [];
     
-    paragraphs.forEach((paragraph, pIndex) => {
-      if (!paragraph.trim()) return;
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      const trimmedLine = line.trim();
       
-      // Check if this paragraph contains an insight box
-      const insightMatch = paragraph.match(/\[!([^\]]+)\]/);
-      
-      if (insightMatch) {
-        // Create insight box element
-        elements.push(
-          React.createElement(View, {
-            key: `insight-box-${pIndex}`,
-            style: styles.insightBox
-          }, [
-            React.createElement(View, {
-              key: 'icon-container',
-              style: styles.insightIconContainer
-            }, React.createElement(Icon, {
-              name: 'lightbulb',
-              size: 24,
-              color: colors.primary
-            })),
-            React.createElement(Text, {
-              key: 'text',
-              style: styles.insightText
-            }, insightMatch[1])
-          ])
-        );
-        
-        // IMPORTANT: Process any remaining content in the paragraph after the insight
-        const beforeInsight = paragraph.substring(0, insightMatch.index);
-        const afterInsight = paragraph.substring(insightMatch.index! + insightMatch[0].length);
-        
-        // Process text before insight
-        if (beforeInsight.trim()) {
-          const segments = parseContentSegments(beforeInsight);
-          const beforeElements: React.ReactElement[] = [];
-          
-          segments.forEach((segment, sIndex) => {
-            if (segment.type !== 'insight') {
-              beforeElements.push(renderSegment(segment, sIndex));
-            }
-          });
-          
-          if (beforeElements.length > 0) {
-            elements.push(
-              React.createElement(Text, {
-                key: `paragraph-${pIndex}-before`,
-                style: styles.paragraph
-              }, beforeElements)
-            );
+      // Check if this is a heading
+      if (trimmedLine.match(/^#{1,4}\s+/)) {
+        // Process any accumulated paragraph first
+        if (currentParagraph.length > 0) {
+          const paragraphText = currentParagraph.join('\n').trim();
+          if (paragraphText) {
+            processParagraph(paragraphText, elements, `para-${i}`);
           }
+          currentParagraph = [];
         }
         
-        // Process text after insight
-        if (afterInsight.trim()) {
-          const segments = parseContentSegments(afterInsight);
-          const afterElements: React.ReactElement[] = [];
-          
-          segments.forEach((segment, sIndex) => {
-            if (segment.type !== 'insight') {
-              afterElements.push(renderSegment(segment, sIndex));
-            }
-          });
-          
-          if (afterElements.length > 0) {
-            elements.push(
-              React.createElement(Text, {
-                key: `paragraph-${pIndex}-after`,
-                style: styles.paragraph
-              }, afterElements)
-            );
-          }
-        }
-      } else {
-        // Normal paragraph without insight box
-        const segments = parseContentSegments(paragraph);
-        const paragraphElements: React.ReactElement[] = [];
+        // Process the heading
+        const segments = parseContentSegments(trimmedLine);
+        const headingElements: React.ReactElement[] = [];
         
         segments.forEach((segment, sIndex) => {
           if (segment.type !== 'insight') {
-            paragraphElements.push(renderSegment(segment, sIndex));
+            headingElements.push(renderSegment(segment, sIndex));
           }
         });
         
-        // Only add paragraph if it has content
-        if (paragraphElements.length > 0) {
+        if (headingElements.length > 0) {
+          // Get the appropriate heading style based on level
+          const headingLevel = trimmedLine.match(/^(#{1,4})/)?.[1].length || 1;
+          const headingStyle = getHeadingStyle(headingLevel);
+          
           elements.push(
             React.createElement(Text, {
-              key: `paragraph-${pIndex}`,
-              style: styles.paragraph
-            }, paragraphElements)
+              key: `heading-${i}`,
+              style: headingStyle
+            }, headingElements)
           );
         }
+      } else if (trimmedLine === '') {
+        // Empty line - process accumulated paragraph
+        if (currentParagraph.length > 0) {
+          const paragraphText = currentParagraph.join('\n').trim();
+          if (paragraphText) {
+            processParagraph(paragraphText, elements, `para-${i}`);
+          }
+          currentParagraph = [];
+        }
+      } else {
+        // Regular line - add to current paragraph
+        currentParagraph.push(line);
       }
-    });
+    }
     
-    // If no elements were created (shouldn't happen with valid content), add the raw text
+    // Process any remaining paragraph
+    if (currentParagraph.length > 0) {
+      const paragraphText = currentParagraph.join('\n').trim();
+      if (paragraphText) {
+        processParagraph(paragraphText, elements, `para-final`);
+      }
+    }
+    
+    // If no elements were created, add the raw text
     if (elements.length === 0 && content.trim()) {
-      console.warn('No elements created from unified analysis, falling back to raw text');
       elements.push(
         React.createElement(Text, {
           key: 'fallback',
@@ -333,6 +384,114 @@ export const parseUnifiedAnalysis = (content: string | undefined): React.ReactEl
   }
   
   return elements;
+};
+
+// Helper function to process a paragraph
+const processParagraph = (paragraph: string, elements: React.ReactElement[], keyPrefix: string) => {
+  // Check if this paragraph contains an insight box
+  const insightMatch = paragraph.match(/\[!([^\]]+)\]/);
+  
+  if (insightMatch) {
+    // Create insight box element
+    elements.push(
+      React.createElement(View, {
+        key: `${keyPrefix}-insight-box`,
+        style: styles.insightBox
+      }, [
+        React.createElement(View, {
+          key: 'icon-container',
+          style: styles.insightIconContainer
+        }, React.createElement(Icon, {
+          name: 'lightbulb',
+          size: 24,
+          color: colors.primary
+        })),
+        React.createElement(Text, {
+          key: 'text',
+          style: styles.insightText
+        }, insightMatch[1])
+      ])
+    );
+    
+    // Process any remaining content
+    const beforeInsight = paragraph.substring(0, insightMatch.index);
+    const afterInsight = paragraph.substring(insightMatch.index! + insightMatch[0].length);
+    
+    if (beforeInsight.trim()) {
+      const segments = parseContentSegments(beforeInsight);
+      const beforeElements: React.ReactElement[] = [];
+      
+      segments.forEach((segment, sIndex) => {
+        if (segment.type !== 'insight') {
+          beforeElements.push(renderSegment(segment, sIndex));
+        }
+      });
+      
+      if (beforeElements.length > 0) {
+        elements.push(
+          React.createElement(Text, {
+            key: `${keyPrefix}-before`,
+            style: styles.paragraph
+          }, beforeElements)
+        );
+      }
+    }
+    
+    if (afterInsight.trim()) {
+      const segments = parseContentSegments(afterInsight);
+      const afterElements: React.ReactElement[] = [];
+      
+      segments.forEach((segment, sIndex) => {
+        if (segment.type !== 'insight') {
+          afterElements.push(renderSegment(segment, sIndex));
+        }
+      });
+      
+      if (afterElements.length > 0) {
+        elements.push(
+          React.createElement(Text, {
+            key: `${keyPrefix}-after`,
+            style: styles.paragraph
+          }, afterElements)
+        );
+      }
+    }
+  } else {
+    // Normal paragraph without insight box
+    const segments = parseContentSegments(paragraph);
+    const paragraphElements: React.ReactElement[] = [];
+    
+    segments.forEach((segment, sIndex) => {
+      if (segment.type !== 'insight') {
+        paragraphElements.push(renderSegment(segment, sIndex));
+      }
+    });
+    
+    if (paragraphElements.length > 0) {
+      elements.push(
+        React.createElement(Text, {
+          key: keyPrefix,
+          style: styles.paragraph
+        }, paragraphElements)
+      );
+    }
+  }
+};
+
+// Helper function to get heading style based on level
+const getHeadingStyle = (level: number): TextStyle => {
+  switch (level) {
+    case 1:
+      return styles.heading1;
+    case 2:
+      return styles.heading2;
+    case 3:
+      return styles.heading3;
+    case 4:
+      return styles.heading4;
+    default:
+      return styles.heading2;
+  }
 };
 
 // Check if filing has unified analysis
@@ -365,6 +524,43 @@ const styles = StyleSheet.create({
     color: colors.text,
     lineHeight: 26,
     marginBottom: spacing.md,
+  },
+  
+  // Heading styles
+  heading1: {
+    fontSize: 24,
+    fontWeight: 'bold' as any,
+    color: colors.text,
+    marginTop: spacing.lg,
+    marginBottom: spacing.md,
+    lineHeight: 32,
+  },
+  
+  heading2: {
+    fontSize: 20,
+    fontWeight: 'bold' as any,
+    color: colors.text,
+    marginTop: spacing.lg,
+    marginBottom: spacing.md,
+    lineHeight: 28,
+  },
+  
+  heading3: {
+    fontSize: 18,
+    fontWeight: 'bold' as any,
+    color: colors.text,
+    marginTop: spacing.md,
+    marginBottom: spacing.sm,
+    lineHeight: 26,
+  },
+  
+  heading4: {
+    fontSize: 16,
+    fontWeight: 'bold' as any,
+    color: colors.text,
+    marginTop: spacing.md,
+    marginBottom: spacing.sm,
+    lineHeight: 24,
   },
   
   // Base text styles
@@ -403,6 +599,24 @@ const styles = StyleSheet.create({
     color: '#EF4444', // Red
     fontWeight: typography.fontWeight.semibold as any,
     fontSize: typography.fontSize.base,
+  },
+  
+  // Italic text: _text_ or *text* (non-numeric)
+  italicText: {
+    fontSize: typography.fontSize.lg,  // 放大字体
+    color: colors.text,
+    fontWeight: typography.fontWeight.semibold as any,  // 加粗
+    fontStyle: 'italic' as any,
+    lineHeight: 28,
+  },
+  
+  // Bold + Italic text: ***text*** or ___text___
+  boldItalicText: {
+    fontSize: typography.fontSize.lg,  // 放大字体
+    color: colors.text,
+    fontWeight: typography.fontWeight.bold as any,
+    fontStyle: 'italic' as any,
+    lineHeight: 28,
   },
   
   // Insight box container
