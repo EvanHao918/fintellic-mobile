@@ -121,7 +121,7 @@ const cleanCommentData = (comment: any): Comment => {
   };
 };
 
-// Get filings list with optional ticker filter - UPDATED
+// Get filings list with optional ticker filter - FIXED VERSION
 export const getFilings = async (
   page: number = 1, 
   ticker?: string
@@ -135,21 +135,40 @@ export const getFilings = async (
       params.ticker = ticker;
     }
     
+    console.log('Fetching filings with params:', params);
+    
     const response = await apiClient.get('/filings/', { params });
     
-    // 处理响应数据
-    const responseData = response.data || response;
-    const items = Array.isArray(responseData) ? responseData : 
-                  (responseData.items || responseData.results || []);
+    console.log('API Response:', response);
+    
+    // 处理响应数据 - 适配不同的响应格式
+    let items: any[] = [];
+    let total = 0;
+    
+    // 处理后端返回的 data 字段（根据您的网络响应）
+    if (response && typeof response === 'object') {
+      if (Array.isArray(response.data)) {
+        items = response.data;
+        total = response.total || items.length;
+      } else if (Array.isArray(response.items)) {
+        items = response.items;
+        total = response.total || items.length;
+      } else if (Array.isArray(response)) {
+        items = response;
+        total = items.length;
+      }
+    }
     
     // 使用 cleanFilingData 处理每个 filing
     const cleanedFilings = items.map(cleanFilingData);
     
+    console.log('Cleaned filings:', cleanedFilings.length);
+    
     return {
       data: cleanedFilings,
-      total: responseData.total || cleanedFilings.length,
+      total: total,
       page: page,
-      pages: responseData.pages || Math.ceil((responseData.total || cleanedFilings.length) / 20)
+      pages: Math.ceil(total / 20)
     };
   } catch (error) {
     console.error('Error fetching filings:', error);

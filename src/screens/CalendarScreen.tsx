@@ -254,11 +254,16 @@ export default function CalendarScreen() {
   };
 
   const getTimeStyle = (time: string) => {
-    switch (time) {
+    // 转换为大写以处理大小写问题
+    const upperTime = time?.toUpperCase() || '';
+    
+    switch (upperTime) {
       case 'BMO':
-        return { backgroundColor: colors.info };
+        return { backgroundColor: '#2563EB' };  // 明亮的蓝色
       case 'AMC':
-        return { backgroundColor: colors.warning };
+        return { backgroundColor: '#10B981' };  // 翡翠绿
+      case 'TBD':
+        return { backgroundColor: colors.gray500 };
       default:
         return { backgroundColor: colors.textSecondary };
     }
@@ -350,16 +355,16 @@ export default function CalendarScreen() {
           )}
         </View>
 
-        {/* Legend */}
+        {/* Legend - 更新图例颜色 */}
         <View style={styles.legend}>
           <Text style={styles.legendTitle}>Time Legend</Text>
           <View style={styles.legendItems}>
             <View style={styles.legendItem}>
-              <View style={[styles.legendDot, { backgroundColor: colors.info }]} />
+              <View style={[styles.legendDot, { backgroundColor: '#2563EB' }]} />
               <Text style={styles.legendText}>BMO - Before Market Open</Text>
             </View>
             <View style={styles.legendItem}>
-              <View style={[styles.legendDot, { backgroundColor: colors.warning }]} />
+              <View style={[styles.legendDot, { backgroundColor: '#10B981' }]} />
               <Text style={styles.legendText}>AMC - After Market Close</Text>
             </View>
             <View style={styles.legendItem}>

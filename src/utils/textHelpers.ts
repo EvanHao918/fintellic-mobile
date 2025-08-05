@@ -524,6 +524,7 @@ const styles = StyleSheet.create({
     color: colors.text,
     lineHeight: 26,
     marginBottom: spacing.md,
+    fontFamily: 'Times New Roman, serif',
   },
   
   // Heading styles
@@ -534,6 +535,7 @@ const styles = StyleSheet.create({
     marginTop: spacing.lg,
     marginBottom: spacing.md,
     lineHeight: 32,
+    fontFamily: 'Times New Roman, serif',
   },
   
   heading2: {
@@ -543,6 +545,7 @@ const styles = StyleSheet.create({
     marginTop: spacing.lg,
     marginBottom: spacing.md,
     lineHeight: 28,
+    fontFamily: 'Times New Roman, serif',
   },
   
   heading3: {
@@ -552,6 +555,7 @@ const styles = StyleSheet.create({
     marginTop: spacing.md,
     marginBottom: spacing.sm,
     lineHeight: 26,
+    fontFamily: 'Times New Roman, serif',
   },
   
   heading4: {
@@ -561,6 +565,7 @@ const styles = StyleSheet.create({
     marginTop: spacing.md,
     marginBottom: spacing.sm,
     lineHeight: 24,
+    fontFamily: 'Times New Roman, serif',
   },
   
   // Base text styles
@@ -568,6 +573,7 @@ const styles = StyleSheet.create({
     fontSize: typography.fontSize.base,
     color: colors.text,
     lineHeight: 26,
+    fontFamily: 'Times New Roman, serif',
   },
   
   // Key numbers: *37%* or *$5.2B*
@@ -575,6 +581,7 @@ const styles = StyleSheet.create({
     color: colors.primary,
     fontWeight: typography.fontWeight.bold as any,
     fontSize: typography.fontSize.lg,
+    fontFamily: 'Times New Roman, serif',
   },
   
   // Important concepts: **transformation**
@@ -585,6 +592,7 @@ const styles = StyleSheet.create({
     borderRadius: 4,
     fontWeight: typography.fontWeight.semibold as any,
     color: colors.text,
+    fontFamily: 'Times New Roman, serif',
   },
   
   // Positive trends: +[revenue up 15%]
@@ -592,6 +600,7 @@ const styles = StyleSheet.create({
     color: '#10B981', // Green
     fontWeight: typography.fontWeight.semibold as any,
     fontSize: typography.fontSize.base,
+    fontFamily: 'Times New Roman, serif',
   },
   
   // Negative trends: -[margins down 5%]
@@ -599,6 +608,7 @@ const styles = StyleSheet.create({
     color: '#EF4444', // Red
     fontWeight: typography.fontWeight.semibold as any,
     fontSize: typography.fontSize.base,
+    fontFamily: 'Times New Roman, serif',
   },
   
   // Italic text: _text_ or *text* (non-numeric)
@@ -608,6 +618,7 @@ const styles = StyleSheet.create({
     fontWeight: typography.fontWeight.semibold as any,  // 加粗
     fontStyle: 'italic' as any,
     lineHeight: 28,
+    fontFamily: 'Times New Roman, serif',
   },
   
   // Bold + Italic text: ***text*** or ___text___
@@ -617,6 +628,7 @@ const styles = StyleSheet.create({
     fontWeight: typography.fontWeight.bold as any,
     fontStyle: 'italic' as any,
     lineHeight: 28,
+    fontFamily: 'Times New Roman, serif',
   },
   
   // Insight box container
@@ -652,5 +664,6 @@ const styles = StyleSheet.create({
     color: colors.text,
     lineHeight: 24,
     fontWeight: typography.fontWeight.medium as any,
+    fontFamily: 'Times New Roman, serif',
   },
 });

@@ -168,11 +168,13 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: 'white',
     marginBottom: 4,
+    fontFamily: 'Times New Roman, serif',
   },
   headerSubtitle: {
     fontSize: 16,
     color: 'rgba(255, 255, 255, 0.9)',
     marginBottom: 6,
+    fontFamily: 'Times New Roman, serif',
   },
   filingTimeContainer: {
     flexDirection: 'row',
@@ -182,6 +184,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: 'rgba(255, 255, 255, 0.8)',
     marginLeft: 4,
+    fontFamily: 'Times New Roman, serif',
   },
   scrollContainer: {
     flex: 1,
@@ -205,6 +208,7 @@ const styles = StyleSheet.create({
     marginLeft: 8,
     flex: 1,
     letterSpacing: -0.3,
+    fontFamily: 'Times New Roman, serif',
   },
   unifiedBadge: {
     flexDirection: 'row',
@@ -219,6 +223,7 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '600',
     marginLeft: 4,
+    fontFamily: 'Times New Roman, serif',
   },
   unifiedContent: {
     backgroundColor: 'white',
@@ -238,6 +243,7 @@ const styles = StyleSheet.create({
     fontSize: 15,
     lineHeight: 23,
     color: '#444',
+    fontFamily: 'Times New Roman, serif',
   },
 
   // View Filing Button
@@ -261,6 +267,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
     marginLeft: 8,
+    fontFamily: 'Times New Roman, serif',
   },
 });
 

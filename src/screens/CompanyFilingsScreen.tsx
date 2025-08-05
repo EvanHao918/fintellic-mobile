@@ -2,90 +2,108 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
-  StyleSheet,
-  FlatList,
-  RefreshControl,
-  ActivityIndicator,
   Text,
+  FlatList,
   TouchableOpacity,
+  ActivityIndicator,
+  RefreshControl,
+  StyleSheet,
+  Platform,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRoute, useNavigation } from '@react-navigation/native';
+import { useSelector } from 'react-redux';
+import { Icon } from 'react-native-elements';
+import FilingCard from '../components/FilingCard';
+import { getFilings } from '../api/filings';
+import { RootState } from '../store';
+import { colors, typography, spacing, borderRadius, shadows } from '../theme';
+import type { Filing, RootStackParamList } from '../types';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RouteProp } from '@react-navigation/native';
-import { Icon } from 'react-native-elements';
-import { useSelector } from 'react-redux';
-import FilingCard from '../components/FilingCard';
-import { colors, typography, spacing } from '../theme';
-import { getFilings } from '../api/filings';
-import { useFilingVote } from '../hooks/useFilingVote';
-import { RootState } from '../store';
-import type { Filing, RootStackParamList } from '../types';
 
 type CompanyFilingsScreenNavigationProp = StackNavigationProp<RootStackParamList>;
 type CompanyFilingsScreenRouteProp = RouteProp<RootStackParamList, 'CompanyFilings'>;
 
-const CompanyFilingsScreen: React.FC = () => {
+export default function CompanyFilingsScreen() {
   const route = useRoute<CompanyFilingsScreenRouteProp>();
   const navigation = useNavigation<CompanyFilingsScreenNavigationProp>();
   const { ticker, companyName } = route.params;
 
+  const [filings, setFilings] = useState<Filing[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
   
-  // 从 Redux store 获取所有 filings
-  const allFilings = useSelector((state: RootState) => state.filings.filings);
-  
-  // 筛选出当前公司的 filings
-  const companyFilings = allFilings.filter(filing => filing.company_ticker === ticker);
-  
-  // Get user info for Pro status
   const { user } = useSelector((state: RootState) => state.auth || {});
   const isProUser = user?.tier === 'pro';
 
-  // 初始加载检查
-  useEffect(() => {
-    // 如果 Redux store 中有该公司的数据，直接使用
-    if (companyFilings.length > 0) {
+  const loadFilings = useCallback(async (isRefresh: boolean = false) => {
+    try {
+      if (isRefresh) {
+        setIsRefreshing(true);
+        setPage(1);
+      } else {
+        setIsLoading(true);
+      }
+      setError(null);
+
+      const response = await getFilings(isRefresh ? 1 : page, ticker);
+      
+      if (isRefresh) {
+        setFilings(response.data);
+      } else {
+        setFilings(prev => page === 1 ? response.data : [...prev, ...response.data]);
+      }
+
+      setHasMore(response.data.length === 20);
+
+    } catch (err) {
+      console.error('Error loading company filings:', err);
+      setError('Failed to load filings. Please try again.');
+    } finally {
       setIsLoading(false);
-    } else {
-      // 否则需要加载数据
-      setIsLoading(true);
-      // 这里可以触发一个加载所有数据的 action
-      // 或者显示"暂无数据"
-      setTimeout(() => {
-        setIsLoading(false);
-        if (companyFilings.length === 0) {
-          setError('No filings found for this company');
-        }
-      }, 1000);
+      setIsRefreshing(false);
     }
-  }, [ticker, companyFilings.length]);
+  }, [ticker, page]);
+
+  useEffect(() => {
+    loadFilings();
+  }, []);
 
   const handleRefresh = useCallback(() => {
-    // 返回主页或重新加载
-    navigation.goBack();
-  }, [navigation]);
+    loadFilings(true);
+  }, [loadFilings]);
 
   const handleLoadMore = useCallback(() => {
-    // 不需要加载更多，因为我们使用的是已有数据
-  }, []);
+    if (!isLoading && hasMore && !isRefreshing) {
+      setPage(prev => prev + 1);
+    }
+  }, [isLoading, hasMore, isRefreshing]);
+
+  useEffect(() => {
+    if (page > 1) {
+      loadFilings();
+    }
+  }, [page]);
 
   const handleFilingPress = useCallback((filing: Filing) => {
     navigation.navigate('FilingDetail', { filingId: filing.id });
   }, [navigation]);
 
-  const renderItem = useCallback(({ item }: { item: Filing }) => (
-    <FilingCard 
-      filing={item} 
-      onPress={() => handleFilingPress(item)}
-      isProUser={isProUser}
-    />
-  ), [handleFilingPress, isProUser]);
+  const renderFilingItem = ({ item }: { item: Filing }) => (
+    <View style={styles.filingCardWrapper}>
+      <FilingCard 
+        filing={item} 
+        onPress={() => handleFilingPress(item)}
+        isProUser={isProUser}
+      />
+    </View>
+  );
 
   const renderFooter = () => {
-    if (!isLoading || companyFilings.length === 0) return null;
+    if (!isLoading || filings.length === 0) return null;
     return (
       <View style={styles.footer}>
         <ActivityIndicator size="small" color={colors.primary} />
@@ -113,9 +131,9 @@ const CompanyFilingsScreen: React.FC = () => {
     );
   };
 
-  if (isLoading && companyFilings.length === 0) {
+  if (isLoading && filings.length === 0) {
     return (
-      <SafeAreaView style={styles.container} edges={['top']}>
+      <View style={styles.container}>
         <View style={styles.header}>
           <TouchableOpacity 
             onPress={() => navigation.goBack()}
@@ -139,55 +157,13 @@ const CompanyFilingsScreen: React.FC = () => {
           <ActivityIndicator size="large" color={colors.primary} />
           <Text style={styles.loadingText}>Loading filings...</Text>
         </View>
-      </SafeAreaView>
-    );
-  }
-
-  if (error && companyFilings.length === 0) {
-    return (
-      <SafeAreaView style={styles.container} edges={['top']}>
-        <View style={styles.header}>
-          <TouchableOpacity 
-            onPress={() => navigation.goBack()}
-            style={styles.backButton}
-          >
-            <Icon
-              name="arrow-back"
-              type="material"
-              color={colors.text}
-              size={24}
-            />
-          </TouchableOpacity>
-          <View style={styles.headerContent}>
-            <Text style={styles.ticker}>{ticker}</Text>
-            <Text style={styles.companyName} numberOfLines={1}>
-              {companyName}
-            </Text>
-          </View>
-        </View>
-        <View style={styles.errorContainer}>
-          <Icon
-            name="alert-circle-outline"
-            type="ionicon"
-            size={64}
-            color={colors.error}
-            style={styles.errorIcon}
-          />
-          <Text style={styles.errorTitle}>Something went wrong</Text>
-          <Text style={styles.errorText}>{error}</Text>
-          <TouchableOpacity
-            style={styles.retryButton}
-            onPress={() => navigation.goBack()}
-          >
-            <Text style={styles.retryButtonText}>Go Back</Text>
-          </TouchableOpacity>
-        </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <View style={styles.container}>
+      {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity 
           onPress={() => navigation.goBack()}
@@ -206,16 +182,31 @@ const CompanyFilingsScreen: React.FC = () => {
             {companyName}
           </Text>
         </View>
+        <View style={styles.headerRight}>
+          <Text style={styles.filingCount}>
+            {filings.length} {filings.length === 1 ? 'filing' : 'filings'}
+          </Text>
+        </View>
       </View>
-      
+
+      {/* Error Banner */}
+      {error && (
+        <View style={styles.errorBanner}>
+          <Text style={styles.errorText}>{error}</Text>
+          <TouchableOpacity
+            style={styles.retryButton}
+            onPress={() => loadFilings()}
+          >
+            <Text style={styles.retryButtonText}>Retry</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
+      {/* Filings List */}
       <FlatList
-        data={companyFilings}
-        renderItem={renderItem}
+        data={filings}
         keyExtractor={(item) => item.id.toString()}
-        contentContainerStyle={[
-          styles.listContent,
-          companyFilings.length === 0 && styles.emptyListContent
-        ]}
+        renderItem={renderFilingItem}
         refreshControl={
           <RefreshControl
             refreshing={isRefreshing}
@@ -223,13 +214,18 @@ const CompanyFilingsScreen: React.FC = () => {
             tintColor={colors.primary}
           />
         }
+        onEndReached={handleLoadMore}
+        onEndReachedThreshold={0.1}
         ListFooterComponent={renderFooter}
         ListEmptyComponent={renderEmpty}
+        contentContainerStyle={
+          filings.length === 0 ? styles.emptyListContainer : styles.listContent
+        }
         showsVerticalScrollIndicator={false}
       />
-    </SafeAreaView>
+    </View>
   );
-};
+}
 
 const styles = StyleSheet.create({
   container: {
@@ -237,18 +233,15 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
   },
   header: {
-    backgroundColor: colors.white,
     flexDirection: 'row',
     alignItems: 'center',
+    backgroundColor: colors.white,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.lg,
+    paddingTop: Platform.OS === 'ios' ? 60 : spacing.xl + 20,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
+    ...shadows.sm,
   },
   backButton: {
     marginRight: spacing.md,
@@ -256,6 +249,9 @@ const styles = StyleSheet.create({
   },
   headerContent: {
     flex: 1,
+  },
+  headerRight: {
+    alignItems: 'flex-end',
   },
   ticker: {
     fontSize: typography.fontSize.xl,
@@ -267,16 +263,9 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     marginTop: spacing.xs,
   },
-  listContent: {
-    paddingTop: spacing.md,
-    paddingBottom: spacing.xl,
-  },
-  emptyListContent: {
-    flex: 1,
-  },
-  footer: {
-    paddingVertical: spacing.lg,
-    alignItems: 'center',
+  filingCount: {
+    fontSize: typography.fontSize.xs,
+    color: colors.textSecondary,
   },
   loadingContainer: {
     flex: 1,
@@ -288,9 +277,42 @@ const styles = StyleSheet.create({
     fontSize: typography.fontSize.md,
     color: colors.textSecondary,
   },
-  emptyContainer: {
+  errorBanner: {
+    backgroundColor: colors.error + '10',
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.error + '20',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  errorText: {
+    fontSize: typography.fontSize.sm,
+    color: colors.error,
+    flex: 1,
+  },
+  retryButton: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+  },
+  retryButtonText: {
+    fontSize: typography.fontSize.sm,
+    fontWeight: typography.fontWeight.medium,
+    color: colors.primary,
+  },
+  listContent: {
+    paddingTop: spacing.md,
+    paddingBottom: spacing.xl,
+  },
+  filingCardWrapper: {
+    marginVertical: spacing.xs,
+  },
+  emptyListContainer: {
     flex: 1,
     justifyContent: 'center',
+  },
+  emptyContainer: {
     alignItems: 'center',
     paddingHorizontal: spacing.xl,
   },
@@ -309,39 +331,8 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     textAlign: 'center',
   },
-  errorContainer: {
-    flex: 1,
-    justifyContent: 'center',
+  footer: {
+    paddingVertical: spacing.lg,
     alignItems: 'center',
-    paddingHorizontal: spacing.xl,
-  },
-  errorIcon: {
-    marginBottom: spacing.lg,
-  },
-  errorTitle: {
-    fontSize: typography.fontSize.lg,
-    fontWeight: typography.fontWeight.semibold,
-    color: colors.text,
-    marginBottom: spacing.sm,
-  },
-  errorText: {
-    fontSize: typography.fontSize.base,
-    fontWeight: typography.fontWeight.regular,
-    color: colors.textSecondary,
-    textAlign: 'center',
-    marginBottom: spacing.lg,
-  },
-  retryButton: {
-    backgroundColor: colors.primary,
-    paddingHorizontal: spacing.xl,
-    paddingVertical: spacing.md,
-    borderRadius: 8,
-  },
-  retryButtonText: {
-    fontSize: typography.fontSize.base,
-    fontWeight: typography.fontWeight.semibold,
-    color: colors.white,
   },
 });
-
-export default CompanyFilingsScreen;

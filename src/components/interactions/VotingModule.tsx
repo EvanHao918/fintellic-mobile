@@ -110,6 +110,13 @@ export const VotingModule: React.FC<VotingModuleProps> = ({
 
   return (
     <View style={[styles.container, mode === 'full' && styles.containerFull, style]}>
+      {/* 添加投票提示文字 */}
+      <View style={styles.promptContainer}>
+        <Text style={[styles.promptText, mode === 'full' && styles.promptTextFull]}>
+          How <Text style={styles.promptTextBold}>profitable</Text> these insights are do you think?
+        </Text>
+      </View>
+      
       {mode === 'full' && totalVotes > 0 && (
         <Text style={styles.totalVotes}>{totalVotes} votes</Text>
       )}
@@ -161,12 +168,29 @@ export const VotingModule: React.FC<VotingModuleProps> = ({
 
 const styles = StyleSheet.create({
   container: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: 'column',
+    alignItems: 'flex-start',
   },
   containerFull: {
-    flexDirection: 'column',
     alignItems: 'stretch',
+  },
+  promptContainer: {
+    marginBottom: spacing.xs,
+  },
+  promptText: {
+    fontSize: typography.fontSize.xs,
+    color: colors.textSecondary,
+    lineHeight: typography.fontSize.xs * 1.3,
+  },
+  promptTextFull: {
+    fontSize: typography.fontSize.sm,
+    lineHeight: typography.fontSize.sm * 1.4,
+    textAlign: 'center',
+    marginBottom: spacing.xs,
+  },
+  promptTextBold: {
+    fontWeight: typography.fontWeight.bold,
+    color: colors.text,
   },
   totalVotes: {
     fontSize: typography.fontSize.xs,

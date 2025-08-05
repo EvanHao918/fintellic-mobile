@@ -180,11 +180,13 @@ const styles = StyleSheet.create({
     fontWeight: typography.fontWeight.bold,
     color: colors.white,
     marginBottom: spacing.xs,
+    fontFamily: 'Times New Roman, serif',
   },
   headerSubtitle: {
     fontSize: typography.fontSize.sm,
     color: colors.white + '90',
     textAlign: 'center',
+    fontFamily: 'Times New Roman, serif',
   },
   urgencyBadge: {
     flexDirection: 'row',
@@ -200,6 +202,7 @@ const styles = StyleSheet.create({
     fontSize: typography.fontSize.sm,
     fontWeight: typography.fontWeight.medium,
     marginLeft: spacing.xs,
+    fontFamily: 'Times New Roman, serif',
   },
 
   // Meta Card
@@ -235,16 +238,19 @@ const styles = StyleSheet.create({
     fontSize: typography.fontSize.sm,
     color: colors.textSecondary,
     marginBottom: spacing.xs,
+    fontFamily: 'Times New Roman, serif',
   },
   metaValue: {
     fontSize: typography.fontSize.md,
     fontWeight: typography.fontWeight.semibold,
     color: colors.text,
+    fontFamily: 'Times New Roman, serif',
   },
   metaSubvalue: {
     fontSize: typography.fontSize.sm,
     color: colors.textSecondary,
     marginTop: spacing.xs,
+    fontFamily: 'Times New Roman, serif',
   },
 
   // Unified Analysis Section - 唯一的内容区域
@@ -278,6 +284,7 @@ const styles = StyleSheet.create({
     color: colors.text,
     marginLeft: spacing.sm,
     flex: 1,
+    fontFamily: 'Times New Roman, serif',
   },
   unifiedBadge: {
     backgroundColor: '#EF4444',
@@ -289,6 +296,7 @@ const styles = StyleSheet.create({
     color: colors.white,
     fontSize: typography.fontSize.xs,
     fontWeight: typography.fontWeight.bold,
+    fontFamily: 'Times New Roman, serif',
   },
   unifiedContent: {
     paddingTop: spacing.sm,
@@ -301,6 +309,7 @@ const styles = StyleSheet.create({
     fontSize: typography.fontSize.md,
     color: colors.text,
     lineHeight: 24,
+    fontFamily: 'Times New Roman, serif',
   },
 
   // Footer
@@ -320,6 +329,7 @@ const styles = StyleSheet.create({
     fontSize: typography.fontSize.md,
     fontWeight: typography.fontWeight.medium,
     marginLeft: spacing.sm,
+    fontFamily: 'Times New Roman, serif',
   },
 });
 

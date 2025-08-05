@@ -196,11 +196,13 @@ const styles = StyleSheet.create({
     fontWeight: typography.fontWeight.bold,
     color: colors.white,
     letterSpacing: 0.3,
+    fontFamily: 'Times New Roman, serif',
   },
   headerSubtitle: {
     fontSize: typography.fontSize.sm,
     color: colors.white + '90',
     marginTop: 2,
+    fontFamily: 'Times New Roman, serif',
   },
   
   // Content Container
@@ -246,6 +248,7 @@ const styles = StyleSheet.create({
     fontWeight: '900',
     color: colors.gray900,
     letterSpacing: -1,
+    fontFamily: 'Times New Roman, serif',
   },
   companyName: {
     fontSize: typography.fontSize.md,
@@ -253,6 +256,7 @@ const styles = StyleSheet.create({
     marginTop: spacing.xxs,
     fontWeight: typography.fontWeight.medium,
     fontStyle: 'italic',
+    fontFamily: 'Times New Roman, serif',
   },
   filingBadge: {
     backgroundColor: colors.filing10Q,
@@ -265,6 +269,7 @@ const styles = StyleSheet.create({
     fontSize: typography.fontSize.sm,
     fontWeight: typography.fontWeight.semibold,
     letterSpacing: 0.5,
+    fontFamily: 'Times New Roman, serif',
   },
   metaDetails: {
     gap: spacing.sm,
@@ -280,11 +285,13 @@ const styles = StyleSheet.create({
     marginLeft: spacing.sm,
     flex: 1,
     fontWeight: typography.fontWeight.regular,
+    fontFamily: 'Times New Roman, serif',
   },
   metaValue: {
     fontSize: typography.fontSize.sm,
     fontWeight: typography.fontWeight.semibold,
     color: colors.gray900,
+    fontFamily: 'Times New Roman, serif',
   },
 
   // Unified Analysis Section - 唯一的内容区域
@@ -325,6 +332,7 @@ const styles = StyleSheet.create({
     marginLeft: spacing.sm,
     flex: 1,
     letterSpacing: -0.5,
+    fontFamily: 'Times New Roman, serif',
   },
   unifiedBadge: {
     flexDirection: 'row',
@@ -340,6 +348,7 @@ const styles = StyleSheet.create({
     marginLeft: spacing.xxs,
     fontWeight: typography.fontWeight.medium,
     letterSpacing: 0.5,
+    fontFamily: 'Times New Roman, serif',
   },
   unifiedContent: {
     paddingTop: spacing.sm,
@@ -352,6 +361,7 @@ const styles = StyleSheet.create({
     fontSize: typography.fontSize.md,
     color: colors.text,
     lineHeight: 24,
+    fontFamily: 'Times New Roman, serif',
   },
 
   // Footer
@@ -379,6 +389,7 @@ const styles = StyleSheet.create({
     fontWeight: typography.fontWeight.semibold,
     marginRight: spacing.sm,
     letterSpacing: 0.3,
+    fontFamily: 'Times New Roman, serif',
   },
 });
 

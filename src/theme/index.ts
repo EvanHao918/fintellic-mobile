@@ -24,6 +24,10 @@ export const colors = {
   errorLight: '#FEE2E2',    // Light red background
   info: '#3B82F6',          // Blue
   
+  // Earnings calendar time colors - 新增蓝绿色调
+  earningsBMO: '#2563EB',   // 明亮的蓝色 (Before Market Open)
+  earningsAMC: '#10B981',   // 翡翠绿色 (After Market Close)
+  
   // Filing type colors - Distinguished but harmonious
   filing10K: '#2563EB',     // Blue (annual) - 保持原始蓝色
   filing10Q: '#10B981',     // Emerald (quarterly)

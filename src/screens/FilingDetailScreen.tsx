@@ -331,9 +331,9 @@ export default function FilingDetailScreen() {
           {/* Keep voting and comments sections */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>🗳️ Community Sentiment</Text>
-            <Text style={styles.voteQuestion}>How do you see this filing?</Text>
+            {/* 移除原来的voteQuestion，因为VotingModule已经包含提示文字 */}
             
-            {/* 使用独立的 VotingModule 组件 */}
+            {/* 使用独立的 VotingModule 组件 - 现在包含提示文字 */}
             <VotingModule
               filingId={filingId}
               initialVoteCounts={filing.vote_counts || { bullish: 0, neutral: 0, bearish: 0 }}
@@ -560,12 +560,6 @@ const styles = StyleSheet.create({
     fontWeight: typography.fontWeight.semibold,
     color: colors.text,
     marginBottom: spacing.md,
-  },
-  voteQuestion: {
-    fontSize: typography.fontSize.md,
-    color: colors.textSecondary,
-    marginBottom: spacing.md,
-    textAlign: 'center',
   },
   replyIndicator: {
     flexDirection: 'row',

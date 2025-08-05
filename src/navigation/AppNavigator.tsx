@@ -31,7 +31,13 @@ export default function AppNavigator() {
             <Stack.Screen 
               name="CompanyFilings" 
               component={CompanyFilingsScreen}
-              options={{ headerShown: false }}
+              options={{ 
+                headerShown: false,
+                // 添加这些选项来修复滚动问题
+                cardStyle: { flex: 1 },
+                cardOverlayEnabled: false,
+                presentation: 'card', // 使用标准卡片展示
+              }}
             />
             <Stack.Screen 
               name="Subscription" 

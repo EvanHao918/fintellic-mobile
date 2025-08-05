@@ -1,4 +1,7 @@
 // src/components/FilingCard.tsx
+// 此文件无需修改，因为VotingModule组件已经包含了提示文字
+// 提示文字会自动在所有使用VotingModule的地方显示
+
 import React from 'react';
 import {
   View,
@@ -238,7 +241,7 @@ export default function FilingCard({
 
           {/* Compact Footer */}
           <View style={styles.footer}>
-            {/* 使用新的独立 VotingModule */}
+            {/* 使用新的独立 VotingModule - 提示文字会自动显示 */}
             <VotingModule
               filingId={filing.id}
               initialVoteCounts={filing.vote_counts}
@@ -327,6 +330,7 @@ const styles = StyleSheet.create({
     fontSize: typography.fontSize.sm,
     color: colors.gray600,
     fontWeight: typography.fontWeight.medium,
+    fontStyle: 'italic',  // 添加斜体样式
     marginRight: spacing.xs,
   },
   // 新增的指数标签样式
@@ -335,27 +339,27 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   indexTag: {
-    paddingHorizontal: 6,
-    paddingVertical: 2,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
     borderRadius: borderRadius.sm,
     marginRight: 4,
   },
   sp500Tag: {
-    backgroundColor: colors.warning + '20',  // 橙色背景（20%透明度）
+    backgroundColor: 'rgba(129, 140, 248, 0.85)',  // 蓝紫色带透明度
   },
   nasdaqTag: {
-    backgroundColor: colors.success + '20',  // 绿色背景（20%透明度）
+    backgroundColor: 'rgba(16, 185, 129, 0.85)',  // 绿色带透明度
   },
   indexTagText: {
     fontSize: 10,
-    fontWeight: typography.fontWeight.semibold,
-    letterSpacing: 0.2,
+    fontWeight: typography.fontWeight.bold,
+    letterSpacing: 0.3,
   },
   sp500TagText: {
-    color: colors.warning,
+    color: '#1E1B4B',  // 深紫蓝色文字
   },
   nasdaqTagText: {
-    color: colors.success,
+    color: '#14532D',  // 深绿色文字
   },
   headerRight: {
     alignItems: 'flex-end',
@@ -382,6 +386,7 @@ const styles = StyleSheet.create({
     fontSize: typography.fontSize.base,
     color: colors.gray800,
     lineHeight: typography.fontSize.base * 1.5,
+    fontFamily: 'Times New Roman, serif',  // 为摘要文本添加 Times New Roman 字体
   },
   
   // Metrics Row - 始终显示，但内容根据财报类型动态变化
