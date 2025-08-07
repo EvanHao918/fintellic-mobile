@@ -11,86 +11,24 @@ import {
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { colors, typography, spacing, borderRadius } from '../../theme';
 import { parseUnifiedAnalysis, hasUnifiedAnalysis, getDisplayAnalysis } from '../../utils/textHelpers';
-
-interface FilingDetail {
-  id: number;
-  form_type: string;
-  company_name: string;
-  company_ticker: string;
-  filing_date: string;
-  filing_url: string;
-  fiscal_quarter?: string;
-  period_end_date?: string;
-  
-  // Unified analysis fields
-  unified_analysis?: string;
-  analysis_version?: string;
-  smart_markup_data?: any;
-  analyst_expectations?: any;
-  
-  // Legacy 10-Q specific fields
-  ai_summary?: string;
-  core_metrics?: string;
-  financial_highlights?: any;
-  expectations_comparison?: string;
-  cost_structure?: string;
-  guidance_update?: string;
-  growth_decline_analysis?: string;
-  management_tone_analysis?: string;
-  beat_miss_analysis?: string;
-  market_impact_10q?: string;
-  [key: string]: any;
-}
+import CompanyInfoCard from './CompanyInfoCard';
+import { Filing } from '../../types';
 
 interface Quarterly10QDetailProps {
-  filing: FilingDetail;
+  filing: Filing;
 }
 
 const Quarterly10QDetail: React.FC<Quarterly10QDetailProps> = ({ filing }) => {
   const getQuarter = () => {
+    // 优先使用filing中的fiscal_quarter
     if (filing.fiscal_quarter) return filing.fiscal_quarter;
+    
+    // 如果没有，则根据filing_date计算
     const date = new Date(filing.filing_date);
     const month = date.getMonth();
     const quarter = Math.floor(month / 3) + 1;
     return `Q${quarter} ${date.getFullYear()}`;
   };
-
-  // 简化的季报元信息卡
-  const renderQuarterlyMetaCard = () => (
-    <View style={styles.metaCard}>
-      <View style={styles.metaHeader}>
-        <View style={styles.companyInfo}>
-          <Text style={styles.ticker}>{filing.company_ticker}</Text>
-          <Text style={styles.companyName}>{filing.company_name}</Text>
-        </View>
-        <View style={styles.filingBadge}>
-          <Text style={styles.filingBadgeText}>10-Q</Text>
-        </View>
-      </View>
-      
-      <View style={styles.metaDetails}>
-        <View style={styles.metaRow}>
-          <Icon name="calendar-today" size={14} color={colors.gray500} />
-          <Text style={styles.metaLabel}>Fiscal Quarter</Text>
-          <Text style={styles.metaValue}>{getQuarter()}</Text>
-        </View>
-        
-        <View style={styles.metaRow}>
-          <Icon name="event" size={14} color={colors.gray500} />
-          <Text style={styles.metaLabel}>Period End</Text>
-          <Text style={styles.metaValue}>
-            {filing.period_end_date ? new Date(filing.period_end_date).toLocaleDateString() : new Date(filing.filing_date).toLocaleDateString()}
-          </Text>
-        </View>
-        
-        <View style={styles.metaRow}>
-          <Icon name="publish" size={14} color={colors.gray500} />
-          <Text style={styles.metaLabel}>Filed</Text>
-          <Text style={styles.metaValue}>{new Date(filing.filing_date).toLocaleDateString()}</Text>
-        </View>
-      </View>
-    </View>
-  );
 
   // 统一分析内容 - 唯一的内容区域（包含所有信息：分析、预期对比、指引更新等）
   const renderUnifiedAnalysis = () => {
@@ -142,9 +80,15 @@ const Quarterly10QDetail: React.FC<Quarterly10QDetailProps> = ({ filing }) => {
         </View>
       </View>
 
-      {/* 极简的内容结构 - 只有三个部分 */}
+      {/* 新增：公司信息卡片 */}
       <View style={styles.contentContainer}>
-        {renderQuarterlyMetaCard()}
+        <CompanyInfoCard 
+          company={filing.company}
+          filingType={filing.form_type}
+          filingDate={filing.filing_date}
+          accessionNumber={filing.accession_number}
+        />
+        
         {renderUnifiedAnalysis()}
       </View>
 
@@ -209,95 +153,12 @@ const styles = StyleSheet.create({
   contentContainer: {
     paddingVertical: spacing.md,
   },
-  
-  // Meta Card - 信息卡片
-  metaCard: {
-    backgroundColor: colors.white,
-    marginHorizontal: spacing.md,
-    marginBottom: spacing.md,
-    padding: spacing.lg,
-    borderRadius: borderRadius.lg,
-    borderWidth: 1,
-    borderColor: colors.gray100,
-    ...Platform.select({
-      ios: {
-        shadowColor: colors.black,
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.05,
-        shadowRadius: 3,
-      },
-      android: {
-        elevation: 2,
-      },
-    }),
-  },
-  metaHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: spacing.lg,
-    paddingBottom: spacing.md,
-    borderBottomWidth: 3,
-    borderBottomColor: colors.gray900,
-  },
-  companyInfo: {
-    flex: 1,
-  },
-  ticker: {
-    fontSize: 32,
-    fontWeight: '900',
-    color: colors.gray900,
-    letterSpacing: -1,
-    fontFamily: 'Times New Roman, serif',
-  },
-  companyName: {
-    fontSize: typography.fontSize.md,
-    color: colors.gray600,
-    marginTop: spacing.xxs,
-    fontWeight: typography.fontWeight.medium,
-    fontStyle: 'italic',
-    fontFamily: 'Times New Roman, serif',
-  },
-  filingBadge: {
-    backgroundColor: colors.filing10Q,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.xs,
-    borderRadius: borderRadius.md,
-  },
-  filingBadgeText: {
-    color: colors.white,
-    fontSize: typography.fontSize.sm,
-    fontWeight: typography.fontWeight.semibold,
-    letterSpacing: 0.5,
-    fontFamily: 'Times New Roman, serif',
-  },
-  metaDetails: {
-    gap: spacing.sm,
-  },
-  metaRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: spacing.sm,
-  },
-  metaLabel: {
-    fontSize: typography.fontSize.sm,
-    color: colors.gray500,
-    marginLeft: spacing.sm,
-    flex: 1,
-    fontWeight: typography.fontWeight.regular,
-    fontFamily: 'Times New Roman, serif',
-  },
-  metaValue: {
-    fontSize: typography.fontSize.sm,
-    fontWeight: typography.fontWeight.semibold,
-    color: colors.gray900,
-    fontFamily: 'Times New Roman, serif',
-  },
 
   // Unified Analysis Section - 唯一的内容区域
   unifiedSection: {
     backgroundColor: colors.white,
     marginHorizontal: spacing.md,
+    marginTop: spacing.md,
     marginBottom: spacing.md,
     paddingTop: spacing.lg,
     paddingHorizontal: spacing.lg,

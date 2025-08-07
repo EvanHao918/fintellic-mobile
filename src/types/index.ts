@@ -98,6 +98,42 @@ export interface SmartMarkupData {
   insights: string[];     // Key insights prefixed with [!]
 }
 
+// Enhanced Company Type with full details
+export interface CompanyInfo {
+  id: number;
+  cik: string;
+  ticker: string;
+  name: string;
+  
+  // 基础信息（所有公司都有）
+  is_sp500: boolean;
+  is_nasdaq100: boolean;
+  is_public: boolean;
+  has_s1_filing: boolean;
+  
+  // 扩展信息（成熟公司可能有）
+  legal_name?: string;
+  sector?: string;
+  industry?: string;
+  headquarters?: string;
+  country?: string;
+  founded_year?: number;
+  employees?: number;
+  employee_size?: string;
+  market_cap?: number;
+  exchange?: string;
+  indices?: string[];
+  company_type?: string;
+  website?: string;
+  fiscal_year_end?: string;
+  state?: string;
+  ipo_date?: string;
+  
+  // SIC classification (legacy)
+  sic?: string;
+  sic_description?: string;
+}
+
 // Filing Types
 export interface Filing {
   id: number;
@@ -112,15 +148,8 @@ export interface Filing {
   company_ticker: string;
   company_cik: string;
   
-  // 添加 company 对象，包含指数信息
-  company?: {
-    id: number;
-    name: string;
-    ticker: string;
-    cik: string;
-    is_sp500: boolean;
-    is_nasdaq100: boolean;
-  };
+  // Enhanced company object with full details
+  company?: CompanyInfo;
   
   // ==================== UNIFIED ANALYSIS FIELDS (NEW) ====================
   // Core unified content
@@ -163,6 +192,7 @@ export interface Filing {
   
   // 10-K/10-Q specific
   fiscal_year?: number;
+  fiscal_quarter?: string;  // 添加fiscal_quarter字段
   guidance_update?: string;
   future_outlook?: string;
   risk_factors?: string[];
@@ -279,7 +309,7 @@ export interface CommentListResponse {
   limit: number;
 }
 
-// Company Types
+// Company Types (简化版，用于列表)
 export interface Company {
   id: number;
   ticker: string;

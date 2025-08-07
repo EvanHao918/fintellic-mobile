@@ -11,34 +11,11 @@ import {
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { colors, typography, spacing, borderRadius } from '../../theme';
 import { parseUnifiedAnalysis, hasUnifiedAnalysis, getDisplayAnalysis } from '../../utils/textHelpers';
-
-interface FilingDetail {
-  id: number;
-  form_type: string;
-  company_name: string;
-  company_ticker: string;
-  filing_date: string;
-  filing_url: string;
-  accession_number: string;
-  
-  // Unified analysis fields
-  unified_analysis?: string;
-  analysis_version?: string;
-  smart_markup_data?: any;
-  
-  // Legacy 8-K specific fields
-  ai_summary?: string;
-  item_type?: string;
-  items?: string;
-  event_timeline?: string;
-  event_nature_analysis?: string;
-  market_impact_analysis?: string;
-  key_considerations?: string;
-  [key: string]: any;
-}
+import CompanyInfoCard from './CompanyInfoCard';
+import { Filing } from '../../types';
 
 interface Current8KDetailProps {
-  filing: FilingDetail;
+  filing: Filing;
 }
 
 const Current8KDetail: React.FC<Current8KDetailProps> = ({ filing }) => {
@@ -91,37 +68,6 @@ const Current8KDetail: React.FC<Current8KDetailProps> = ({ filing }) => {
     );
   };
 
-  // 事件元信息卡（精简版）
-  const renderEventMetaCard = () => (
-    <View style={styles.metaCard}>
-      <View style={styles.metaGrid}>
-        <View style={styles.metaItem}>
-          <Text style={styles.metaLabel}>Company</Text>
-          <Text style={styles.metaValue}>{filing.company_ticker}</Text>
-          <Text style={styles.metaSubvalue}>{filing.company_name}</Text>
-        </View>
-        
-        <View style={styles.metaItem}>
-          <Text style={styles.metaLabel}>Filing Date</Text>
-          <Text style={styles.metaValue}>
-            {new Date(filing.filing_date).toLocaleDateString('en-US', {
-              month: 'short',
-              day: 'numeric',
-              year: 'numeric',
-            })}
-          </Text>
-        </View>
-        
-        {filing.item_type && (
-          <View style={styles.metaItem}>
-            <Text style={styles.metaLabel}>Item Type</Text>
-            <Text style={styles.metaValue}>Item {filing.item_type}</Text>
-          </View>
-        )}
-      </View>
-    </View>
-  );
-
   return (
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
       {/* 8-K Header */}
@@ -137,10 +83,21 @@ const Current8KDetail: React.FC<Current8KDetailProps> = ({ filing }) => {
             Filed {getRelativeTime(filing.filing_date)}
           </Text>
         </View>
+        {filing.item_type && (
+          <View style={styles.itemBadge}>
+            <Text style={styles.itemText}>Item {filing.item_type}</Text>
+          </View>
+        )}
       </View>
 
-      {/* 极简的内容结构 - 只有三个部分 */}
-      {renderEventMetaCard()}
+      {/* 新增：公司信息卡片 */}
+      <CompanyInfoCard 
+        company={filing.company}
+        filingType={filing.form_type}
+        filingDate={filing.filing_date}
+        accessionNumber={filing.accession_number}
+      />
+      
       {renderUnifiedAnalysis()}
 
       {/* Footer with SEC Link */}
@@ -204,52 +161,17 @@ const styles = StyleSheet.create({
     marginLeft: spacing.xs,
     fontFamily: 'Times New Roman, serif',
   },
-
-  // Meta Card
-  metaCard: {
-    backgroundColor: colors.white,
-    marginHorizontal: spacing.md,
-    marginTop: spacing.md,
-    padding: spacing.lg,
+  itemBadge: {
+    backgroundColor: colors.white + '30',
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
     borderRadius: borderRadius.md,
-    ...Platform.select({
-      ios: {
-        shadowColor: colors.text,
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
-      },
-      android: {
-        elevation: 2,
-      },
-    }),
-  },
-  metaGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    marginHorizontal: -spacing.xs,
-  },
-  metaItem: {
-    flex: 1,
-    minWidth: '33%',
-    padding: spacing.xs,
-  },
-  metaLabel: {
-    fontSize: typography.fontSize.sm,
-    color: colors.textSecondary,
-    marginBottom: spacing.xs,
-    fontFamily: 'Times New Roman, serif',
-  },
-  metaValue: {
-    fontSize: typography.fontSize.md,
-    fontWeight: typography.fontWeight.semibold,
-    color: colors.text,
-    fontFamily: 'Times New Roman, serif',
-  },
-  metaSubvalue: {
-    fontSize: typography.fontSize.sm,
-    color: colors.textSecondary,
     marginTop: spacing.xs,
+  },
+  itemText: {
+    color: colors.white,
+    fontSize: typography.fontSize.sm,
+    fontWeight: typography.fontWeight.semibold,
     fontFamily: 'Times New Roman, serif',
   },
 

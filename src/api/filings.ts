@@ -270,15 +270,24 @@ export const deleteComment = async (commentId: string): Promise<void> => {
   }
 };
 
-// Vote on comment
+// Vote on comment - 修复：发送请求体而不是URL参数
 export const voteOnComment = async (
   commentId: string,
-  voteType: 'up' | 'down'
+  voteType: 'up' | 'down' | 'none'
 ): Promise<CommentVoteResponse> => {
   try {
-    const response = await apiClient.post(`/comments/${commentId}/vote`, null, {
-      params: { vote_type: voteType }
+    // 映射投票类型到后端期望的格式
+    const voteMap = {
+      'up': 'upvote',
+      'down': 'downvote',
+      'none': 'none'
+    };
+    
+    // 发送请求体，而不是URL参数
+    const response = await apiClient.post(`/comments/${commentId}/vote`, {
+      vote_type: voteMap[voteType] || 'none'
     });
+    
     return response;
   } catch (error) {
     console.error('Error voting on comment:', error);

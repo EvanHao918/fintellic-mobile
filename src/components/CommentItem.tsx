@@ -37,30 +37,35 @@ export const CommentItem: React.FC<CommentItemProps> = ({
   const isOwnComment = currentUserId === comment.user_id;
   const timeAgo = formatDistanceToNow(comment.created_at);
 
-  // Handle voting
+  // Handle voting - 修复版本
   const handleVote = async (voteType: 'upvote' | 'downvote') => {
     if (isVoting) return;
 
     setIsVoting(true);
     try {
-      // Map to API expected format
-      const apiVoteType = voteType === 'upvote' ? 'up' : 'down';
-      
-      // Check if removing vote
+      // 获取当前投票状态
       const currentVote = typeof localComment.user_vote === 'number' 
         ? localComment.user_vote 
-        : localComment.user_vote === 'up' ? 1 : localComment.user_vote === 'down' ? -1 : 0;
+        : localComment.user_vote === 'up' ? 1 
+        : localComment.user_vote === 'down' ? -1 
+        : 0;
       
-      const shouldRemoveVote = 
+      // 判断是否要取消投票
+      const isRemovingVote = 
         (voteType === 'upvote' && currentVote === 1) ||
         (voteType === 'downvote' && currentVote === -1);
-
-      const response = await voteOnComment(
-        comment.id, 
-        shouldRemoveVote ? apiVoteType : apiVoteType
-      );
       
-      // Update local state
+      // 决定新的投票类型
+      let apiVoteType: 'up' | 'down' | 'none';
+      if (isRemovingVote) {
+        apiVoteType = 'none';  // 取消投票
+      } else {
+        apiVoteType = voteType === 'upvote' ? 'up' : 'down';
+      }
+      
+      const response = await voteOnComment(comment.id, apiVoteType);
+      
+      // 更新本地状态
       setLocalComment(prev => ({
         ...prev,
         upvotes: response.upvotes || 0,
