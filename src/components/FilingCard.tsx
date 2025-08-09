@@ -1,6 +1,5 @@
 // src/components/FilingCard.tsx
-// 此文件无需修改，因为VotingModule组件已经包含了提示文字
-// 提示文字会自动在所有使用VotingModule的地方显示
+// ENHANCED: Display AI-extracted keywords on filing cards
 
 import React from 'react';
 import {
@@ -32,6 +31,7 @@ export default function FilingCard({
   console.log(`Filing ${filing.id} 数据:`, {
     id: filing.id,
     ticker: filing.company_ticker,
+    tags: filing.tags,  // 查看tags内容
     view_count: filing.view_count,
     comment_count: filing.comment_count,
     vote_counts: filing.vote_counts,
@@ -93,8 +93,8 @@ export default function FilingCard({
     ? filing.item_type 
     : null;
 
-  // Extract important tags
-  const tags = filing.key_tags?.slice(0, 3) || [];
+  // 使用 tags 字段（后端返回的字段名）
+  const displayKeywords = filing.tags?.slice(0, 3) || [];
 
   // 获取显示的摘要文本 - 使用新的优先级逻辑
   const summaryText = getDisplaySummary(filing) || 'Processing summary...';
@@ -178,8 +178,35 @@ export default function FilingCard({
               </Text>
             </View>
 
+            {/* ENHANCED: Keywords Section - 显示AI提取的关键词 */}
+            {displayKeywords.length > 0 && (
+              <View style={styles.keywordsRow}>
+                <Icon 
+                  name="local-offer" 
+                  size={10}              // 更小的图标
+                  color={colors.gray400} // 更淡的颜色
+                  style={styles.keywordIcon}
+                />
+                {displayKeywords.map((keyword: string, index: number) => (
+                  <View key={index} style={styles.keywordBadge}>
+                    <Text style={styles.keywordText}>{keyword}</Text>
+                  </View>
+                ))}
+                {filing.tags && filing.tags.length > 3 && (
+                  <Text style={styles.moreKeywordsText}>+{filing.tags.length - 3}</Text>
+                )}
+              </View>
+            )}
+
             {/* Key Info Row - 使用实际存在的字段 */}
-            <View style={styles.metricsRow}>
+            {(filing.form_type === '10-Q' && filing.expectations_comparison) ||
+             (filing.form_type === '10-K' && filing.fiscal_year) ||
+             (filing.form_type === '8-K' && filing.items && filing.items.length > 0) ||
+             filing.financial_highlights ||
+             filing.guidance_update ||
+             filing.future_outlook ||
+             (filing.risk_factors && filing.risk_factors.length > 0) ? (
+              <View style={styles.metricsRow}>
               {/* 财报类型特定信息 */}
               {filing.form_type === '10-Q' && filing.expectations_comparison && (
                 <View style={styles.metricItem}>
@@ -223,20 +250,7 @@ export default function FilingCard({
                 </View>
               )}
             </View>
-
-            {/* Tags */}
-            {tags.length > 0 && (
-              <View style={styles.tagsRow}>
-                {tags.map((tag: string, index: number) => (
-                  <View key={index} style={styles.tag}>
-                    <Text style={styles.tagText}>{tag}</Text>
-                  </View>
-                ))}
-                {filing.key_tags && filing.key_tags.length > 3 && (
-                  <Text style={styles.moreTagsText}>+{filing.key_tags.length - 3} more</Text>
-                )}
-              </View>
-            )}
+            ) : null}
           </View>
 
           {/* Compact Footer */}
@@ -330,10 +344,10 @@ const styles = StyleSheet.create({
     fontSize: typography.fontSize.sm,
     color: colors.gray600,
     fontWeight: typography.fontWeight.medium,
-    fontStyle: 'italic',  // 添加斜体样式
+    fontStyle: 'italic',
     marginRight: spacing.xs,
   },
-  // 新增的指数标签样式
+  // 指数标签样式
   indexTagsContainer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -345,10 +359,10 @@ const styles = StyleSheet.create({
     marginRight: 4,
   },
   sp500Tag: {
-    backgroundColor: 'rgba(129, 140, 248, 0.85)',  // 蓝紫色带透明度
+    backgroundColor: 'rgba(129, 140, 248, 0.85)',
   },
   nasdaqTag: {
-    backgroundColor: 'rgba(16, 185, 129, 0.85)',  // 绿色带透明度
+    backgroundColor: 'rgba(16, 185, 129, 0.85)',
   },
   indexTagText: {
     fontSize: 10,
@@ -356,10 +370,10 @@ const styles = StyleSheet.create({
     letterSpacing: 0.3,
   },
   sp500TagText: {
-    color: '#1E1B4B',  // 深紫蓝色文字
+    color: '#1E1B4B',
   },
   nasdaqTagText: {
-    color: '#14532D',  // 深绿色文字
+    color: '#14532D',
   },
   headerRight: {
     alignItems: 'flex-end',
@@ -372,10 +386,11 @@ const styles = StyleSheet.create({
   // Content Styles - Dense
   content: {
     paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xs,
+    paddingTop: spacing.xs,
+    paddingBottom: spacing.xxs,  // 减少底部内边距
   },
   summarySection: {
-    marginBottom: spacing.sm,
+    marginBottom: spacing.xs,     // 减少摘要下方的边距
   },
   eventLabel: {
     fontSize: typography.fontSize.sm,
@@ -386,10 +401,45 @@ const styles = StyleSheet.create({
     fontSize: typography.fontSize.base,
     color: colors.gray800,
     lineHeight: typography.fontSize.base * 1.5,
-    fontFamily: 'Times New Roman, serif',  // 为摘要文本添加 Times New Roman 字体
+    fontFamily: 'Times New Roman, serif',
   },
   
-  // Metrics Row - 始终显示，但内容根据财报类型动态变化
+  // ENHANCED: Keywords Row - 更低调、紧凑的样式
+  keywordsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    marginTop: -2,                // 负边距，更贴近上方内容
+    marginBottom: 2,              // 极小的底部边距（从4减到2）
+  },
+  keywordIcon: {
+    marginRight: 4,
+    opacity: 0.6,                 // 图标更淡
+  },
+  keywordBadge: {
+    backgroundColor: colors.gray100,  // 更淡的灰色背景
+    borderColor: colors.gray200,      // 淡边框
+    borderWidth: 0.5,                 // 更细的边框
+    paddingHorizontal: 6,             // 更小的水平内边距
+    paddingVertical: 1,               // 极小的垂直内边距
+    borderRadius: 3,                  // 更小的圆角
+    marginRight: 4,
+  },
+  keywordText: {
+    fontSize: 10,                     // 更小的字体
+    color: colors.gray600,            // 更淡的文字颜色
+    fontWeight: typography.fontWeight.medium,  // 不那么粗的字体
+    letterSpacing: 0.1,
+    lineHeight: 12,                   // 更紧凑的行高
+  },
+  moreKeywordsText: {
+    fontSize: 9,                      // 更小
+    color: colors.gray400,            // 更淡
+    fontStyle: 'italic',
+    marginLeft: 2,
+  },
+  
+  // Metrics Row
   metricsRow: {
     flexDirection: 'row',
     justifyContent: 'flex-start',
@@ -407,32 +457,6 @@ const styles = StyleSheet.create({
     color: colors.gray600,
     marginLeft: 4,
     fontWeight: typography.fontWeight.medium,
-  },
-  
-  // Tags - Compact
-  tagsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flexWrap: 'wrap',
-  },
-  tag: {
-    backgroundColor: colors.primary + '10',
-    paddingHorizontal: spacing.xs,
-    paddingVertical: 2,
-    borderRadius: borderRadius.sm,
-    marginRight: spacing.xxs,
-    marginBottom: spacing.xxs,
-  },
-  tagText: {
-    fontSize: 10,
-    color: colors.primary,
-    fontWeight: typography.fontWeight.medium,
-  },
-  moreTagsText: {
-    fontSize: 10,
-    color: colors.gray500,
-    fontStyle: 'italic',
-    marginLeft: spacing.xxs,
   },
   
   // Footer - Compact

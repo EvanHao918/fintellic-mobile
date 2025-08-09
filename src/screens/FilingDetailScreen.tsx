@@ -108,7 +108,7 @@ export default function FilingDetailScreen() {
     setNewComment('');
   };
 
-  // Handle comment submission
+  // 🔥 FIXED: Handle comment submission with reply support
   const handleSubmitComment = async () => {
     if (!isProUser) {
       Alert.alert('Pro Feature', 'Comments are available for Pro members only');
@@ -123,19 +123,21 @@ export default function FilingDetailScreen() {
       // Remove @mention from comment if replying
       let commentContent = newComment.trim();
       if (replyingTo) {
-        commentContent = commentContent.replace(`@${replyingTo.username} `, '');
+        // Remove the @username prefix if it exists
+        const mentionPattern = new RegExp(`^@${replyingTo.username}\\s+`);
+        commentContent = commentContent.replace(mentionPattern, '');
       }
       
+      // 🔥 关键修复：传递 reply_to_comment_id 作为第三个参数
       const newCommentData = await addComment(
         filingId.toString(), 
-        commentContent
+        commentContent,
+        replyingTo ? replyingTo.id : undefined  // 🔥 这是关键修复！
       );
       
       setComments([newCommentData, ...comments]);
       setNewComment('');
       setReplyingTo(null);
-      
-      // 不再手动更新 filing.comment_count，直接使用 comments.length
       
     } catch (error: any) {
       console.error('Comment error:', error);
@@ -155,8 +157,6 @@ export default function FilingDetailScreen() {
   // Handle comment delete
   const handleCommentDelete = (commentId: string) => {
     setComments(prevComments => prevComments.filter(c => c.id !== commentId));
-    
-    // 不再手动更新 filing.comment_count，直接使用 comments.length
   };
 
   // Handle refresh
@@ -331,7 +331,6 @@ export default function FilingDetailScreen() {
           {/* Keep voting and comments sections */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>🗳️ Community Sentiment</Text>
-            {/* 移除原来的voteQuestion，因为VotingModule已经包含提示文字 */}
             
             {/* 使用独立的 VotingModule 组件 - 现在包含提示文字 */}
             <VotingModule
@@ -421,11 +420,9 @@ export default function FilingDetailScreen() {
     );
   }
 
-  // [保留原有的渲染逻辑，太长就不重复了]
   return null;
 }
 
-// [保留原有的styles，太长就不重复了]
 const styles = StyleSheet.create({
   container: {
     flex: 1,

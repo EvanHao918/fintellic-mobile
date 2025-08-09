@@ -105,6 +105,9 @@ const cleanFilingData = (filing: any): Filing => {
 
 // Helper function to clean comment data
 const cleanCommentData = (comment: any): Comment => {
+  // 🔥 关键修复：处理 reply_to 字段
+  console.log('Cleaning comment data:', comment.id, 'reply_to:', comment.reply_to);
+  
   return {
     ...comment,
     id: String(comment.id),
@@ -118,6 +121,15 @@ const cleanCommentData = (comment: any): Comment => {
     net_votes: comment.net_votes || 0,
     vote_count: comment.vote_count || 0,
     user_vote: comment.user_vote || null,
+    user_tier: comment.user_tier || 'free',
+    
+    // 🔥 添加 reply_to 字段处理
+    reply_to: comment.reply_to ? {
+      comment_id: comment.reply_to.comment_id,
+      user_id: comment.reply_to.user_id,
+      username: comment.reply_to.username,
+      content_preview: comment.reply_to.content_preview
+    } : null,
   };
 };
 
@@ -215,6 +227,9 @@ export const getFilingComments = async (
       params: { skip, limit }
     });
     
+    // 🔥 Debug log to check response
+    console.log('Raw comments response:', response);
+    
     // Clean comment data
     const cleanedComments = response.items.map(cleanCommentData);
     
@@ -228,15 +243,23 @@ export const getFilingComments = async (
   }
 };
 
-// Add comment to a filing
+// Add comment to a filing (with reply support)
 export const addComment = async (
   filingId: string,
-  content: string
+  content: string,
+  replyToCommentId?: string  // 🔥 添加回复支持
 ): Promise<Comment> => {
   try {
-    const response = await apiClient.post(`/filings/${filingId}/comments`, {
-      content
-    });
+    const payload: any = { content };
+    
+    // 🔥 如果是回复，添加 reply_to_comment_id
+    if (replyToCommentId) {
+      payload.reply_to_comment_id = Number(replyToCommentId);
+    }
+    
+    console.log('Adding comment with payload:', payload);
+    
+    const response = await apiClient.post(`/filings/${filingId}/comments`, payload);
     return cleanCommentData(response);
   } catch (error) {
     console.error('Error adding comment:', error);

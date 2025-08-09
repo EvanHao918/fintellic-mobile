@@ -34,10 +34,10 @@ export const CommentItem: React.FC<CommentItemProps> = ({
   const [isVoting, setIsVoting] = useState(false);
   const [localComment, setLocalComment] = useState(comment);
 
-  const isOwnComment = currentUserId === comment.user_id;
+  const isOwnComment = currentUserId === comment.user_id.toString();
   const timeAgo = formatDistanceToNow(comment.created_at);
 
-  // Handle voting - 修复版本
+  // Handle voting
   const handleVote = async (voteType: 'upvote' | 'downvote') => {
     if (isVoting) return;
 
@@ -132,23 +132,13 @@ export const CommentItem: React.FC<CommentItemProps> = ({
 
   return (
     <View style={styles.container}>
-      {/* Reply indicator */}
-      {localComment.reply_to && (
-        <View style={styles.replyIndicator}>
-          <Icon name="reply" size={14} color={colors.textSecondary} />
-          <Text style={styles.replyText}>
-            Replying to @{localComment.reply_to.username}
-          </Text>
-          <Text style={styles.replyPreview} numberOfLines={1}>
-            "{localComment.reply_to.content_preview}"
-          </Text>
-        </View>
-      )}
-
       {/* Comment header */}
       <View style={styles.header}>
         <View style={styles.userInfo}>
-          <View style={styles.avatar}>
+          <View style={[
+            styles.avatar,
+            localComment.user_tier === 'pro' && styles.avatarPro
+          ]}>
             <Text style={styles.avatarText}>
               {localComment.username.charAt(0).toUpperCase()}
             </Text>
@@ -158,6 +148,7 @@ export const CommentItem: React.FC<CommentItemProps> = ({
               <Text style={styles.username}>{localComment.username}</Text>
               {localComment.user_tier === 'pro' && (
                 <View style={styles.proBadge}>
+                  <Icon name="star" size={10} color={colors.white} />
                   <Text style={styles.proBadgeText}>PRO</Text>
                 </View>
               )}
@@ -185,6 +176,24 @@ export const CommentItem: React.FC<CommentItemProps> = ({
         )}
       </View>
 
+      {/* Enhanced Reply Context - Moved here, after header */}
+      {localComment.reply_to && (
+        <View style={styles.replyContext}>
+          <View style={styles.replyHeader}>
+            <Icon name="reply" size={14} color={colors.primary} />
+            <Text style={styles.replyingTo}>
+              Replying to <Text style={styles.replyUsername}>@{localComment.reply_to.username}</Text>
+            </Text>
+          </View>
+          <View style={styles.quotedComment}>
+            <View style={styles.quoteLine} />
+            <Text style={styles.quotedText} numberOfLines={2}>
+              {localComment.reply_to.content_preview}
+            </Text>
+          </View>
+        </View>
+      )}
+
       {/* Comment content */}
       {isEditing ? (
         <View style={styles.editContainer}>
@@ -194,6 +203,7 @@ export const CommentItem: React.FC<CommentItemProps> = ({
             onChangeText={setEditContent}
             multiline
             autoFocus
+            placeholderTextColor={colors.textSecondary}
           />
           <View style={styles.editActions}>
             <TouchableOpacity
@@ -230,7 +240,7 @@ export const CommentItem: React.FC<CommentItemProps> = ({
           >
             <Icon
               name="thumb-up"
-              size={16}
+              size={14}
               color={
                 userVoteNum === 1 ? colors.primary : colors.textSecondary
               }
@@ -255,7 +265,7 @@ export const CommentItem: React.FC<CommentItemProps> = ({
           >
             <Icon
               name="thumb-down"
-              size={16}
+              size={14}
               color={
                 userVoteNum === -1 ? colors.error : colors.textSecondary
               }
@@ -287,7 +297,7 @@ export const CommentItem: React.FC<CommentItemProps> = ({
           onPress={() => onReply(localComment)}
           style={styles.replyButton}
         >
-          <Icon name="reply" size={16} color={colors.textSecondary} />
+          <Icon name="reply" size={14} color={colors.textSecondary} />
           <Text style={styles.replyButtonText}>Reply</Text>
         </TouchableOpacity>
       </View>
@@ -308,24 +318,47 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   },
-  replyIndicator: {
+  
+  // Enhanced Reply Context Styles
+  replyContext: {
+    marginBottom: spacing.sm,
+    marginTop: spacing.xs,
+    paddingLeft: spacing.xs,
+  },
+  replyHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: spacing.sm,
-    paddingLeft: spacing.md,
+    marginBottom: spacing.xs,
   },
-  replyText: {
+  replyingTo: {
     fontSize: typography.fontSize.xs,
     color: colors.textSecondary,
     marginLeft: spacing.xs,
   },
-  replyPreview: {
-    fontSize: typography.fontSize.xs,
+  replyUsername: {
+    color: colors.primary,
+    fontWeight: typography.fontWeight.medium,
+  },
+  quotedComment: {
+    flexDirection: 'row',
+    marginLeft: spacing.lg,
+  },
+  quoteLine: {
+    width: 3,
+    backgroundColor: colors.primary + '30',
+    marginRight: spacing.sm,
+    borderRadius: 1.5,
+  },
+  quotedText: {
+    flex: 1,
+    fontSize: typography.fontSize.sm,
     color: colors.textSecondary,
     fontStyle: 'italic',
-    marginLeft: spacing.xs,
-    flex: 1,
+    lineHeight: 18,
+    paddingRight: spacing.sm,
   },
+  
+  // Header Styles
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -338,18 +371,21 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   avatar: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     backgroundColor: colors.primary,
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: spacing.sm,
   },
+  avatarPro: {
+    backgroundColor: colors.warning,
+  },
   avatarText: {
     color: colors.white,
     fontSize: typography.fontSize.md,
-    fontFamily: typography.fontFamily.semibold,
+    fontWeight: typography.fontWeight.semibold,
   },
   usernameRow: {
     flexDirection: 'row',
@@ -357,10 +393,12 @@ const styles = StyleSheet.create({
   },
   username: {
     fontSize: typography.fontSize.sm,
-    fontFamily: typography.fontFamily.medium,
+    fontWeight: typography.fontWeight.medium,
     color: colors.text,
   },
   proBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: colors.warning,
     paddingHorizontal: spacing.xs,
     paddingVertical: 2,
@@ -368,15 +406,18 @@ const styles = StyleSheet.create({
     marginLeft: spacing.xs,
   },
   proBadgeText: {
-    fontSize: typography.fontSize.xs,
-    fontFamily: typography.fontFamily.bold,
+    fontSize: 10,
+    fontWeight: typography.fontWeight.bold,
     color: colors.white,
+    marginLeft: 2,
   },
   timestamp: {
     fontSize: typography.fontSize.xs,
     color: colors.textSecondary,
     marginTop: 2,
   },
+  
+  // Actions
   actions: {
     flexDirection: 'row',
   },
@@ -384,12 +425,16 @@ const styles = StyleSheet.create({
     padding: spacing.xs,
     marginLeft: spacing.xs,
   },
+  
+  // Content
   content: {
     fontSize: typography.fontSize.sm,
     color: colors.text,
     lineHeight: 20,
     marginBottom: spacing.sm,
   },
+  
+  // Edit Container
   editContainer: {
     marginBottom: spacing.sm,
   },
@@ -399,6 +444,7 @@ const styles = StyleSheet.create({
     borderRadius: borderRadius.sm,
     padding: spacing.sm,
     fontSize: typography.fontSize.sm,
+    color: colors.text,
     minHeight: 60,
     textAlignVertical: 'top',
   },
@@ -426,8 +472,10 @@ const styles = StyleSheet.create({
   saveButtonText: {
     color: colors.white,
     fontSize: typography.fontSize.sm,
-    fontFamily: typography.fontFamily.medium,
+    fontWeight: typography.fontWeight.medium,
   },
+  
+  // Footer
   footer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -442,7 +490,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: spacing.sm,
     paddingVertical: spacing.xs,
-    marginRight: spacing.sm,
+    marginRight: spacing.xs,
     borderRadius: borderRadius.sm,
   },
   voteButtonActive: {
@@ -455,14 +503,14 @@ const styles = StyleSheet.create({
   },
   voteCountActive: {
     color: colors.primary,
-    fontFamily: typography.fontFamily.medium,
+    fontWeight: typography.fontWeight.medium,
   },
   voteCountError: {
     color: colors.error,
-    fontFamily: typography.fontFamily.medium,
+    fontWeight: typography.fontWeight.medium,
   },
   netScore: {
-    marginLeft: spacing.sm,
+    marginLeft: spacing.xs,
     paddingHorizontal: spacing.sm,
     paddingVertical: spacing.xs,
     borderRadius: borderRadius.sm,
@@ -470,7 +518,7 @@ const styles = StyleSheet.create({
   },
   netScoreText: {
     fontSize: typography.fontSize.xs,
-    fontFamily: typography.fontFamily.medium,
+    fontWeight: typography.fontWeight.medium,
     color: colors.textSecondary,
   },
   netScorePositive: {

@@ -181,6 +181,8 @@ export interface Filing {
   one_liner?: string;
   feed_summary?: string;
   key_tags?: string[];
+  tags?: string[];  // 后端返回的是 tags 字段（与 key_tags 相同）
+  keywords?: string[];  // ENHANCED: AI-extracted keywords (3-5 conceptual terms)
   
   // 8-K specific
   item_type?: string;
