@@ -46,6 +46,11 @@ export interface User {
   biometric_enabled?: boolean;
   daily_view_count?: number;
   daily_reports_count?: number;
+  
+  // Subscription fields
+  subscription_expires_at?: string;  // 添加订阅到期时间字段
+  subscription_status?: 'active' | 'cancelled' | 'expired';
+  subscription_plan?: 'monthly' | 'yearly';
 }
 
 // Auth Types

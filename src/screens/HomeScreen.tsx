@@ -12,7 +12,7 @@ import {
   Keyboard,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { useDispatch, useSelector } from 'react-redux';
 import { Icon } from 'react-native-elements';
@@ -21,7 +21,7 @@ import { Filing, RootStackParamList } from '../types';
 import { RootState } from '../store';
 import { fetchFilings, voteFiling, clearFilings, selectShouldRefresh } from '../store/slices/filingsSlice';
 import { AppDispatch } from '../store';
-import { colors, typography, spacing } from '../theme';
+import { colors, typography, spacing, borderRadius } from '../theme';
 import apiClient from '../api/client';
 import { useFilingVote } from '../hooks/useFilingVote';
 
@@ -53,9 +53,37 @@ export const HomeScreen: React.FC = () => {
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [searchTimer, setSearchTimer] = useState<NodeJS.Timeout | null>(null);
+  
+  // View limit state
+  const [viewStats, setViewStats] = useState<{
+    views_today: number;
+    daily_limit: number;
+    views_remaining: number;
+  } | null>(null);
 
-  // 使用投票 hook（但不直接传给 FilingCard）
+  // 使用投票 hook
   const { handleVote } = useFilingVote();
+
+  // Fetch view stats for free users
+  const fetchViewStats = async () => {
+    if (isAuthenticated && !isProUser) {
+      try {
+        const response = await apiClient.get('/filings/user/view-stats');
+        setViewStats(response);
+      } catch (error) {
+        console.log('Failed to fetch view stats:', error);
+      }
+    }
+  };
+
+  // 🔥 关键修改：使用 useFocusEffect 确保每次返回首页时刷新计数
+  useFocusEffect(
+    useCallback(() => {
+      if (isAuthenticated && !isProUser) {
+        fetchViewStats();
+      }
+    }, [isAuthenticated, isProUser])
+  );
 
   // Load initial data
   useEffect(() => {
@@ -63,8 +91,10 @@ export const HomeScreen: React.FC = () => {
       if (filings.length === 0 || shouldRefresh) {
         dispatch(fetchFilings({ page: 1, isRefresh: true }));
       }
+      // 🔥 初始加载时也获取view stats
+      fetchViewStats();
     }
-  }, [isAuthenticated, dispatch, shouldRefresh]);
+  }, [isAuthenticated, dispatch, shouldRefresh, isProUser]);
 
   // Perform search
   const performSearch = async (query: string) => {
@@ -119,6 +149,8 @@ export const HomeScreen: React.FC = () => {
   const handleRefresh = useCallback(async () => {
     dispatch(clearFilings());
     await dispatch(fetchFilings({ page: 1, isRefresh: true }));
+    // 🔥 刷新时也更新view stats
+    fetchViewStats();
   }, [dispatch]);
 
   // Handle load more
@@ -128,7 +160,7 @@ export const HomeScreen: React.FC = () => {
     }
   }, [dispatch, isLoading, hasMore, currentPage, filings.length]);
 
-  // Handle filing press
+  // 🔥 关键修改：导航时传递回调以在返回时刷新
   const handleFilingPress = useCallback((filing: Filing) => {
     navigation.navigate('FilingDetail', { filingId: filing.id });
   }, [navigation]);
@@ -141,6 +173,51 @@ export const HomeScreen: React.FC = () => {
       isProUser={isProUser}
     />
   ), [handleFilingPress, isProUser]);
+  
+  // Render header with view limit info
+  const renderHeader = () => {
+    if (!isAuthenticated || isProUser) return null;
+    
+    if (viewStats && viewStats.views_remaining !== undefined) {
+      const isLimitReached = viewStats.views_remaining === 0;
+      
+      return (
+        <View style={[styles.limitBanner, isLimitReached && styles.limitBannerWarning]}>
+          <View style={styles.limitBannerContent}>
+            <Icon 
+              name={isLimitReached ? "lock" : "visibility"} 
+              size={20} 
+              color={isLimitReached ? colors.warning : colors.primary} 
+            />
+            <Text style={[styles.limitBannerText, isLimitReached && styles.limitBannerTextWarning]}>
+              {isLimitReached 
+                ? "Daily limit reached - Upgrade to Pro for unlimited access"
+                : `${viewStats.views_remaining} of ${viewStats.daily_limit} free reports remaining today`
+              }
+            </Text>
+          </View>
+          {isLimitReached && (
+            <TouchableOpacity 
+              style={styles.upgradeButton}
+              onPress={() => navigation.navigate('Subscription')}
+            >
+              <Text style={styles.upgradeButtonText}>Upgrade</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      );
+    }
+    
+    // 🔥 如果还没有加载stats，显示加载中状态
+    return (
+      <View style={styles.limitBanner}>
+        <View style={styles.limitBannerContent}>
+          <ActivityIndicator size="small" color={colors.primary} />
+          <Text style={styles.limitBannerText}>Loading view limit...</Text>
+        </View>
+      </View>
+    );
+  };
   
   // Render footer
   const renderFooter = () => {
@@ -212,6 +289,7 @@ export const HomeScreen: React.FC = () => {
         }
         onEndReached={handleLoadMore}
         onEndReachedThreshold={0.5}
+        ListHeaderComponent={renderHeader}
         ListFooterComponent={renderFooter}
         ListEmptyComponent={renderEmpty}
         showsVerticalScrollIndicator={false}
@@ -226,8 +304,49 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
   },
   listContent: {
-    paddingTop: spacing.md,
+    paddingTop: spacing.sm,
     paddingBottom: spacing.xl,
+  },
+  limitBanner: {
+    backgroundColor: colors.primary + '10',
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    marginHorizontal: spacing.md,
+    marginBottom: spacing.md,
+    borderRadius: borderRadius.md,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  limitBannerWarning: {
+    backgroundColor: colors.warning + '10',
+  },
+  limitBannerContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  limitBannerText: {
+    fontSize: typography.fontSize.sm,
+    color: colors.text,
+    marginLeft: spacing.sm,
+    flex: 1,
+  },
+  limitBannerTextWarning: {
+    color: colors.warning,
+    fontWeight: typography.fontWeight.semibold,
+  },
+  upgradeButton: {
+    backgroundColor: colors.primary,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
+    borderRadius: borderRadius.sm,
+    marginLeft: spacing.sm,
+  },
+  upgradeButtonText: {
+    color: colors.white,
+    fontSize: typography.fontSize.sm,
+    fontWeight: typography.fontWeight.semibold,
   },
   footer: {
     paddingVertical: spacing.lg,

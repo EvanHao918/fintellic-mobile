@@ -15,21 +15,19 @@ const cleanFilingData = (filing: any): Filing => {
     ...filing,
     id: String(filing.id),
     
-    // 从嵌套的 company 对象中提取字段（重要！）
+    // 从嵌套的 company 对象中提取字段
     company_name: filing.company?.name || filing.company_name || '',
     company_ticker: filing.company?.ticker || filing.company_ticker || '',
     company_cik: filing.company?.cik || filing.company_cik || '',
     
-    // ==================== UNIFIED ANALYSIS FIELDS (NEW) ====================
-    // Pass through unified analysis fields if they exist
+    // Unified analysis fields
     unified_analysis: filing.unified_analysis,
     unified_feed_summary: filing.unified_feed_summary,
     analysis_version: filing.analysis_version,
     smart_markup_data: filing.smart_markup_data,
     analyst_expectations: filing.analyst_expectations,
-    // ========================================================================
     
-    // 字段映射（后端返回 -> 前端期望）
+    // 字段映射
     key_tags: cleanTags(filing.tags || filing.key_tags || []),
     item_type: filing.event_type || filing.item_type || null,
     
@@ -38,9 +36,7 @@ const cleanFilingData = (filing: any): Filing => {
     
     // 清理 AI 生成的内容
     ai_summary: cleanAISummary(filing.ai_summary),
-    // 处理 one_liner，移除 "FEED_SUMMARY: " 前缀
     one_liner: filing.one_liner ? filing.one_liner.replace('FEED_SUMMARY: ', '') : null,
-    // Use helper function to get best feed summary
     feed_summary: getDisplaySummary(filing),
     
     // 确保其他重要字段存在
@@ -57,7 +53,7 @@ const cleanFilingData = (filing: any): Filing => {
     sentiment: filing.sentiment || filing.management_tone || null,
     management_tone: filing.management_tone || filing.sentiment || null,
     
-    // 10-K specific fields
+    // Type-specific fields
     auditor_opinion: filing.auditor_opinion,
     three_year_financials: filing.three_year_financials,
     business_segments: filing.business_segments,
@@ -67,7 +63,6 @@ const cleanFilingData = (filing: any): Filing => {
     strategic_adjustments: filing.strategic_adjustments,
     market_impact_10k: filing.market_impact_10k,
     
-    // 10-Q specific fields
     core_metrics: filing.core_metrics,
     cost_structure: filing.cost_structure,
     growth_decline_analysis: filing.growth_decline_analysis,
@@ -76,14 +71,12 @@ const cleanFilingData = (filing: any): Filing => {
     expectations_comparison: filing.expectations_comparison,
     beat_miss_analysis: filing.beat_miss_analysis,
     
-    // 8-K specific fields
     items: filing.items,
     event_timeline: filing.event_timeline,
     event_nature_analysis: filing.event_nature_analysis,
     market_impact_analysis: filing.market_impact_analysis,
     key_considerations: filing.key_considerations,
     
-    // S-1 specific fields
     ipo_details: filing.ipo_details,
     company_overview: filing.company_overview,
     financial_summary: filing.financial_summary,
@@ -91,21 +84,21 @@ const cleanFilingData = (filing: any): Filing => {
     growth_path_analysis: filing.growth_path_analysis,
     competitive_moat_analysis: filing.competitive_moat_analysis,
     
-    // Common fields
     fiscal_year: filing.fiscal_year,
     fiscal_quarter: filing.fiscal_quarter,
     period_end_date: filing.period_end_date,
     guidance_update: filing.guidance_update,
     financial_highlights: filing.financial_highlights,
     
-    // 确保 company 对象也被传递（用于显示指数标签）
     company: filing.company,
+    
+    // 🔥 添加view_limit_info字段
+    view_limit_info: filing.view_limit_info,
   };
 };
 
 // Helper function to clean comment data
 const cleanCommentData = (comment: any): Comment => {
-  // 🔥 关键修复：处理 reply_to 字段
   console.log('Cleaning comment data:', comment.id, 'reply_to:', comment.reply_to);
   
   return {
@@ -114,7 +107,7 @@ const cleanCommentData = (comment: any): Comment => {
     filing_id: String(comment.filing_id),
     user_id: String(comment.user_id),
     username: comment.username || comment.user_name || 'Anonymous',
-    user_name: comment.username || comment.user_name || 'Anonymous', // backward compatibility
+    user_name: comment.username || comment.user_name || 'Anonymous',
     is_editable: Boolean(comment.is_editable),
     upvotes: comment.upvotes || 0,
     downvotes: comment.downvotes || 0,
@@ -123,7 +116,6 @@ const cleanCommentData = (comment: any): Comment => {
     user_vote: comment.user_vote || null,
     user_tier: comment.user_tier || 'free',
     
-    // 🔥 添加 reply_to 字段处理
     reply_to: comment.reply_to ? {
       comment_id: comment.reply_to.comment_id,
       user_id: comment.reply_to.user_id,
@@ -133,7 +125,7 @@ const cleanCommentData = (comment: any): Comment => {
   };
 };
 
-// Get filings list with optional ticker filter - FIXED VERSION
+// Get filings list with optional ticker filter
 export const getFilings = async (
   page: number = 1, 
   ticker?: string
@@ -142,7 +134,6 @@ export const getFilings = async (
     const skip = (page - 1) * 20;
     const params: any = { skip, limit: 20 };
     
-    // 如果提供了 ticker，添加到查询参数
     if (ticker) {
       params.ticker = ticker;
     }
@@ -153,11 +144,9 @@ export const getFilings = async (
     
     console.log('API Response:', response);
     
-    // 处理响应数据 - 适配不同的响应格式
     let items: any[] = [];
     let total = 0;
     
-    // 处理后端返回的 data 字段（根据您的网络响应）
     if (response && typeof response === 'object') {
       if (Array.isArray(response.data)) {
         items = response.data;
@@ -171,7 +160,6 @@ export const getFilings = async (
       }
     }
     
-    // 使用 cleanFilingData 处理每个 filing
     const cleanedFilings = items.map(cleanFilingData);
     
     console.log('Cleaned filings:', cleanedFilings.length);
@@ -188,13 +176,30 @@ export const getFilings = async (
   }
 };
 
-// Get filing by ID
+// Get filing by ID - 🔥 关键修改：处理403错误
 export const getFilingById = async (id: string): Promise<Filing> => {
   try {
     const response = await apiClient.get(`/filings/${id}`);
     return cleanFilingData(response);
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error fetching filing:', error);
+    
+    // 🔥 处理403限制错误
+    if (error.response?.status === 403) {
+      const errorDetail = error.response.data?.detail;
+      
+      // 检查是否是每日限制错误
+      if (errorDetail && typeof errorDetail === 'object' && errorDetail.error === 'DAILY_LIMIT_REACHED') {
+        const limitError: any = new Error(errorDetail.message);
+        limitError.isLimitError = true;
+        limitError.limitInfo = {
+          views_today: errorDetail.views_today || 2,
+          daily_limit: errorDetail.daily_limit || 2,
+        };
+        throw limitError;
+      }
+    }
+    
     throw error;
   }
 };
@@ -205,7 +210,6 @@ export const voteOnFiling = async (
   voteType: VoteType
 ): Promise<{ vote_counts: { bullish: number; neutral: number; bearish: number }; user_vote: VoteType }> => {
   try {
-    // 根据后端的错误，需要在请求体中发送 sentiment 而不是 vote_type
     const response = await apiClient.post(`/filings/${filingId}/vote`, {
       sentiment: voteType
     });
@@ -227,10 +231,8 @@ export const getFilingComments = async (
       params: { skip, limit }
     });
     
-    // 🔥 Debug log to check response
     console.log('Raw comments response:', response);
     
-    // Clean comment data
     const cleanedComments = response.items.map(cleanCommentData);
     
     return {
@@ -247,12 +249,11 @@ export const getFilingComments = async (
 export const addComment = async (
   filingId: string,
   content: string,
-  replyToCommentId?: string  // 🔥 添加回复支持
+  replyToCommentId?: string
 ): Promise<Comment> => {
   try {
     const payload: any = { content };
     
-    // 🔥 如果是回复，添加 reply_to_comment_id
     if (replyToCommentId) {
       payload.reply_to_comment_id = Number(replyToCommentId);
     }
@@ -293,20 +294,18 @@ export const deleteComment = async (commentId: string): Promise<void> => {
   }
 };
 
-// Vote on comment - 修复：发送请求体而不是URL参数
+// Vote on comment
 export const voteOnComment = async (
   commentId: string,
   voteType: 'up' | 'down' | 'none'
 ): Promise<CommentVoteResponse> => {
   try {
-    // 映射投票类型到后端期望的格式
     const voteMap = {
       'up': 'upvote',
       'down': 'downvote',
       'none': 'none'
     };
     
-    // 发送请求体，而不是URL参数
     const response = await apiClient.post(`/comments/${commentId}/vote`, {
       vote_type: voteMap[voteType] || 'none'
     });
@@ -318,13 +317,26 @@ export const voteOnComment = async (
   }
 };
 
-// Check view limit
-export const checkViewLimit = async (): Promise<{ can_view: boolean; views_today: number; daily_limit: number }> => {
+// Check view limit - 🔥 新增：获取用户查看统计
+export const getUserViewStats = async (): Promise<{
+  views_today: number;
+  daily_limit: number;
+  views_remaining: number;
+  is_pro: boolean;
+  next_reset: string | null;
+}> => {
   try {
-    const response = await apiClient.get('/check-view-limit');
+    const response = await apiClient.get('/filings/user/view-stats');
     return response;
   } catch (error) {
-    console.error('Error checking view limit:', error);
-    throw error;
+    console.error('Error checking view stats:', error);
+    // 返回默认值而不是抛出错误
+    return {
+      views_today: 0,
+      daily_limit: 2,
+      views_remaining: 2,
+      is_pro: false,
+      next_reset: null,
+    };
   }
 };

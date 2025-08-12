@@ -6,7 +6,6 @@ import {
   ScrollView,
   TouchableOpacity,
   ActivityIndicator,
-  Alert,
   Platform,
   Dimensions,
 } from 'react-native';
@@ -19,14 +18,9 @@ import { updateUser } from '../store/slices/authSlice';
 import { colors, typography, spacing, borderRadius, shadows } from '../theme';
 import apiClient from '../api/client';
 
-const { height: screenHeight } = Dimensions.get('window');
+const { height: screenHeight, width: screenWidth } = Dimensions.get('window');
 
 type PlanType = 'monthly' | 'yearly';
-
-interface PlanFeature {
-  text: string;
-  included: boolean;
-}
 
 export default function SubscriptionScreen() {
   const navigation = useNavigation();
@@ -35,109 +29,84 @@ export default function SubscriptionScreen() {
   const [selectedPlan, setSelectedPlan] = useState<PlanType>('monthly');
   const [isLoading, setIsLoading] = useState(false);
   
-  // Fix Pro user detection based on tier only
   const isProUser = user?.tier === 'pro';
 
-  // Plan features comparison
-  const freeFeatures: PlanFeature[] = [
-    { text: '3 reports per day', included: true },
-    { text: 'Basic AI summaries', included: true },
-    { text: 'View S&P 500 filings', included: true },
-    { text: 'Community sentiment', included: true },
-    { text: 'Unlimited report access', included: false },
-    { text: 'Advanced analytics', included: false },
-    { text: 'Priority notifications', included: false },
-    { text: 'Export to PDF', included: false },
-    { text: 'Ad-free experience', included: false },
-    { text: 'Pro community access', included: false },
+  // Core Platform Features - All users get these capabilities
+  const platformFeatures = [
+    {
+      icon: 'speed',
+      title: 'Real-Time Monitoring Engine',
+      description: 'Advanced surveillance system tracking S&P 500 & NASDAQ 100 filings with unmatched capture velocity',
+      highlight: 'Under 60 seconds from filing to analysis',
+    },
+    {
+      icon: 'auto-awesome',
+      title: 'Institutional-Grade AI',
+      description: 'Finance-specialized neural networks trained on millions of reports, delivering objective market intelligence',
+      highlight: 'Zero emotional bias, pure data-driven insights',
+    },
+    {
+      icon: 'summarize',
+      title: 'Intelligent Compression',
+      description: 'Transform 300-page documents into 5-minute structured insights without losing critical information',
+      highlight: 'Smart extraction with source document linking',
+    },
+    {
+      icon: 'link',
+      title: 'Direct Source Access',
+      description: 'Every analysis maintains direct links to original SEC filings for seamless deep-dive verification',
+      highlight: 'One-click access to primary documents',
+    },
+    {
+      icon: 'notifications-active',
+      title: 'Instant Push Notifications',
+      description: 'Real-time alerts for your watchlist companies, delivered faster than traditional news outlets',
+      highlight: 'Be first, not last',
+    },
+    {
+      icon: 'calendar-today',
+      title: 'Earnings Calendar Intelligence',
+      description: 'Track upcoming releases with BMO/AMC timing precision for strategic positioning',
+      highlight: 'Never miss a critical filing',
+    },
+    {
+      icon: 'trending-up',
+      title: 'Community Sentiment Analysis',
+      description: 'Real-time market sentiment tracking from verified investors and professionals',
+      highlight: 'Understand market psychology instantly',
+    },
+    {
+      icon: 'bookmark',
+      title: 'IPO Discovery System',
+      description: 'S-1 filing monitoring to identify emerging opportunities before mainstream coverage',
+      highlight: 'Find tomorrow\'s leaders today',
+    },
   ];
 
-  const proFeatures: PlanFeature[] = [
-    { text: 'Unlimited report access', included: true },
-    { text: 'Advanced AI analytics', included: true },
-    { text: 'Real-time notifications', included: true },
-    { text: 'Export reports to PDF', included: true },
-    { text: 'Ad-free experience', included: true },
-    { text: 'Pro community access', included: true },
-    { text: 'Priority support', included: true },
-    { text: 'Early access to features', included: true },
-    { text: 'Custom watchlist (unlimited)', included: true },
-    { text: 'Historical data access', included: true },
-  ];
-
-  // Handle upgrade - Direct upgrade without Alert for testing
   const handleUpgrade = async () => {
-    console.log('🚀 Upgrade button clicked!'); // Debug line
-    console.log('🔍 isProUser:', isProUser); // Debug line
-    console.log('🔍 user?.tier:', user?.tier); // Debug line
-    
-    if (isProUser) {
-      console.log('⚠️ User is already Pro'); // Debug line
-      return;
-    }
+    if (isProUser) return;
 
-    console.log('🔄 Starting direct upgrade (skipping Alert)...'); // Debug line
     setIsLoading(true);
-    
     try {
-      console.log('📡 Making API call...'); // Debug line
-      
-      // Direct upgrade API call
       const response = await apiClient.post('/users/me/upgrade-mock', {
         plan: selectedPlan,
       });
       
-      console.log('📦 API response received:', response); // Debug line
-      
-      // Check if response has the expected structure
       if (response && response.user) {
-        console.log('✅ Updating user in Redux with response.user'); // Debug line
         dispatch(updateUser(response.user));
       } else {
-        console.log('🔄 No user in response, fetching user info...'); // Debug line
         const userResponse = await apiClient.get('/users/me');
-        console.log('👤 Fresh user data:', userResponse); // Debug line
         dispatch(updateUser(userResponse));
       }
       
-      console.log('🎉 Upgrade completed successfully!'); // Debug line
-      
-      // Navigate back to show the updated UI
       navigation.goBack();
-      
     } catch (error: any) {
-      console.error('❌ Upgrade error:', error); // Debug line
-      console.error('Error details:', {
-        message: error.message,
-        response: error.response?.data,
-        status: error.response?.status
-      });
+      console.error('Upgrade error:', error);
     } finally {
       setIsLoading(false);
     }
   };
 
-  // Render feature item
-  const renderFeature = (feature: PlanFeature, index: number) => (
-    <View key={index} style={styles.featureItem}>
-      <Icon
-        name={feature.included ? 'check-circle' : 'cancel'}
-        type="material"
-        size={20}
-        color={feature.included ? colors.success : colors.gray400}
-      />
-      <Text
-        style={[
-          styles.featureText,
-          !feature.included && styles.featureTextDisabled,
-        ]}
-      >
-        {feature.text}
-      </Text>
-    </View>
-  );
-
-  // Expo Web specific styles
   const webStyles = Platform.select({
     web: {
       maxHeight: screenHeight - 100,
@@ -156,16 +125,27 @@ export default function SubscriptionScreen() {
         >
           <Icon name="arrow-back" type="material" size={24} color={colors.text} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Subscription Plans</Text>
+        <Text style={styles.headerTitle}>Upgrade to Pro</Text>
         <View style={styles.backButton} />
       </View>
 
-      {/* Scrollable Content */}
       <ScrollView 
         style={[styles.scrollView, webStyles]}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={true}
       >
+        {/* Hero Section */}
+        <View style={styles.heroSection}>
+          <View style={styles.heroIconContainer}>
+            <Icon name="flash-on" type="material" size={60} color={colors.primary} />
+          </View>
+          <Text style={styles.heroTitle}>HermeSpeed Pro</Text>
+          <Text style={styles.heroSubtitle}>Where Information Begins</Text>
+          <Text style={styles.heroDescription}>
+            Professional-grade financial intelligence system delivering institutional insights to individual investors
+          </Text>
+        </View>
+
         {/* Current Status */}
         {isProUser ? (
           <View style={styles.currentPlanBanner}>
@@ -173,22 +153,22 @@ export default function SubscriptionScreen() {
             <View style={styles.currentPlanText}>
               <Text style={styles.currentPlanTitle}>You're a Pro Member!</Text>
               <Text style={styles.currentPlanSubtitle}>
-                Expires: {user?.subscription_expires_at 
+                Unlimited access until {user?.subscription_expires_at 
                   ? new Date(user.subscription_expires_at).toLocaleDateString()
-                  : 'Never'}
+                  : 'subscription renews'}
               </Text>
             </View>
           </View>
         ) : (
-          <View style={styles.limitWarning}>
+          <View style={styles.trialBanner}>
             <Icon name="info" type="material" size={20} color={colors.primary} />
-            <Text style={styles.limitText}>
-              You've used {user?.daily_reports_count || 0} of 3 daily reports
+            <Text style={styles.trialText}>
+              {user?.daily_view_count || 0} of 2 daily reports used
             </Text>
           </View>
         )}
 
-        {/* Plan Selection */}
+        {/* Plan Toggle */}
         <View style={styles.planToggle}>
           <TouchableOpacity
             style={[
@@ -219,7 +199,7 @@ export default function SubscriptionScreen() {
                 selectedPlan === 'yearly' && styles.planOptionTextActive,
               ]}
             >
-              Yearly
+              Annual
             </Text>
             {selectedPlan === 'yearly' && (
               <View style={styles.saveBadge}>
@@ -229,10 +209,10 @@ export default function SubscriptionScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* Pricing */}
+        {/* Pricing Display */}
         <View style={styles.pricingContainer}>
           <Text style={styles.priceAmount}>
-            ${selectedPlan === 'monthly' ? '39.9' : '399'}
+            ${selectedPlan === 'monthly' ? '39' : '399'}
           </Text>
           <Text style={styles.pricePeriod}>
             {selectedPlan === 'monthly' ? 'per month' : 'per year'}
@@ -244,140 +224,100 @@ export default function SubscriptionScreen() {
           )}
         </View>
 
-        {/* Features Comparison */}
-        <View style={styles.featuresContainer}>
-          {/* Free Plan */}
-          <View style={styles.planCard}>
-            <View style={styles.planHeader}>
-              <Text style={styles.planName}>Free</Text>
-              <Text style={styles.planPrice}>$0</Text>
+        {/* Simple Access Model */}
+        <View style={styles.accessModel}>
+          <Text style={styles.accessTitle}>Simple & Transparent</Text>
+          <View style={styles.accessRow}>
+            <View style={styles.accessItem}>
+              <Icon name="lock-open" type="material" size={24} color={colors.success} />
+              <Text style={styles.accessLabel}>Free Trial</Text>
+              <Text style={styles.accessValue}>2 reports daily</Text>
             </View>
-            <View style={styles.featuresList}>
-              {freeFeatures.map((feature, index) => renderFeature(feature, index))}
-            </View>
-          </View>
-
-          {/* Pro Plan */}
-          <View style={[styles.planCard, styles.planCardPro]}>
-            <View style={styles.proBadge}>
-              <Text style={styles.proBadgeText}>RECOMMENDED</Text>
-            </View>
-            <View style={styles.planHeader}>
-              <Text style={styles.planName}>Pro</Text>
-              <Text style={styles.planPrice}>
-                ${selectedPlan === 'monthly' ? '39.9/mo' : '399/yr'}
-              </Text>
-            </View>
-            <View style={styles.featuresList}>
-              {proFeatures.map((feature, index) => renderFeature(feature, index))}
+            <View style={styles.accessDivider} />
+            <View style={styles.accessItem}>
+              <Icon name="all-inclusive" type="material" size={24} color={colors.primary} />
+              <Text style={styles.accessLabel}>Pro Access</Text>
+              <Text style={styles.accessValue}>Unlimited everything</Text>
             </View>
           </View>
         </View>
 
-        {/* Upgrade Button */}
-        {!isProUser && (
-          <TouchableOpacity
-            style={styles.upgradeButton}
-            onPress={handleUpgrade}
-            disabled={isLoading}
-          >
-            {isLoading ? (
-              <ActivityIndicator color="white" />
-            ) : (
-              <>
-                <Text style={styles.upgradeButtonText}>
-                  Upgrade to Pro
-                </Text>
-                <Icon
-                  name="arrow-forward"
-                  type="material"
-                  size={20}
-                  color="white"
-                  style={{ marginLeft: spacing.xs }}
+        {/* Platform Features Section */}
+        <View style={styles.featuresSection}>
+          <Text style={styles.featuresTitle}>The HermeSpeed Advantage</Text>
+          <Text style={styles.featuresSubtitle}>
+            All features. No tiers. Just pure financial intelligence.
+          </Text>
+          
+          {platformFeatures.map((feature, index) => (
+            <View key={index} style={styles.featureCard}>
+              <View style={styles.featureIconWrapper}>
+                <Icon 
+                  name={feature.icon} 
+                  type="material" 
+                  size={28} 
+                  color={colors.primary} 
                 />
-              </>
-            )}
-          </TouchableOpacity>
+              </View>
+              <View style={styles.featureContent}>
+                <Text style={styles.featureTitle}>{feature.title}</Text>
+                <Text style={styles.featureDescription}>{feature.description}</Text>
+                <View style={styles.featureHighlight}>
+                  <Icon name="check-circle" type="material" size={16} color={colors.success} />
+                  <Text style={styles.featureHighlightText}>{feature.highlight}</Text>
+                </View>
+              </View>
+            </View>
+          ))}
+        </View>
+
+        {/* Upgrade CTA */}
+        {!isProUser && (
+          <View style={styles.upgradeSection}>
+            <TouchableOpacity
+              style={styles.upgradeButton}
+              onPress={handleUpgrade}
+              disabled={isLoading}
+            >
+              {isLoading ? (
+                <ActivityIndicator color="white" />
+              ) : (
+                <>
+                  <Icon name="rocket-launch" type="material" size={20} color="white" />
+                  <Text style={styles.upgradeButtonText}>
+                    Start Pro Access
+                  </Text>
+                </>
+              )}
+            </TouchableOpacity>
+            
+            <Text style={styles.guaranteeText}>
+              7-day money back guarantee • Cancel anytime
+            </Text>
+          </View>
         )}
 
-        {/* Cancel Anytime */}
-        <Text style={styles.cancelText}>
-          Cancel anytime. No questions asked.
-        </Text>
-
-        {/* Testimonials */}
-        <View style={styles.testimonialsContainer}>
-          <Text style={styles.testimonialsTitle}>What Pro Users Say</Text>
-          
-          <View style={styles.testimonial}>
-            <View style={styles.testimonialHeader}>
-              <View style={styles.stars}>
-                {[1, 2, 3, 4, 5].map((star) => (
-                  <Icon
-                    key={star}
-                    name="star"
-                    type="material"
-                    size={16}
-                    color={colors.warning}
-                  />
-                ))}
-              </View>
-              <Text style={styles.testimonialAuthor}>Sarah K.</Text>
+        {/* Trust Indicators */}
+        <View style={styles.trustSection}>
+          <Text style={styles.trustTitle}>Trusted by Thousands</Text>
+          <View style={styles.trustStats}>
+            <View style={styles.trustStat}>
+              <Text style={styles.trustNumber}>10,000+</Text>
+              <Text style={styles.trustLabel}>Active Users</Text>
             </View>
-            <Text style={styles.testimonialText}>
-              "The unlimited access is game-changing. I can research any company without worrying about limits."
-            </Text>
-          </View>
-
-          <View style={styles.testimonial}>
-            <View style={styles.testimonialHeader}>
-              <View style={styles.stars}>
-                {[1, 2, 3, 4, 5].map((star) => (
-                  <Icon
-                    key={star}
-                    name="star"
-                    type="material"
-                    size={16}
-                    color={colors.warning}
-                  />
-                ))}
-              </View>
-              <Text style={styles.testimonialAuthor}>Michael R.</Text>
+            <View style={styles.trustStat}>
+              <Text style={styles.trustNumber}>&lt; 60s</Text>
+              <Text style={styles.trustLabel}>Filing to Alert</Text>
             </View>
-            <Text style={styles.testimonialText}>
-              "The real-time notifications help me stay ahead of the market. Worth every penny!"
-            </Text>
-          </View>
-        </View>
-
-        {/* FAQ */}
-        <View style={styles.faqContainer}>
-          <Text style={styles.faqTitle}>Frequently Asked Questions</Text>
-          
-          <View style={styles.faqItem}>
-            <Text style={styles.faqQuestion}>Can I cancel anytime?</Text>
-            <Text style={styles.faqAnswer}>
-              Yes! You can cancel your subscription anytime from your profile settings.
-            </Text>
-          </View>
-
-          <View style={styles.faqItem}>
-            <Text style={styles.faqQuestion}>What happens to my data if I cancel?</Text>
-            <Text style={styles.faqAnswer}>
-              Your data remains accessible. You'll revert to the free plan with its limitations.
-            </Text>
-          </View>
-
-          <View style={styles.faqItem}>
-            <Text style={styles.faqQuestion}>Do you offer refunds?</Text>
-            <Text style={styles.faqAnswer}>
-              We offer a 7-day money-back guarantee if you're not satisfied.
-            </Text>
+            <View style={styles.trustStat}>
+              <Text style={styles.trustNumber}>200+</Text>
+              <Text style={styles.trustLabel}>Companies Tracked</Text>
+            </View>
           </View>
         </View>
 
         {/* Bottom padding */}
-        <View style={{ height: spacing.xxxl * 2 }} />
+        <View style={{ height: spacing.xxxl }} />
       </ScrollView>
     </SafeAreaView>
   );
@@ -410,8 +350,41 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    flexGrow: 1,
-    paddingBottom: 50,
+    paddingBottom: spacing.xxxl,
+  },
+  heroSection: {
+    alignItems: 'center',
+    paddingVertical: spacing.xl,
+    paddingHorizontal: spacing.lg,
+    backgroundColor: colors.white,
+  },
+  heroIconContainer: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: colors.primary + '10',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: spacing.md,
+  },
+  heroTitle: {
+    fontSize: typography.fontSize.xxl,
+    fontWeight: typography.fontWeight.bold,
+    color: colors.text,
+    marginBottom: spacing.xs,
+  },
+  heroSubtitle: {
+    fontSize: typography.fontSize.md,
+    color: colors.primary,
+    fontWeight: typography.fontWeight.semibold,
+    marginBottom: spacing.sm,
+  },
+  heroDescription: {
+    fontSize: typography.fontSize.base,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    lineHeight: 22,
+    maxWidth: 320,
   },
   currentPlanBanner: {
     flexDirection: 'row',
@@ -433,9 +406,9 @@ const styles = StyleSheet.create({
   currentPlanSubtitle: {
     fontSize: typography.fontSize.sm,
     color: colors.white,
-    opacity: 0.8,
+    opacity: 0.9,
   },
-  limitWarning: {
+  trialBanner: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: colors.primaryLight + '20',
@@ -446,10 +419,11 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.primary + '30',
   },
-  limitText: {
+  trialText: {
     fontSize: typography.fontSize.sm,
     color: colors.primary,
     marginLeft: spacing.sm,
+    fontWeight: typography.fontWeight.medium,
   },
   planToggle: {
     flexDirection: 'row',
@@ -509,77 +483,113 @@ const styles = StyleSheet.create({
     color: colors.success,
     marginTop: spacing.xs,
   },
-  featuresContainer: {
-    paddingHorizontal: spacing.md,
-  },
-  planCard: {
+  accessModel: {
     backgroundColor: colors.white,
-    borderRadius: borderRadius.lg,
+    marginHorizontal: spacing.md,
     padding: spacing.lg,
-    borderWidth: 1,
-    borderColor: colors.border,
-    marginBottom: spacing.md,
+    borderRadius: borderRadius.lg,
+    marginBottom: spacing.lg,
+    ...shadows.sm,
   },
-  planCardPro: {
-    borderColor: colors.primary,
-    borderWidth: 2,
-    position: 'relative',
-    marginTop: spacing.md,
-  },
-  proBadge: {
-    position: 'absolute',
-    top: -12,
-    alignSelf: 'center',
-    backgroundColor: colors.primary,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.xxs,
-    borderRadius: borderRadius.sm,
-  },
-  proBadgeText: {
-    fontSize: typography.fontSize.xs,
-    fontWeight: typography.fontWeight.bold,
-    color: colors.white,
-  },
-  planHeader: {
-    alignItems: 'center',
-    paddingBottom: spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-    marginBottom: spacing.md,
-  },
-  planName: {
+  accessTitle: {
     fontSize: typography.fontSize.lg,
     fontWeight: typography.fontWeight.semibold,
     color: colors.text,
+    textAlign: 'center',
+    marginBottom: spacing.md,
   },
-  planPrice: {
-    fontSize: typography.fontSize.sm,
-    color: colors.textSecondary,
-    marginTop: spacing.xxs,
-  },
-  featuresList: {
-    gap: spacing.sm,
-  },
-  featureItem: {
+  accessRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: spacing.sm,
+    justifyContent: 'space-around',
   },
-  featureText: {
-    fontSize: typography.fontSize.sm,
-    color: colors.text,
-    marginLeft: spacing.xs,
+  accessItem: {
+    alignItems: 'center',
     flex: 1,
   },
-  featureTextDisabled: {
-    color: colors.gray400,
-    textDecorationLine: 'line-through',
+  accessLabel: {
+    fontSize: typography.fontSize.sm,
+    color: colors.textSecondary,
+    marginTop: spacing.sm,
+    marginBottom: spacing.xs,
+  },
+  accessValue: {
+    fontSize: typography.fontSize.base,
+    fontWeight: typography.fontWeight.semibold,
+    color: colors.text,
+  },
+  accessDivider: {
+    width: 1,
+    height: 60,
+    backgroundColor: colors.border,
+    marginHorizontal: spacing.md,
+  },
+  featuresSection: {
+    paddingHorizontal: spacing.md,
+    marginTop: spacing.lg,
+  },
+  featuresTitle: {
+    fontSize: typography.fontSize.xl,
+    fontWeight: typography.fontWeight.bold,
+    color: colors.text,
+    textAlign: 'center',
+    marginBottom: spacing.xs,
+  },
+  featuresSubtitle: {
+    fontSize: typography.fontSize.base,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    marginBottom: spacing.xl,
+  },
+  featureCard: {
+    flexDirection: 'row',
+    backgroundColor: colors.white,
+    padding: spacing.md,
+    borderRadius: borderRadius.lg,
+    marginBottom: spacing.md,
+    ...shadows.sm,
+  },
+  featureIconWrapper: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: colors.primary + '10',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: spacing.md,
+  },
+  featureContent: {
+    flex: 1,
+  },
+  featureTitle: {
+    fontSize: typography.fontSize.base,
+    fontWeight: typography.fontWeight.semibold,
+    color: colors.text,
+    marginBottom: spacing.xxs,
+  },
+  featureDescription: {
+    fontSize: typography.fontSize.sm,
+    color: colors.textSecondary,
+    lineHeight: 18,
+    marginBottom: spacing.xs,
+  },
+  featureHighlight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  featureHighlightText: {
+    fontSize: typography.fontSize.xs,
+    color: colors.success,
+    fontWeight: typography.fontWeight.medium,
+    marginLeft: spacing.xs,
+  },
+  upgradeSection: {
+    paddingHorizontal: spacing.md,
+    marginTop: spacing.xl,
   },
   upgradeButton: {
     flexDirection: 'row',
     backgroundColor: colors.primary,
-    marginHorizontal: spacing.md,
-    marginTop: spacing.xl,
     paddingVertical: spacing.md,
     borderRadius: borderRadius.lg,
     alignItems: 'center',
@@ -590,71 +600,41 @@ const styles = StyleSheet.create({
     fontSize: typography.fontSize.base,
     fontWeight: typography.fontWeight.semibold,
     color: colors.white,
+    marginLeft: spacing.sm,
   },
-  cancelText: {
+  guaranteeText: {
     fontSize: typography.fontSize.sm,
     color: colors.textSecondary,
     textAlign: 'center',
     marginTop: spacing.md,
   },
-  testimonialsContainer: {
+  trustSection: {
     marginTop: spacing.xxl,
     paddingHorizontal: spacing.md,
+    paddingBottom: spacing.xl,
   },
-  testimonialsTitle: {
+  trustTitle: {
     fontSize: typography.fontSize.lg,
     fontWeight: typography.fontWeight.semibold,
     color: colors.text,
-    marginBottom: spacing.md,
+    textAlign: 'center',
+    marginBottom: spacing.lg,
   },
-  testimonial: {
-    backgroundColor: colors.white,
-    padding: spacing.md,
-    borderRadius: borderRadius.lg,
-    marginBottom: spacing.md,
-    ...shadows.sm,
-  },
-  testimonialHeader: {
+  trustStats: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    justifyContent: 'space-around',
+  },
+  trustStat: {
     alignItems: 'center',
-    marginBottom: spacing.sm,
   },
-  stars: {
-    flexDirection: 'row',
+  trustNumber: {
+    fontSize: typography.fontSize.xl,
+    fontWeight: typography.fontWeight.bold,
+    color: colors.primary,
+    marginBottom: spacing.xxs,
   },
-  testimonialAuthor: {
-    fontSize: typography.fontSize.sm,
-    fontWeight: typography.fontWeight.medium,
-    color: colors.textSecondary,
-  },
-  testimonialText: {
-    fontSize: typography.fontSize.sm,
-    color: colors.text,
-    lineHeight: 20,
-  },
-  faqContainer: {
-    marginTop: spacing.xl,
-    paddingHorizontal: spacing.md,
-  },
-  faqTitle: {
-    fontSize: typography.fontSize.lg,
-    fontWeight: typography.fontWeight.semibold,
-    color: colors.text,
-    marginBottom: spacing.md,
-  },
-  faqItem: {
-    marginBottom: spacing.md,
-  },
-  faqQuestion: {
-    fontSize: typography.fontSize.base,
-    fontWeight: typography.fontWeight.medium,
-    color: colors.text,
-    marginBottom: spacing.xs,
-  },
-  faqAnswer: {
+  trustLabel: {
     fontSize: typography.fontSize.sm,
     color: colors.textSecondary,
-    lineHeight: 20,
   },
 });

@@ -57,7 +57,6 @@ export default function FilingDetailScreen() {
   const [isSubmittingComment, setIsSubmittingComment] = useState(false);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [limitInfo, setLimitInfo] = useState<{ views_today: number; daily_limit: number } | null>(null);
-  const [error403, setError403] = useState(false);
   const [replyingTo, setReplyingTo] = useState<Comment | null>(null);
 
   // Use the history hook to automatically add to history when filing is loaded
@@ -66,8 +65,6 @@ export default function FilingDetailScreen() {
   // Load filing details and comments
   const loadFilingDetails = async () => {
     try {
-      setError403(false);
-      
       // Load filing details using the API function
       const filingData = await getFilingById(filingId.toString());
       setFiling(filingData);
@@ -83,9 +80,8 @@ export default function FilingDetailScreen() {
     } catch (error: any) {
       console.error('Error loading filing details:', error);
       
-      // Check if it's a daily limit error
+      // 🔥 关键修改：处理限制错误，显示弹窗而不是导航
       if (error.isLimitError) {
-        setError403(true);
         setLimitInfo(error.limitInfo);
         setShowUpgradeModal(true);
       } else {
@@ -108,7 +104,7 @@ export default function FilingDetailScreen() {
     setNewComment('');
   };
 
-  // 🔥 FIXED: Handle comment submission with reply support
+  // Handle comment submission with reply support
   const handleSubmitComment = async () => {
     if (!isProUser) {
       Alert.alert('Pro Feature', 'Comments are available for Pro members only');
@@ -128,11 +124,10 @@ export default function FilingDetailScreen() {
         commentContent = commentContent.replace(mentionPattern, '');
       }
       
-      // 🔥 关键修复：传递 reply_to_comment_id 作为第三个参数
       const newCommentData = await addComment(
         filingId.toString(), 
         commentContent,
-        replyingTo ? replyingTo.id : undefined  // 🔥 这是关键修复！
+        replyingTo ? replyingTo.id : undefined
       );
       
       setComments([newCommentData, ...comments]);
@@ -164,6 +159,13 @@ export default function FilingDetailScreen() {
     setIsRefreshing(true);
     await loadFilingDetails();
     setIsRefreshing(false);
+  };
+
+  // 🔥 新增：处理弹窗关闭
+  const handleUpgradeModalClose = () => {
+    setShowUpgradeModal(false);
+    // 返回上一页
+    navigation.goBack();
   };
 
   // Render differentiated filing content based on filing type
@@ -235,57 +237,32 @@ export default function FilingDetailScreen() {
     );
   }
 
-  // Handle 403 error - show upgrade prompt instead of "Filing not found"
-  if (error403 && !filing) {
+  // 🔥 关键修改：如果没有filing且显示弹窗，不显示空白页面
+  if (!filing && showUpgradeModal) {
     return (
-      <View style={styles.container}>
+      <SafeAreaView style={styles.container}>
         {/* Header */}
         <View style={styles.header}>
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
             <Icon name="arrow-back" size={24} color={colors.text} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Daily Limit Reached</Text>
+          <Text style={styles.headerTitle}>Filing Details</Text>
           <View style={styles.headerRight} />
         </View>
 
-        <View style={styles.limitReachedContainer}>
-          <Icon name="lock" size={80} color={colors.primary} style={styles.limitIcon} />
-          
-          <Text style={styles.limitTitle}>Daily Limit Reached</Text>
-          <Text style={styles.limitText}>
-            You've reached your daily limit of {limitInfo?.daily_limit || 3} free reports.
-          </Text>
-          <Text style={styles.limitSubtext}>
-            Upgrade to Pro for unlimited access to all financial reports, advanced features, and exclusive insights.
-          </Text>
-          
-          <TouchableOpacity 
-            style={styles.limitUpgradeButton}
-            onPress={() => navigation.navigate('Subscription')}
-          >
-            <Text style={styles.limitUpgradeButtonText}>Upgrade to Pro</Text>
-            <Icon name="arrow-forward" size={20} color={colors.white} />
-          </TouchableOpacity>
-          
-          <TouchableOpacity 
-            style={styles.limitBackButton}
-            onPress={() => navigation.goBack()}
-          >
-            <Text style={styles.limitBackButtonText}>Go Back</Text>
-          </TouchableOpacity>
+        {/* Loading placeholder while modal shows */}
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={colors.primary} />
         </View>
         
-        {/* Also show the modal */}
+        {/* 升级弹窗 */}
         <UpgradePromptModal
           visible={showUpgradeModal}
-          onClose={() => {
-            setShowUpgradeModal(false);
-            navigation.goBack();
-          }}
+          onClose={handleUpgradeModalClose}
           viewsToday={limitInfo?.views_today}
           dailyLimit={limitInfo?.daily_limit}
         />
-      </View>
+      </SafeAreaView>
     );
   }
 
@@ -332,7 +309,6 @@ export default function FilingDetailScreen() {
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>🗳️ Community Sentiment</Text>
             
-            {/* 使用独立的 VotingModule 组件 - 现在包含提示文字 */}
             <VotingModule
               filingId={filingId}
               initialVoteCounts={filing.vote_counts || { bullish: 0, neutral: 0, bearish: 0 }}
@@ -416,6 +392,14 @@ export default function FilingDetailScreen() {
             )}
           </View>
         </ScrollView>
+
+        {/* 🔥 升级弹窗始终可能显示 */}
+        <UpgradePromptModal
+          visible={showUpgradeModal}
+          onClose={handleUpgradeModalClose}
+          viewsToday={limitInfo?.views_today}
+          dailyLimit={limitInfo?.daily_limit}
+        />
       </SafeAreaView>
     );
   }
@@ -471,57 +455,6 @@ const styles = StyleSheet.create({
     fontSize: typography.fontSize.md,
     color: colors.primary,
     textDecorationLine: 'underline',
-  },
-  limitReachedContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: spacing.xl,
-  },
-  limitIcon: {
-    marginBottom: spacing.xl,
-  },
-  limitTitle: {
-    fontSize: typography.fontSize.xxl,
-    fontWeight: typography.fontWeight.bold,
-    color: colors.text,
-    marginBottom: spacing.md,
-  },
-  limitText: {
-    fontSize: typography.fontSize.lg,
-    color: colors.text,
-    textAlign: 'center',
-    marginBottom: spacing.sm,
-  },
-  limitSubtext: {
-    fontSize: typography.fontSize.md,
-    color: colors.textSecondary,
-    textAlign: 'center',
-    marginBottom: spacing.xl,
-    paddingHorizontal: spacing.lg,
-  },
-  limitUpgradeButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.primary,
-    paddingHorizontal: spacing.xl,
-    paddingVertical: spacing.md,
-    borderRadius: borderRadius.md,
-    marginBottom: spacing.md,
-  },
-  limitUpgradeButtonText: {
-    color: colors.white,
-    fontSize: typography.fontSize.lg,
-    fontWeight: typography.fontWeight.semibold,
-    marginRight: spacing.sm,
-  },
-  limitBackButton: {
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.sm,
-  },
-  limitBackButtonText: {
-    color: colors.primary,
-    fontSize: typography.fontSize.md,
   },
   header: {
     flexDirection: 'row',
