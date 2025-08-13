@@ -27,15 +27,15 @@ export type MainTabParamList = {
   Profile: undefined;
 };
 
-// User Types
+// User Types - 更新以包含订阅相关字段
 export interface User {
   id: number;
   email: string;
   full_name?: string;
   username?: string;
   avatar_url?: string;
-  tier: 'free' | 'pro';
-  is_pro: boolean;
+  tier: 'free' | 'pro' | 'FREE' | 'PRO'; // 支持大小写
+  is_pro?: boolean;  // 添加is_pro字段
   is_active: boolean;
   is_verified: boolean;
   created_at: string;
@@ -47,10 +47,25 @@ export interface User {
   daily_view_count?: number;
   daily_reports_count?: number;
   
-  // Subscription fields
-  subscription_expires_at?: string;  // 添加订阅到期时间字段
-  subscription_status?: 'active' | 'cancelled' | 'expired';
-  subscription_plan?: 'monthly' | 'yearly';
+  // 订阅相关字段（Phase 2新增）
+  is_early_bird?: boolean;  // 是否为早鸟用户
+  pricing_tier?: 'EARLY_BIRD' | 'STANDARD';  // 价格层级
+  user_sequence_number?: number;  // 用户序号（前10000名）
+  subscription_type?: 'MONTHLY' | 'YEARLY';  // 订阅类型
+  subscription_price?: number;  // 订阅价格
+  is_subscription_active?: boolean;  // 订阅是否激活
+  subscription_started_at?: string;  // 订阅开始时间
+  subscription_expires_at?: string;  // 订阅到期时间
+  next_billing_date?: string;  // 下次计费日期
+  subscription_auto_renew?: boolean;  // 是否自动续费
+  last_payment_date?: string;  // 最后支付日期
+  last_payment_amount?: number;  // 最后支付金额
+  total_payment_amount?: number;  // 总支付金额
+  subscription_status?: 'active' | 'cancelled' | 'expired';  // 订阅状态
+  subscription_plan?: 'monthly' | 'yearly';  // 订阅计划（小写版本）
+  subscription_cancelled_at?: string;  // 订阅取消时间
+  monthly_price?: number;  // 月度价格（用于显示）
+  yearly_price?: number;  // 年度价格（用于显示）
 }
 
 // Auth Types
@@ -265,11 +280,11 @@ export interface FilingListResponse {
 // Vote Types
 export type VoteType = 'bullish' | 'neutral' | 'bearish';
 
-// Comment Types
+// Comment Types - 修复评论类型
 export interface Comment {
   id: string;
   user_id: string;
-  filing_id: number;
+  filing_id: string;
   content: string;
   created_at: string;
   updated_at?: string;
@@ -279,18 +294,20 @@ export interface Comment {
   username: string;
   user_name?: string;
   user_avatar?: string;
-  is_pro_user: boolean;
-  user_tier?: 'free' | 'pro';
+  is_pro_user?: boolean;
+  user_tier?: 'free' | 'pro' | 'FREE' | 'PRO';  // 支持大小写
   
   // Interaction
-  vote_count: number;
+  vote_count?: number;
   user_vote?: 'up' | 'down' | null | number;
   upvotes?: number;
   downvotes?: number;
   net_votes?: number;
   
-  // Reply info
+  // Reply info - 更新为匹配后端返回的结构
   reply_to?: {
+    comment_id?: string | number;
+    user_id?: string | number;
     username: string;
     content_preview: string;
   };
@@ -301,8 +318,9 @@ export interface Comment {
 
 // Comment Response Types
 export interface CommentVoteResponse {
-  success: boolean;
-  vote_count: number;
+  success?: boolean;
+  comment_id?: string | number;
+  vote_count?: number;
   user_vote: 'up' | 'down' | null | number;
   upvotes: number;
   downvotes: number;
@@ -312,8 +330,8 @@ export interface CommentVoteResponse {
 export interface CommentListResponse {
   items: Comment[];
   total: number;
-  skip: number;
-  limit: number;
+  skip?: number;
+  limit?: number;
 }
 
 // Company Types (简化版，用于列表)
@@ -483,3 +501,45 @@ export const HISTORY_CONSTANTS = {
 
 // Helper type to determine if filing has unified analysis
 export type HasUnifiedAnalysis = (filing: Filing) => boolean;
+
+// 🔥 关键修复：更新辅助函数以正确处理大小写
+export const isProUser = (user: User | null): boolean => {
+  if (!user) return false;
+  
+  // 检查所有可能的Pro状态标识
+  return (
+    // 检查tier字段（大小写兼容）
+    user.tier === 'pro' || 
+    user.tier === 'PRO' ||
+    // 检查is_pro字段
+    user.is_pro === true ||
+    // 检查订阅激活状态
+    user.is_subscription_active === true
+  );
+};
+
+export const isEarlyBirdUser = (user: User | null): boolean => {
+  if (!user) return false;
+  return user.is_early_bird === true || 
+         user.pricing_tier === 'EARLY_BIRD';
+};
+
+// 新增：获取用户显示的tier（统一为小写）
+export const getUserTierDisplay = (user: User | null): 'free' | 'pro' => {
+  if (isProUser(user)) {
+    return 'pro';
+  }
+  return 'free';
+};
+
+// 新增：检查用户是否可以发表评论
+export const canUserComment = (user: User | null): boolean => {
+  return isProUser(user);
+};
+
+// 新增：检查用户是否可以查看评论
+export const canUserViewComments = (user: User | null): boolean => {
+  // 根据您的设计，所有用户都可以查看评论
+  // 但只有Pro用户可以发表和互动
+  return true;
+};

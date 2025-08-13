@@ -12,6 +12,24 @@ interface RegisterCredentials {
   username: string;
 }
 
+// 扩展User类型以包含订阅信息
+interface UserWithSubscription extends User {
+  // 订阅相关字段（从后端返回）
+  is_early_bird?: boolean;
+  pricing_tier?: 'EARLY_BIRD' | 'STANDARD';
+  user_sequence_number?: number;
+  subscription_type?: 'MONTHLY' | 'YEARLY';
+  subscription_price?: number;
+  is_subscription_active?: boolean;
+  subscription_started_at?: string;
+  subscription_expires_at?: string;
+  next_billing_date?: string;
+  subscription_auto_renew?: boolean;
+  last_payment_date?: string;
+  last_payment_amount?: number;
+  total_payment_amount?: number;
+}
+
 const initialState: AuthState = {
   user: null,
   token: null,
@@ -21,7 +39,7 @@ const initialState: AuthState = {
   error: null,
 };
 
-// Login async thunk
+// Login async thunk - 更新以处理订阅信息
 export const login = createAsyncThunk(
   'auth/login',
   async (credentials: LoginCredentials) => {
@@ -31,7 +49,12 @@ export const login = createAsyncThunk(
       formData.append('username', credentials.email);
       formData.append('password', credentials.password);
 
-      const loginResponse = await apiClient.post<{ access_token: string; token_type: string; refresh_token?: string }>('/auth/login', formData, {
+      const loginResponse = await apiClient.post<{ 
+        access_token: string; 
+        token_type: string; 
+        refresh_token?: string;
+        user_info?: any; // 后端可能直接返回用户信息
+      }>('/auth/login', formData, {
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded',
         },
@@ -43,8 +66,9 @@ export const login = createAsyncThunk(
       apiClient.setAuthToken(loginResponse.access_token);
 
       // Step 3: Fetch user information using the token
-      const userResponse = await apiClient.get<User>('/users/me');
-      console.log('User info response:', userResponse);
+      // 注意：使用 /users/me 端点获取完整的用户信息（包括订阅状态）
+      const userResponse = await apiClient.get<UserWithSubscription>('/users/me');
+      console.log('User info response with subscription:', userResponse);
 
       // Step 4: Store token and user info
       await AsyncStorage.setItem(STORAGE_KEYS.AUTH_TOKEN, loginResponse.access_token);
@@ -67,49 +91,63 @@ export const login = createAsyncThunk(
   }
 );
 
-// Register async thunk
+// Register async thunk - 更新以处理早鸟资格
 export const register = createAsyncThunk(
   'auth/register',
   async (credentials: RegisterCredentials) => {
     try {
       // First, register the user
-      const registerResponse = await apiClient.post('/auth/register', {
+      const registerResponse = await apiClient.post<{
+        id: number;
+        email: string;
+        full_name?: string;
+        username?: string;
+        access_token: string;
+        refresh_token: string;
+        tier: string;
+        is_early_bird: boolean;
+        pricing_tier?: string;
+        user_sequence_number?: number;
+        monthly_price: number;
+        yearly_price: number;
+        early_bird_slots_remaining?: number;
+      }>('/auth/register', {
         email: credentials.email,
         password: credentials.password,
         username: credentials.username,
       });
 
-      console.log('Register response:', registerResponse);
-
-      // After successful registration, automatically log them in
-      const formData = new URLSearchParams();
-      formData.append('username', credentials.email);
-      formData.append('password', credentials.password);
-
-      const loginResponse = await apiClient.post<{ access_token: string; token_type: string; refresh_token?: string }>('/auth/login', formData, {
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
-      });
+      console.log('Register response with early bird info:', registerResponse);
 
       // Set token to API client
-      apiClient.setAuthToken(loginResponse.access_token);
+      apiClient.setAuthToken(registerResponse.access_token);
 
-      // Fetch user information
-      const userResponse = await apiClient.get<User>('/users/me');
+      // Fetch complete user information
+      const userResponse = await apiClient.get<UserWithSubscription>('/users/me');
 
       // Store token and user info
-      await AsyncStorage.setItem(STORAGE_KEYS.AUTH_TOKEN, loginResponse.access_token);
-      if (loginResponse.refresh_token) {
-        await AsyncStorage.setItem(STORAGE_KEYS.REFRESH_TOKEN, loginResponse.refresh_token);
+      await AsyncStorage.setItem(STORAGE_KEYS.AUTH_TOKEN, registerResponse.access_token);
+      if (registerResponse.refresh_token) {
+        await AsyncStorage.setItem(STORAGE_KEYS.REFRESH_TOKEN, registerResponse.refresh_token);
       }
       await AsyncStorage.setItem(STORAGE_KEYS.USER_INFO, JSON.stringify(userResponse));
 
+      // 如果是早鸟用户，可以在这里存储一个标记
+      if (registerResponse.is_early_bird) {
+        await AsyncStorage.setItem('@is_early_bird', 'true');
+        console.log(`🎉 Congratulations! User #${registerResponse.user_sequence_number} - Early bird status granted!`);
+      }
+
       return {
-        access_token: loginResponse.access_token,
-        refresh_token: loginResponse.refresh_token || null,
-        token_type: loginResponse.token_type,
-        user: userResponse
+        access_token: registerResponse.access_token,
+        refresh_token: registerResponse.refresh_token || null,
+        token_type: 'bearer',
+        user: userResponse,
+        registration_info: {
+          is_early_bird: registerResponse.is_early_bird,
+          user_sequence_number: registerResponse.user_sequence_number,
+          early_bird_slots_remaining: registerResponse.early_bird_slots_remaining,
+        }
       };
     } catch (error) {
       console.error('Register error:', error);
@@ -133,6 +171,7 @@ export const logout = createAsyncThunk('auth/logout', async () => {
       STORAGE_KEYS.AUTH_TOKEN,
       STORAGE_KEYS.REFRESH_TOKEN,
       STORAGE_KEYS.USER_INFO,
+      '@is_early_bird', // 清除早鸟标记
     ]);
     
     // Optional: Clear history on logout (uncomment if desired)
@@ -143,7 +182,7 @@ export const logout = createAsyncThunk('auth/logout', async () => {
   }
 });
 
-// Load stored auth
+// Load stored auth - 更新以处理订阅信息
 export const loadStoredAuth = createAsyncThunk(
   'auth/loadStoredAuth',
   async () => {
@@ -155,15 +194,15 @@ export const loadStoredAuth = createAsyncThunk(
       if (token && userInfo) {
         const user = JSON.parse(userInfo);
         console.log('Loading stored auth - Token exists:', !!token);
-        console.log('Loading stored auth - User:', user);
+        console.log('Loading stored auth - User with subscription:', user);
         
         // Set token to axios default headers
         apiClient.setAuthToken(token);
         
         // Validate token by fetching current user info
         try {
-          const currentUser = await apiClient.get<User>('/users/me');
-          console.log('Current user from API:', currentUser);
+          const currentUser = await apiClient.get<UserWithSubscription>('/users/me');
+          console.log('Current user from API with subscription:', currentUser);
           
           // Update stored user info if it's different
           if (JSON.stringify(currentUser) !== userInfo) {
@@ -178,7 +217,12 @@ export const loadStoredAuth = createAsyncThunk(
         } catch (apiError) {
           console.error('Token validation failed:', apiError);
           // Token is invalid, clear storage
-          await AsyncStorage.multiRemove([STORAGE_KEYS.AUTH_TOKEN, STORAGE_KEYS.REFRESH_TOKEN, STORAGE_KEYS.USER_INFO]);
+          await AsyncStorage.multiRemove([
+            STORAGE_KEYS.AUTH_TOKEN, 
+            STORAGE_KEYS.REFRESH_TOKEN, 
+            STORAGE_KEYS.USER_INFO,
+            '@is_early_bird'
+          ]);
           apiClient.removeAuthToken();
           return null;
         }
@@ -191,13 +235,13 @@ export const loadStoredAuth = createAsyncThunk(
   }
 );
 
-// Refresh user info
+// Refresh user info - 更新以获取最新订阅状态
 export const refreshUserInfo = createAsyncThunk(
   'auth/refreshUserInfo',
   async () => {
     try {
-      const userResponse = await apiClient.get<User>('/users/me');
-      console.log('Refreshed user info:', userResponse);
+      const userResponse = await apiClient.get<UserWithSubscription>('/users/me');
+      console.log('Refreshed user info with subscription:', userResponse);
       
       // Update stored user info
       await AsyncStorage.setItem(STORAGE_KEYS.USER_INFO, JSON.stringify(userResponse));
@@ -205,6 +249,26 @@ export const refreshUserInfo = createAsyncThunk(
       return userResponse;
     } catch (error) {
       console.error('Refresh user info error:', error);
+      throw error;
+    }
+  }
+);
+
+// 新增：Mock升级到Pro（开发环境用）
+export const mockUpgradeToPro = createAsyncThunk(
+  'auth/mockUpgradeToPro',
+  async (plan: 'monthly' | 'yearly') => {
+    try {
+      const response = await apiClient.post('/users/me/upgrade-mock', { plan });
+      console.log('Mock upgrade response:', response);
+      
+      // 刷新用户信息以获取更新后的订阅状态
+      const userResponse = await apiClient.get<UserWithSubscription>('/users/me');
+      await AsyncStorage.setItem(STORAGE_KEYS.USER_INFO, JSON.stringify(userResponse));
+      
+      return userResponse;
+    } catch (error) {
+      console.error('Mock upgrade error:', error);
       throw error;
     }
   }
@@ -222,6 +286,13 @@ const authSlice = createSlice({
       state.user = action.payload;
       console.log('User updated in Redux:', action.payload);
     },
+    // 新增：更新用户订阅状态
+    updateUserSubscription: (state, action: PayloadAction<Partial<UserWithSubscription>>) => {
+      if (state.user) {
+        state.user = { ...state.user, ...action.payload };
+        console.log('User subscription updated:', action.payload);
+      }
+    },
   },
   extraReducers: (builder) => {
     // Login cases
@@ -237,7 +308,7 @@ const authSlice = createSlice({
         state.refreshToken = action.payload.refresh_token;
         state.user = action.payload.user;
         state.error = null;
-        console.log('Login successful, user set:', action.payload.user);
+        console.log('Login successful, user with subscription set:', action.payload.user);
       })
       .addCase(login.rejected, (state, action) => {
         state.isLoading = false;
@@ -254,13 +325,18 @@ const authSlice = createSlice({
         state.isLoading = true;
         state.error = null;
       })
-      .addCase(register.fulfilled, (state, action) => {
+      .addCase(register.fulfilled, (state, action: any) => {
         state.isLoading = false;
         state.isAuthenticated = true;
         state.token = action.payload.access_token;
         state.refreshToken = action.payload.refresh_token;
         state.user = action.payload.user;
         state.error = null;
+        
+        // 存储早鸟信息（如果有）
+        if (action.payload.registration_info?.is_early_bird) {
+          console.log('🎉 Early bird user registered!');
+        }
       })
       .addCase(register.rejected, (state, action) => {
         state.isLoading = false;
@@ -293,7 +369,7 @@ const authSlice = createSlice({
           state.refreshToken = action.payload.refreshToken;
           state.user = action.payload.user;
           state.isAuthenticated = true;
-          console.log('Stored auth loaded, user set:', action.payload.user);
+          console.log('Stored auth loaded with subscription info:', action.payload.user);
         }
       })
       .addCase(loadStoredAuth.rejected, (state) => {
@@ -308,10 +384,25 @@ const authSlice = createSlice({
     builder
       .addCase(refreshUserInfo.fulfilled, (state, action) => {
         state.user = action.payload;
-        console.log('User info refreshed:', action.payload);
+        console.log('User info refreshed with subscription:', action.payload);
+      });
+    
+    // Mock upgrade cases
+    builder
+      .addCase(mockUpgradeToPro.pending, (state) => {
+        state.isLoading = true;
+      })
+      .addCase(mockUpgradeToPro.fulfilled, (state, action) => {
+        state.isLoading = false;
+        state.user = action.payload;
+        console.log('User upgraded to Pro:', action.payload);
+      })
+      .addCase(mockUpgradeToPro.rejected, (state, action) => {
+        state.isLoading = false;
+        state.error = action.error.message || 'Upgrade failed';
       });
   },
 });
 
-export const { clearError, updateUser } = authSlice.actions;
+export const { clearError, updateUser, updateUserSubscription } = authSlice.actions;
 export default authSlice.reducer;

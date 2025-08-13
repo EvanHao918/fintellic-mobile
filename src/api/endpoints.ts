@@ -7,6 +7,11 @@ import {
   Filing,
   Company
 } from '../types';
+import {
+  SubscriptionInfo,
+  PricingInfo,
+  EarlyBirdStatus,
+} from '../types/subscription';
 
 // Auth endpoints
 export const authAPI = {
@@ -42,6 +47,12 @@ export const authAPI = {
   // Add upgrade endpoint to auth API for convenience
   upgradeToProMock: async (plan: string) => {
     const response = await apiClient.post('/users/me/upgrade-mock', { plan });
+    return response;
+  },
+  
+  // 新增：获取早鸟状态（无需认证）
+  getEarlyBirdStatus: async () => {
+    const response = await apiClient.get<EarlyBirdStatus>('/auth/early-bird-status');
     return response;
   },
 };
@@ -98,7 +109,7 @@ export const companiesAPI = {
   },
 };
 
-// User endpoints
+// User endpoints - 更新订阅相关
 export const userAPI = {
   getCurrentUser: async () => {
     const response = await apiClient.get<User>('/users/me');
@@ -115,8 +126,17 @@ export const userAPI = {
     return response;
   },
 
+  // 订阅相关端点
   getSubscription: async () => {
-    const response = await apiClient.get('/users/me/subscription');
+    const response = await apiClient.get<SubscriptionInfo>('/users/me/subscription');
+    return response;
+  },
+  
+  getPricing: async () => {
+    const response = await apiClient.get<PricingInfo>('/users/me/pricing');
     return response;
   },
 };
+
+// 新增：订阅专用端点（导出以便其他地方使用）
+export { subscriptionAPI } from '../api/subscription';

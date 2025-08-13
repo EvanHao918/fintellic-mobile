@@ -43,7 +43,24 @@ export default function FilingDetailScreen() {
   const authState = useSelector((state: RootState) => state.auth);
   const user = authState?.user || null;
   const token = authState?.token || null;
-  const isProUser = user?.tier === 'pro';
+  
+  // 🔥 关键修复：兼容大小写的Pro用户检查
+  const isProUser = user ? (
+    user.tier === 'pro' || 
+    user.tier === 'PRO' || 
+    user.is_pro === true ||
+    user.is_subscription_active === true
+  ) : false;
+  
+  // 添加调试日志
+  useEffect(() => {
+    console.log('User tier check:', {
+      tier: user?.tier,
+      is_pro: user?.is_pro,
+      is_subscription_active: user?.is_subscription_active,
+      isProUser: isProUser
+    });
+  }, [user, isProUser]);
   
   // Get filing ID from route params
   const { filingId } = route.params;
@@ -69,18 +86,21 @@ export default function FilingDetailScreen() {
       const filingData = await getFilingById(filingId.toString());
       setFiling(filingData);
       
-      // Load comments
-      try {
-        const commentsData = await getFilingComments(filingId.toString());
-        setComments(commentsData.items || []);
-      } catch (error) {
-        console.log('No comments yet');
+      // 🔥 只有Pro用户才加载评论
+      if (isProUser) {
+        try {
+          const commentsData = await getFilingComments(filingId.toString());
+          setComments(commentsData.items || []);
+        } catch (error) {
+          console.log('Error loading comments:', error);
+          setComments([]); // 设置为空数组而不是保持未定义
+        }
       }
       
     } catch (error: any) {
       console.error('Error loading filing details:', error);
       
-      // 🔥 关键修改：处理限制错误，显示弹窗而不是导航
+      // 处理限制错误，显示弹窗而不是导航
       if (error.isLimitError) {
         setLimitInfo(error.limitInfo);
         setShowUpgradeModal(true);
@@ -94,6 +114,11 @@ export default function FilingDetailScreen() {
 
   // Handle reply
   const handleReply = (comment: Comment) => {
+    if (!isProUser) {
+      Alert.alert('Pro Feature', 'Replying to comments is available for Pro members only');
+      return;
+    }
+    
     setReplyingTo(comment);
     // Focus on comment input with @mention
     setNewComment(`@${comment.username} `);
@@ -107,7 +132,7 @@ export default function FilingDetailScreen() {
   // Handle comment submission with reply support
   const handleSubmitComment = async () => {
     if (!isProUser) {
-      Alert.alert('Pro Feature', 'Comments are available for Pro members only');
+      Alert.alert('Pro Feature', 'Posting comments is available for Pro members only');
       return;
     }
     
@@ -161,7 +186,7 @@ export default function FilingDetailScreen() {
     setIsRefreshing(false);
   };
 
-  // 🔥 新增：处理弹窗关闭
+  // 处理弹窗关闭
   const handleUpgradeModalClose = () => {
     setShowUpgradeModal(false);
     // 返回上一页
@@ -237,7 +262,7 @@ export default function FilingDetailScreen() {
     );
   }
 
-  // 🔥 关键修改：如果没有filing且显示弹窗，不显示空白页面
+  // 如果没有filing且显示弹窗，不显示空白页面
   if (!filing && showUpgradeModal) {
     return (
       <SafeAreaView style={styles.container}>
@@ -317,26 +342,27 @@ export default function FilingDetailScreen() {
             />
           </View>
 
-          <View style={[styles.section, styles.lastSection]}>
-            <Text style={styles.sectionTitle}>
-              💬 Comments ({comments.length})
-            </Text>
-            
-            {/* Reply indicator */}
-            {replyingTo && (
-              <View style={styles.replyIndicator}>
-                <Icon name="reply" size={16} color={colors.primary} />
-                <Text style={styles.replyingToText}>
-                  Replying to @{replyingTo.username}
-                </Text>
-                <TouchableOpacity onPress={handleCancelReply}>
-                  <Icon name="close" size={20} color={colors.textSecondary} />
-                </TouchableOpacity>
-              </View>
-            )}
-            
-            {/* Comment Input */}
-            {isProUser ? (
+          {/* 🔥 关键修复：只有Pro用户才能看到评论区 */}
+          {isProUser ? (
+            <View style={[styles.section, styles.lastSection]}>
+              <Text style={styles.sectionTitle}>
+                💬 Comments ({comments.length})
+              </Text>
+              
+              {/* Reply indicator */}
+              {replyingTo && (
+                <View style={styles.replyIndicator}>
+                  <Icon name="reply" size={16} color={colors.primary} />
+                  <Text style={styles.replyingToText}>
+                    Replying to @{replyingTo.username}
+                  </Text>
+                  <TouchableOpacity onPress={handleCancelReply}>
+                    <Icon name="close" size={20} color={colors.textSecondary} />
+                  </TouchableOpacity>
+                </View>
+              )}
+              
+              {/* Comment Input for Pro users */}
               <View style={styles.commentInputContainer}>
                 <TextInput
                   style={styles.commentInput}
@@ -364,36 +390,50 @@ export default function FilingDetailScreen() {
                   )}
                 </TouchableOpacity>
               </View>
-            ) : (
-              <TouchableOpacity style={styles.proPrompt}>
+
+              {/* Comments List for Pro users */}
+              {comments.length > 0 ? (
+                comments.map((comment) => (
+                  <CommentItem
+                    key={comment.id}
+                    comment={comment}
+                    currentUserId={user?.id?.toString()}
+                    onReply={handleReply}
+                    onUpdate={handleCommentUpdate}
+                    onDelete={handleCommentDelete}
+                  />
+                ))
+              ) : (
+                <Text style={styles.noComments}>
+                  No comments yet. Be the first to comment!
+                </Text>
+              )}
+            </View>
+          ) : (
+            /* Free用户看到的锁定提示 */
+            <View style={[styles.section, styles.lastSection]}>
+              <Text style={styles.sectionTitle}>
+                💬 Comments
+              </Text>
+              <TouchableOpacity 
+                style={styles.proPrompt}
+                onPress={() => navigation.navigate('Subscription')}
+              >
                 <Icon name="lock" size={20} color={colors.primary} />
                 <Text style={styles.proPromptText}>
                   Comments are available for Pro members only
                 </Text>
+                <Icon name="arrow-forward" size={18} color={colors.primary} />
               </TouchableOpacity>
-            )}
-
-            {/* Comments List */}
-            {comments.length > 0 ? (
-              comments.map((comment) => (
-                <CommentItem
-                  key={comment.id}
-                  comment={comment}
-                  currentUserId={user?.id?.toString()}
-                  onReply={handleReply}
-                  onUpdate={handleCommentUpdate}
-                  onDelete={handleCommentDelete}
-                />
-              ))
-            ) : (
+              
               <Text style={styles.noComments}>
-                No comments yet. {isProUser ? 'Be the first to comment!' : 'Upgrade to Pro to join the discussion.'}
+                Upgrade to Pro to join the discussion.
               </Text>
-            )}
-          </View>
+            </View>
+          )}
         </ScrollView>
 
-        {/* 🔥 升级弹窗始终可能显示 */}
+        {/* 升级弹窗始终可能显示 */}
         <UpgradePromptModal
           visible={showUpgradeModal}
           onClose={handleUpgradeModalClose}
@@ -547,6 +587,8 @@ const styles = StyleSheet.create({
     fontSize: typography.fontSize.md,
     color: colors.primary,
     marginLeft: spacing.sm,
+    marginRight: spacing.sm,
+    flex: 1,
   },
   noComments: {
     fontSize: typography.fontSize.md,

@@ -9,6 +9,7 @@ import { RootState } from '../store';
 import { logout } from '../store/slices/authSlice';
 import { colors, typography, spacing } from '../theme';
 import CustomDrawerHeader from '../components/CustomDrawerHeader';
+import { isProUser } from '../types'; // 导入辅助函数
 
 // Import screens
 import HomeScreen from '../screens/HomeScreen';
@@ -38,14 +39,17 @@ function CustomDrawerContent(props: DrawerContentComponentProps) {
     dispatch(logout() as any);
   };
 
+  // 🔥 关键修复：使用统一的isProUser函数判断
+  const isPro = isProUser(user);
+
   return (
     <DrawerContentScrollView {...props} style={styles.drawerContainer}>
       {/* Header */}
       <View style={styles.drawerHeader}>
         <Text style={styles.appName}>HermeSpeed</Text>
-        <Text style={styles.userName}>{user?.full_name || 'User'}</Text>
+        <Text style={styles.userName}>{user?.full_name || user?.username || 'User'}</Text>
         <View style={styles.membershipBadge}>
-          {user?.tier === 'pro' ? (
+          {isPro ? (
             <>
               <Icon name="star" type="material" size={16} color={colors.warning} />
               <Text style={styles.membershipText}>Pro Member</Text>

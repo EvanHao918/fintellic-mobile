@@ -17,7 +17,7 @@ import { StackNavigationProp } from '@react-navigation/stack';
 import { useDispatch, useSelector } from 'react-redux';
 import { Icon } from 'react-native-elements';
 import { FilingCard } from '../components';
-import { Filing, RootStackParamList } from '../types';
+import { Filing, RootStackParamList, isProUser } from '../types'; // 导入isProUser辅助函数
 import { RootState } from '../store';
 import { fetchFilings, voteFiling, clearFilings, selectShouldRefresh } from '../store/slices/filingsSlice';
 import { AppDispatch } from '../store';
@@ -42,7 +42,9 @@ export const HomeScreen: React.FC = () => {
   } = useSelector((state: RootState) => state.filings || {});
   
   const { isAuthenticated = false, user } = useSelector((state: RootState) => state.auth || {});
-  const isProUser = user?.tier === 'pro';
+  
+  // 🔥 关键修复：使用统一的isProUser函数
+  const isPro = isProUser(user);
   
   // 检查是否需要刷新
   const shouldRefresh = useSelector(selectShouldRefresh);
@@ -59,16 +61,18 @@ export const HomeScreen: React.FC = () => {
     views_today: number;
     daily_limit: number;
     views_remaining: number;
+    is_pro: boolean;
   } | null>(null);
 
   // 使用投票 hook
   const { handleVote } = useFilingVote();
 
-  // Fetch view stats for free users
+  // Fetch view stats
   const fetchViewStats = async () => {
-    if (isAuthenticated && !isProUser) {
+    if (isAuthenticated) {
       try {
         const response = await apiClient.get('/filings/user/view-stats');
+        console.log('View stats response:', response);
         setViewStats(response);
       } catch (error) {
         console.log('Failed to fetch view stats:', error);
@@ -76,13 +80,13 @@ export const HomeScreen: React.FC = () => {
     }
   };
 
-  // 🔥 关键修改：使用 useFocusEffect 确保每次返回首页时刷新计数
+  // 🔥 关键修复：使用 useFocusEffect 确保每次返回首页时刷新计数
   useFocusEffect(
     useCallback(() => {
-      if (isAuthenticated && !isProUser) {
+      if (isAuthenticated) {
         fetchViewStats();
       }
-    }, [isAuthenticated, isProUser])
+    }, [isAuthenticated])
   );
 
   // Load initial data
@@ -91,10 +95,10 @@ export const HomeScreen: React.FC = () => {
       if (filings.length === 0 || shouldRefresh) {
         dispatch(fetchFilings({ page: 1, isRefresh: true }));
       }
-      // 🔥 初始加载时也获取view stats
+      // 初始加载时也获取view stats
       fetchViewStats();
     }
-  }, [isAuthenticated, dispatch, shouldRefresh, isProUser]);
+  }, [isAuthenticated, dispatch, shouldRefresh]);
 
   // Perform search
   const performSearch = async (query: string) => {
@@ -149,7 +153,7 @@ export const HomeScreen: React.FC = () => {
   const handleRefresh = useCallback(async () => {
     dispatch(clearFilings());
     await dispatch(fetchFilings({ page: 1, isRefresh: true }));
-    // 🔥 刷新时也更新view stats
+    // 刷新时也更新view stats
     fetchViewStats();
   }, [dispatch]);
 
@@ -160,7 +164,7 @@ export const HomeScreen: React.FC = () => {
     }
   }, [dispatch, isLoading, hasMore, currentPage, filings.length]);
 
-  // 🔥 关键修改：导航时传递回调以在返回时刷新
+  // 导航时传递回调以在返回时刷新
   const handleFilingPress = useCallback((filing: Filing) => {
     navigation.navigate('FilingDetail', { filingId: filing.id });
   }, [navigation]);
@@ -170,14 +174,19 @@ export const HomeScreen: React.FC = () => {
     <FilingCard
       filing={item}
       onPress={() => handleFilingPress(item)}
-      isProUser={isProUser}
+      isProUser={isPro}
     />
-  ), [handleFilingPress, isProUser]);
+  ), [handleFilingPress, isPro]);
   
   // Render header with view limit info
   const renderHeader = () => {
-    if (!isAuthenticated || isProUser) return null;
+    // 🔥 关键修复：Pro用户不显示限制信息
+    if (!isAuthenticated) return null;
     
+    // 如果是Pro用户或者API返回is_pro为true，不显示限制
+    if (isPro || viewStats?.is_pro) return null;
+    
+    // 只有Free用户显示限制信息
     if (viewStats && viewStats.views_remaining !== undefined) {
       const isLimitReached = viewStats.views_remaining === 0;
       
@@ -199,7 +208,7 @@ export const HomeScreen: React.FC = () => {
           {isLimitReached && (
             <TouchableOpacity 
               style={styles.upgradeButton}
-              onPress={() => navigation.navigate('Subscription')}
+              onPress={() => navigation.navigate('Subscription' as any)}
             >
               <Text style={styles.upgradeButtonText}>Upgrade</Text>
             </TouchableOpacity>
@@ -208,15 +217,19 @@ export const HomeScreen: React.FC = () => {
       );
     }
     
-    // 🔥 如果还没有加载stats，显示加载中状态
-    return (
-      <View style={styles.limitBanner}>
-        <View style={styles.limitBannerContent}>
-          <ActivityIndicator size="small" color={colors.primary} />
-          <Text style={styles.limitBannerText}>Loading view limit...</Text>
+    // 如果还没有加载stats（仅对Free用户显示）
+    if (!isPro && !viewStats) {
+      return (
+        <View style={styles.limitBanner}>
+          <View style={styles.limitBannerContent}>
+            <ActivityIndicator size="small" color={colors.primary} />
+            <Text style={styles.limitBannerText}>Loading view limit...</Text>
+          </View>
         </View>
-      </View>
-    );
+      );
+    }
+    
+    return null;
   };
   
   // Render footer
@@ -246,7 +259,7 @@ export const HomeScreen: React.FC = () => {
         {!isAuthenticated && (
           <TouchableOpacity 
             style={styles.loginButton}
-            onPress={() => navigation.navigate('Login')}
+            onPress={() => navigation.navigate('Login' as any)}
           >
             <Text style={styles.loginButtonText}>Login</Text>
           </TouchableOpacity>
