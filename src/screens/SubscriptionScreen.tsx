@@ -27,6 +27,8 @@ import { subscriptionHelpers } from '../api/subscription';
 import { SubscriptionType } from '../types/subscription';
 import { isProUser as checkIsProUser, isEarlyBirdUser } from '../types';
 import apiClient from '../api/client';
+// 暂时注释IAP服务，等待Phase 3完全实施
+// import iapService from '../services/IAPService';
 
 const { height: screenHeight, width: screenWidth } = Dimensions.get('window');
 
@@ -53,19 +55,12 @@ export default function SubscriptionScreen() {
   const isProUser = checkIsProUser(user);
   
   // 🔥 关键修复：正确判断早鸟状态
-  // 用户是早鸟的条件：
-  // 1. user.is_early_bird 为 true
-  // 2. user.pricing_tier === 'EARLY_BIRD'
-  // 3. user.user_sequence_number <= 10000
-  // 4. pricingInfo?.is_early_bird 为 true
-  // 5. earlyBirdStatus?.is_available 为 true（还有早鸟名额）
   const isEarlyBird = user?.is_early_bird === true || 
                       user?.pricing_tier === 'EARLY_BIRD' ||
                       (user?.user_sequence_number && user.user_sequence_number <= 10000) ||
                       pricingInfo?.is_early_bird === true;
   
   // 🔥 关键修复：使用正确的价格
-  // 早鸟用户：$39/$280.80，标准用户：$49/$352.80
   const monthlyPrice = isEarlyBird ? 39 : 49;
   const yearlyPrice = isEarlyBird ? 280.80 : 352.80;
   const yearlySavings = subscriptionHelpers.calculateYearlySavingsPercentage(monthlyPrice, yearlyPrice);
@@ -138,7 +133,7 @@ export default function SubscriptionScreen() {
       'Confirm Upgrade',
       `Upgrade to Pro (${selectedPlan === 'monthly' ? 'Monthly' : 'Annual'}) for ${
         selectedPlan === 'monthly' 
-          ? subscriptionHelpers.formatPrice(monthlyPrice)
+          ? subscriptionHelpers.formatPrice(monthlyPrice) // 🔥 修复：formatPrice接受number
           : subscriptionHelpers.formatPrice(yearlyPrice)
       }?${isEarlyBird ? '\n\n🎉 Your early bird price will be locked forever!' : ''}`,
       [
@@ -235,7 +230,7 @@ export default function SubscriptionScreen() {
               <Text style={styles.earlyBirdText}>
                 {user?.user_sequence_number 
                   ? `🎉 Early bird #${user.user_sequence_number} - Save $10/month forever!`
-                  : `🐦 Early bird pricing: Save $10/month forever!`
+                  : `🦅 Early bird pricing: Save $10/month forever!`
                 }
               </Text>
             </View>
@@ -277,9 +272,7 @@ export default function SubscriptionScreen() {
           </View>
         ) : null}
         
-        {/* 🔥 关键修复：删除错误的计数显示，或者显示正确的信息 */}
-        {/* 选项1：完全删除（推荐） */}
-        {/* 选项2：如果要保留，显示正确的信息 */}
+        {/* Trial Banner */}
         {!isProUser && (
           <View style={styles.trialBanner}>
             <Icon name="info" type="material" size={20} color={colors.primary} />
@@ -332,7 +325,7 @@ export default function SubscriptionScreen() {
               </TouchableOpacity>
             </View>
 
-            {/* Pricing Display - 🔥 现在显示正确的价格 */}
+            {/* Pricing Display */}
             <View style={styles.pricingContainer}>
               <Text style={styles.priceAmount}>
                 ${selectedPlan === 'monthly' ? monthlyPrice : yearlyPrice.toFixed(2)}
@@ -402,27 +395,11 @@ export default function SubscriptionScreen() {
                 </TouchableOpacity>
               )}
 
-              {/* Credit Card Option */}
-              <TouchableOpacity 
-                style={styles.paymentOption}
-                onPress={() => {
-                  Alert.alert('Coming Soon', 'Credit card payment will be available in Phase 3');
-                }}
-              >
-                <View style={styles.paymentOptionContent}>
-                  <Icon name="credit-card" type="material" size={24} color={colors.text} />
-                  <View style={styles.paymentOptionText}>
-                    <Text style={styles.paymentOptionTitle}>Credit Card</Text>
-                    <Text style={styles.paymentOptionSubtitle}>Visa, Mastercard, Amex</Text>
-                  </View>
-                </View>
-                <Icon name="chevron-right" type="material" size={24} color={colors.gray400} />
-              </TouchableOpacity>
-
-              {/* Development Mock Option */}
+              {/* Mock Upgrade Option (Dev Only) */}
               <TouchableOpacity 
                 style={[styles.paymentOption, styles.mockPaymentOption]}
                 onPress={handleUpgrade}
+                disabled={isUpgrading}
               >
                 <View style={styles.paymentOptionContent}>
                   <Icon name="code" type="material" size={24} color={colors.primary} />
@@ -433,7 +410,11 @@ export default function SubscriptionScreen() {
                     <Text style={styles.paymentOptionSubtitle}>Test subscription without payment</Text>
                   </View>
                 </View>
-                <Icon name="chevron-right" type="material" size={24} color={colors.primary} />
+                {isUpgrading ? (
+                  <ActivityIndicator size="small" color={colors.primary} />
+                ) : (
+                  <Icon name="chevron-right" type="material" size={24} color={colors.primary} />
+                )}
               </TouchableOpacity>
             </View>
           </>
