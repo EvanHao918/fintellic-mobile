@@ -137,18 +137,30 @@ export const updateSubscription = createAsyncThunk(
 );
 
 /**
- * 取消订阅
+ * 取消订阅 - 🔥 修复：增强错误处理和状态更新
  */
 export const cancelSubscription = createAsyncThunk(
   'subscription/cancelSubscription',
-  async (data: SubscriptionCancel) => {
-    const response = await subscriptionAPI.cancelSubscription(data);
-    
-    if (response.success) {
-      return response;
+  async (data: SubscriptionCancel, { rejectWithValue }) => {
+    try {
+      console.log('🔄 cancelSubscription thunk: dispatching API call with data:', data);
+      const response = await subscriptionAPI.cancelSubscription(data);
+      
+      console.log('📡 cancelSubscription thunk: API response:', response);
+      
+      if (response.success) {
+        return response;
+      }
+      
+      // 如果API返回失败，抛出错误
+      const errorMessage = response.message || 'Failed to cancel subscription';
+      console.error('❌ cancelSubscription thunk: API returned failure:', errorMessage);
+      return rejectWithValue(errorMessage);
+    } catch (error: any) {
+      console.error('❌ cancelSubscription thunk: Exception occurred:', error);
+      const errorMessage = error?.message || error?.toString() || 'Failed to cancel subscription';
+      return rejectWithValue(errorMessage);
     }
-    
-    throw new Error(response.message || 'Failed to cancel subscription');
   }
 );
 
@@ -334,14 +346,18 @@ const subscriptionSlice = createSlice({
         state.error = action.error.message || 'Failed to update subscription';
       });
     
-    // Cancel subscription
+    // Cancel subscription - 🔥 修复：完善状态处理
     builder
       .addCase(cancelSubscription.pending, (state) => {
         state.isCancellingSubscription = true;
         state.error = null;
+        console.log('🔄 Redux: cancelSubscription pending');
       })
       .addCase(cancelSubscription.fulfilled, (state, action) => {
         state.isCancellingSubscription = false;
+        console.log('✅ Redux: cancelSubscription fulfilled', action.payload);
+        
+        // 更新订阅信息
         if (action.payload.subscription_info) {
           state.currentSubscription = action.payload.subscription_info;
         }
@@ -349,7 +365,10 @@ const subscriptionSlice = createSlice({
       })
       .addCase(cancelSubscription.rejected, (state, action) => {
         state.isCancellingSubscription = false;
-        state.error = action.error.message || 'Failed to cancel subscription';
+        console.log('❌ Redux: cancelSubscription rejected', action.payload);
+        
+        // 使用 rejectWithValue 提供的错误信息
+        state.error = action.payload as string || action.error.message || 'Failed to cancel subscription';
       });
     
     // Payment history

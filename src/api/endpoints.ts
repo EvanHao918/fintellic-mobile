@@ -140,3 +140,6 @@ export const userAPI = {
 
 // 新增：订阅专用端点（导出以便其他地方使用）
 export { subscriptionAPI } from '../api/subscription';
+
+// 🆕 Phase 4: 导出通知API
+export { notificationAPI, notificationHelpers } from './notifications';

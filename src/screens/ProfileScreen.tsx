@@ -8,6 +8,7 @@ import {
   Switch,
   Alert,
   RefreshControl,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Icon, Avatar } from 'react-native-elements';
@@ -22,6 +23,9 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import apiClient from '../api/client';
 import { RootStackParamList, isProUser as checkIsProUser, isEarlyBirdUser } from '../types';
 import { subscriptionHelpers } from '../api/subscription';
+// 🆕 Phase 4: Import notification API and types
+import { notificationAPI, notificationHelpers } from '../api/notifications';
+import { NotificationSettings, NOTIFICATION_LABELS } from '../types/notification';
 
 type ProfileScreenNavigationProp = StackNavigationProp<RootStackParamList, 'Main'>;
 
@@ -52,13 +56,11 @@ export default function ProfileScreen() {
   const user = useSelector((state: RootState) => state.auth.user);
   const { currentSubscription } = useSelector((state: RootState) => state.subscription);
   
-  // Derived state - 使用辅助函数
+  // Derived state
   const isProUser = checkIsProUser(user);
   const isEarlyBird = isEarlyBirdUser(user);
   
   // State
-  const [allNotifications, setAllNotifications] = useState(true);
-  const [watchlistOnly, setWatchlistOnly] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [userStats, setUserStats] = useState<UserStats>({
     reportsRead: 0,
@@ -66,26 +68,33 @@ export default function ProfileScreen() {
     joinedDays: 0,
   });
 
+  // 🆕 Phase 4: Notification settings state
+  const [notificationSettings, setNotificationSettings] = useState<NotificationSettings | null>(null);
+  const [loadingNotifications, setLoadingNotifications] = useState(false);
+  const [notificationExpanded, setNotificationExpanded] = useState(false);
+
   // Load user stats and preferences
   useEffect(() => {
-    loadUserPreferences();
     loadUserStats();
-    // 加载订阅信息
+    loadNotificationSettings(); // 🆕 Load notification settings from backend
+    // Load subscription info
     if (user) {
       dispatch(fetchCurrentSubscription());
     }
   }, [dispatch, user]);
 
-  // Load notification preferences
-  const loadUserPreferences = async () => {
+  // 🆕 Phase 4: Load notification settings from backend
+  const loadNotificationSettings = async () => {
     try {
-      const allNotif = await AsyncStorage.getItem('@fintellic_notifications_all');
-      const watchlistNotif = await AsyncStorage.getItem('@fintellic_notifications_watchlist');
-      
-      if (allNotif !== null) setAllNotifications(allNotif === 'true');
-      if (watchlistNotif !== null) setWatchlistOnly(watchlistNotif === 'true');
+      setLoadingNotifications(true);
+      const settings = await notificationAPI.getSettings();
+      setNotificationSettings(settings);
     } catch (error) {
-      console.error('Error loading preferences:', error);
+      console.error('Error loading notification settings:', error);
+      // If error, fall back to default settings
+      setNotificationSettings(null);
+    } finally {
+      setLoadingNotifications(false);
     }
   };
 
@@ -118,6 +127,7 @@ export default function ProfileScreen() {
   const onRefresh = async () => {
     setRefreshing(true);
     await loadUserStats();
+    await loadNotificationSettings(); // 🆕 Refresh notification settings
     await dispatch(refreshUserInfo());
     await dispatch(fetchCurrentSubscription());
     setRefreshing(false);
@@ -141,26 +151,357 @@ export default function ProfileScreen() {
     );
   };
 
-  // Handle notification toggle
-  const handleNotificationToggle = async (type: 'all' | 'watchlist', value: boolean) => {
+  // 🆕 Phase 4: Handle notification toggle with backend API
+  const handleNotificationToggle = async (field: keyof NotificationSettings, value: boolean) => {
+    if (!notificationSettings) return;
+
     try {
-      if (type === 'all') {
-        setAllNotifications(value);
-        await AsyncStorage.setItem('@fintellic_notifications_all', value.toString());
-        if (!value) {
-          setWatchlistOnly(false);
-          await AsyncStorage.setItem('@fintellic_notifications_watchlist', 'false');
-        }
-      } else {
-        setWatchlistOnly(value);
-        await AsyncStorage.setItem('@fintellic_notifications_watchlist', value.toString());
+      // Optimistically update UI
+      const updatedSettings = { ...notificationSettings, [field]: value };
+      
+      // Special handling for master switch
+      if (field === 'notification_enabled' && !value) {
+        // If turning off all notifications, disable watchlist_only too
+        updatedSettings.watchlist_only = false;
       }
+      
+      setNotificationSettings(updatedSettings);
+
+      // Update backend
+      const response = await notificationAPI.updateSettings({ [field]: value });
+      setNotificationSettings(response);
     } catch (error) {
-      console.error('Error saving notification preference:', error);
+      console.error('Error updating notification settings:', error);
+      // Revert on error
+      await loadNotificationSettings();
+      Alert.alert('Error', 'Failed to update notification settings');
     }
   };
 
-  // 获取订阅信息文本
+  // 🆕 Phase 4: Enhanced notification settings with expandable UI
+  const renderNotificationSection = () => {
+    if (!notificationSettings) {
+      return (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>NOTIFICATIONS</Text>
+          <View style={styles.sectionContent}>
+            <View style={styles.settingItem}>
+              <ActivityIndicator size="small" color={colors.primary} />
+            </View>
+          </View>
+        </View>
+      );
+    }
+
+    const getSummaryText = () => {
+      if (!notificationSettings.notification_enabled) {
+        return 'Notifications disabled';
+      }
+      const filingTypes = notificationHelpers.getEnabledFilingTypes(notificationSettings);
+      const scope = notificationSettings.watchlist_only ? 'Watchlist only' : 'All companies';
+      return `${scope} • ${filingTypes.length} filing types`;
+    };
+
+    return (
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>NOTIFICATIONS</Text>
+        <View style={styles.sectionContent}>
+          {/* Master Switch with expandable arrow */}
+          <TouchableOpacity
+            style={styles.settingItem}
+            onPress={() => setNotificationExpanded(!notificationExpanded)}
+          >
+            <View style={styles.settingItemLeft}>
+              <Icon
+                name="notifications"
+                type="material"
+                size={24}
+                color={colors.textSecondary}
+              />
+              <View style={styles.settingItemText}>
+                <Text style={styles.settingItemTitle}>Push Notifications</Text>
+                <Text style={styles.settingItemSubtitle}>
+                  {notificationExpanded ? 'Customize your preferences' : getSummaryText()}
+                </Text>
+              </View>
+            </View>
+            <View style={styles.settingItemRight}>
+              <Switch
+                value={notificationSettings.notification_enabled}
+                onValueChange={(value) => handleNotificationToggle('notification_enabled', value)}
+                trackColor={{ false: colors.gray300, true: colors.primary }}
+                thumbColor={colors.white}
+                style={{ marginRight: spacing.sm }}
+              />
+              <Icon
+                name={notificationExpanded ? 'keyboard-arrow-up' : 'keyboard-arrow-down'}
+                type="material"
+                size={24}
+                color={colors.gray400}
+              />
+            </View>
+          </TouchableOpacity>
+
+          {/* Expandable Settings */}
+          {notificationExpanded && (
+            <>
+              {/* Notification Scope */}
+              <View style={[styles.settingItem, styles.indentedItem]}>
+                <Text style={styles.subsectionTitle}>NOTIFICATION SCOPE</Text>
+              </View>
+              
+              <TouchableOpacity
+                style={[styles.settingItem, styles.indentedItem]}
+                onPress={() => handleNotificationToggle('watchlist_only', false)}
+              >
+                <View style={styles.radioRow}>
+                  <View style={styles.radioButton}>
+                    {!notificationSettings.watchlist_only && (
+                      <View style={styles.radioButtonSelected} />
+                    )}
+                  </View>
+                  <View style={styles.radioTextContainer}>
+                    <Text style={styles.settingItemTitle}>All Companies</Text>
+                    <Text style={styles.settingItemSubtitle}>
+                      Get notified about all company filings
+                    </Text>
+                  </View>
+                </View>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.settingItem, styles.indentedItem]}
+                onPress={() => handleNotificationToggle('watchlist_only', true)}
+              >
+                <View style={styles.radioRow}>
+                  <View style={styles.radioButton}>
+                    {notificationSettings.watchlist_only && (
+                      <View style={styles.radioButtonSelected} />
+                    )}
+                  </View>
+                  <View style={styles.radioTextContainer}>
+                    <Text style={styles.settingItemTitle}>Watchlist Only</Text>
+                    <Text style={styles.settingItemSubtitle}>
+                      Only get notified about companies you follow
+                    </Text>
+                  </View>
+                </View>
+              </TouchableOpacity>
+
+              {/* Filing Types */}
+              <View style={[styles.settingItem, styles.indentedItem]}>
+                <Text style={styles.subsectionTitle}>FILING TYPES</Text>
+              </View>
+
+              {/* 10-K */}
+              <View style={[styles.settingItem, styles.indentedItem]}>
+                <View style={styles.settingItemLeft}>
+                  <Icon
+                    name="description"
+                    type="material"
+                    size={20}
+                    color={colors.textSecondary}
+                  />
+                  <View style={styles.settingItemText}>
+                    <Text style={styles.settingItemTitle}>Annual Reports (10-K)</Text>
+                    <Text style={styles.settingItemSubtitle}>
+                      Comprehensive yearly financial reports
+                    </Text>
+                  </View>
+                </View>
+                <Switch
+                  value={notificationSettings.filing_10k}
+                  onValueChange={(value) => handleNotificationToggle('filing_10k', value)}
+                  trackColor={{ false: colors.gray300, true: colors.primary }}
+                  thumbColor={colors.white}
+                  disabled={!notificationSettings.notification_enabled}
+                />
+              </View>
+
+              {/* 10-Q */}
+              <View style={[styles.settingItem, styles.indentedItem]}>
+                <View style={styles.settingItemLeft}>
+                  <Icon
+                    name="event-note"
+                    type="material"
+                    size={20}
+                    color={colors.textSecondary}
+                  />
+                  <View style={styles.settingItemText}>
+                    <Text style={styles.settingItemTitle}>Quarterly Reports (10-Q)</Text>
+                    <Text style={styles.settingItemSubtitle}>
+                      Quarterly financial updates
+                    </Text>
+                  </View>
+                </View>
+                <Switch
+                  value={notificationSettings.filing_10q}
+                  onValueChange={(value) => handleNotificationToggle('filing_10q', value)}
+                  trackColor={{ false: colors.gray300, true: colors.primary }}
+                  thumbColor={colors.white}
+                  disabled={!notificationSettings.notification_enabled}
+                />
+              </View>
+
+              {/* 8-K */}
+              <View style={[styles.settingItem, styles.indentedItem]}>
+                <View style={styles.settingItemLeft}>
+                  <Icon
+                    name="warning"
+                    type="material"
+                    size={20}
+                    color={colors.textSecondary}
+                  />
+                  <View style={styles.settingItemText}>
+                    <Text style={styles.settingItemTitle}>Current Reports (8-K)</Text>
+                    <Text style={styles.settingItemSubtitle}>
+                      Major events and announcements
+                    </Text>
+                  </View>
+                </View>
+                <Switch
+                  value={notificationSettings.filing_8k}
+                  onValueChange={(value) => handleNotificationToggle('filing_8k', value)}
+                  trackColor={{ false: colors.gray300, true: colors.primary }}
+                  thumbColor={colors.white}
+                  disabled={!notificationSettings.notification_enabled}
+                />
+              </View>
+
+              {/* S-1 */}
+              <View style={[styles.settingItem, styles.indentedItem]}>
+                <View style={styles.settingItemLeft}>
+                  <Icon
+                    name="trending-up"
+                    type="material"
+                    size={20}
+                    color={colors.textSecondary}
+                  />
+                  <View style={styles.settingItemText}>
+                    <Text style={styles.settingItemTitle}>IPO Filings (S-1)</Text>
+                    <Text style={styles.settingItemSubtitle}>
+                      Initial public offering registrations
+                    </Text>
+                  </View>
+                </View>
+                <Switch
+                  value={notificationSettings.filing_s1}
+                  onValueChange={(value) => handleNotificationToggle('filing_s1', value)}
+                  trackColor={{ false: colors.gray300, true: colors.primary }}
+                  thumbColor={colors.white}
+                  disabled={!notificationSettings.notification_enabled}
+                />
+              </View>
+
+              {/* Other Notifications */}
+              <View style={[styles.settingItem, styles.indentedItem]}>
+                <Text style={styles.subsectionTitle}>OTHER NOTIFICATIONS</Text>
+              </View>
+
+              {/* Daily Reset Reminder */}
+              <View style={[styles.settingItem, styles.indentedItem]}>
+                <View style={styles.settingItemLeft}>
+                  <Icon
+                    name="refresh"
+                    type="material"
+                    size={20}
+                    color={colors.textSecondary}
+                  />
+                  <View style={styles.settingItemText}>
+                    <Text style={styles.settingItemTitle}>Daily Reset Reminder</Text>
+                    <Text style={styles.settingItemSubtitle}>
+                      {isProUser ? 'Daily summary of market activity' : 'Reminder when your daily limit resets'}
+                    </Text>
+                  </View>
+                </View>
+                <Switch
+                  value={notificationSettings.daily_reset_reminder}
+                  onValueChange={(value) => handleNotificationToggle('daily_reset_reminder', value)}
+                  trackColor={{ false: colors.gray300, true: colors.primary }}
+                  thumbColor={colors.white}
+                  disabled={!notificationSettings.notification_enabled}
+                />
+              </View>
+
+              {/* Subscription Alerts */}
+              <View style={[styles.settingItem, styles.indentedItem]}>
+                <View style={styles.settingItemLeft}>
+                  <Icon
+                    name="credit-card"
+                    type="material"
+                    size={20}
+                    color={colors.textSecondary}
+                  />
+                  <View style={styles.settingItemText}>
+                    <Text style={styles.settingItemTitle}>Subscription Updates</Text>
+                    <Text style={styles.settingItemSubtitle}>
+                      Payment and subscription notifications
+                    </Text>
+                  </View>
+                </View>
+                <Switch
+                  value={notificationSettings.subscription_alerts}
+                  onValueChange={(value) => handleNotificationToggle('subscription_alerts', value)}
+                  trackColor={{ false: colors.gray300, true: colors.primary }}
+                  thumbColor={colors.white}
+                  disabled={!notificationSettings.notification_enabled}
+                />
+              </View>
+
+              {/* Quiet Hours */}
+              <View style={[styles.settingItem, styles.indentedItem]}>
+                <Text style={styles.subsectionTitle}>QUIET HOURS</Text>
+              </View>
+              
+              <View style={[styles.settingItem, styles.indentedItem]}>
+                <View style={styles.settingItemLeft}>
+                  <Icon
+                    name="bedtime"
+                    type="material"
+                    size={20}
+                    color={colors.textSecondary}
+                  />
+                  <View style={styles.settingItemText}>
+                    <Text style={styles.settingItemTitle}>Do Not Disturb</Text>
+                    <Text style={styles.settingItemSubtitle}>
+                      {notificationSettings.quiet_hours_start && notificationSettings.quiet_hours_end
+                        ? `${notificationSettings.quiet_hours_start} - ${notificationSettings.quiet_hours_end}`
+                        : 'Not set'}
+                    </Text>
+                  </View>
+                </View>
+                <Switch
+                  value={!!notificationSettings.quiet_hours_start}
+                  onValueChange={async (value) => {
+                    if (value) {
+                      // Enable quiet hours with default times
+                      await notificationAPI.updateSettings({
+                        quiet_hours_start: '22:00',
+                        quiet_hours_end: '08:00'
+                      });
+                      await loadNotificationSettings();
+                    } else {
+                      // Disable quiet hours
+                      await notificationAPI.updateSettings({
+                        quiet_hours_start: null,
+                        quiet_hours_end: null
+                      });
+                      await loadNotificationSettings();
+                    }
+                  }}
+                  trackColor={{ false: colors.gray300, true: colors.primary }}
+                  thumbColor={colors.white}
+                  disabled={!notificationSettings.notification_enabled}
+                />
+              </View>
+            </>
+          )}
+        </View>
+      </View>
+    );
+  };
+
+  // Get subscription info text
   const getSubscriptionSubtitle = () => {
     if (!isProUser) {
       return 'Unlock unlimited access';
@@ -179,6 +520,21 @@ export default function ProfileScreen() {
     }
     
     return 'Manage your Pro subscription';
+  };
+
+  // 🆕 Phase 4: Get notification summary for display
+  const getNotificationSummary = () => {
+    if (!notificationSettings) return 'Loading...';
+    if (!notificationSettings.notification_enabled) return 'Notifications disabled';
+    
+    const enabledTypes = notificationHelpers.getEnabledFilingTypes(notificationSettings);
+    const scope = notificationSettings.watchlist_only ? 'Watchlist only' : 'All companies';
+    
+    if (enabledTypes.length === 0) {
+      return `${scope} • No filing types selected`;
+    }
+    
+    return `${scope} • ${enabledTypes.length} filing types`;
   };
 
   // Settings sections
@@ -204,16 +560,18 @@ export default function ProfileScreen() {
     },
   ];
 
-  const notificationSettings: SettingItem[] = [
+  // 🆕 Phase 4: Enhanced notification settings with backend integration
+  const notificationSettings_items: SettingItem[] = [
     {
       id: 'all_notifications',
-      title: 'All Push Notifications',
-      subtitle: 'Get notified about all new filings',
+      title: 'Push Notifications',
+      subtitle: loadingNotifications ? 'Loading...' : getNotificationSummary(),
       icon: 'notifications',
       iconType: 'material',
       hasToggle: true,
-      toggleValue: allNotifications,
-      onToggle: (value) => handleNotificationToggle('all', value),
+      toggleValue: notificationSettings?.notification_enabled ?? false,
+      onToggle: (value) => handleNotificationToggle('notification_enabled', value),
+      hasArrow: true,
     },
     {
       id: 'watchlist_only',
@@ -222,8 +580,29 @@ export default function ProfileScreen() {
       icon: 'bookmark',
       iconType: 'material',
       hasToggle: true,
-      toggleValue: watchlistOnly,
-      onToggle: (value) => handleNotificationToggle('watchlist', value),
+      toggleValue: notificationSettings?.watchlist_only ?? false,
+      onToggle: (value) => handleNotificationToggle('watchlist_only', value),
+    },
+    // 🆕 Quick toggles for filing types
+    {
+      id: 'filing_10k',
+      title: NOTIFICATION_LABELS.filing_10k,
+      subtitle: 'Annual reports',
+      icon: 'description',
+      iconType: 'material',
+      hasToggle: true,
+      toggleValue: notificationSettings?.filing_10k ?? true,
+      onToggle: (value) => handleNotificationToggle('filing_10k', value),
+    },
+    {
+      id: 'filing_8k',
+      title: NOTIFICATION_LABELS.filing_8k,
+      subtitle: 'Significant events',
+      icon: 'warning',
+      iconType: 'material',
+      hasToggle: true,
+      toggleValue: notificationSettings?.filing_8k ?? true,
+      onToggle: (value) => handleNotificationToggle('filing_8k', value),
     },
   ];
 
@@ -275,13 +654,13 @@ export default function ProfileScreen() {
     },
   ];
 
-  // Render setting item
+  // Render setting item with loading state
   const renderSettingItem = (item: SettingItem) => (
     <TouchableOpacity
       key={item.id}
       style={styles.settingItem}
       onPress={item.action}
-      disabled={item.hasToggle}
+      disabled={item.hasToggle && !item.action}
     >
       <View style={styles.settingItemLeft}>
         <Icon
@@ -307,13 +686,23 @@ export default function ProfileScreen() {
         </View>
       </View>
       {item.hasToggle ? (
-        <Switch
-          value={item.toggleValue}
-          onValueChange={item.onToggle}
-          trackColor={{ false: colors.gray300, true: colors.primary }}
-          thumbColor={colors.white}
-          disabled={!allNotifications && item.id === 'watchlist_only'}
-        />
+        <View style={styles.toggleContainer}>
+          {loadingNotifications && item.id.includes('notification') ? (
+            <ActivityIndicator size="small" color={colors.primary} />
+          ) : (
+            <Switch
+              value={item.toggleValue}
+              onValueChange={item.onToggle}
+              trackColor={{ false: colors.gray300, true: colors.primary }}
+              thumbColor={colors.white}
+              disabled={
+                (!notificationSettings?.notification_enabled && 
+                 item.id !== 'all_notifications') ||
+                loadingNotifications
+              }
+            />
+          )}
+        </View>
       ) : item.hasArrow ? (
         <Icon
           name="chevron-right"
@@ -368,7 +757,7 @@ export default function ProfileScreen() {
             )}
           </View>
           
-          {/* 显示用户序号（如果是早鸟用户） */}
+          {/* Show user sequence number if early bird */}
           {user?.user_sequence_number && user.user_sequence_number <= 10000 && (
             <Text style={styles.userSequence}>
               Member #{user.user_sequence_number}
@@ -396,7 +785,7 @@ export default function ProfileScreen() {
 
         {/* Settings Sections */}
         {renderSection('Account', accountSettings)}
-        {renderSection('Notifications', notificationSettings)}
+        {renderNotificationSection()}
         {renderSection('App', appSettings)}
         {renderSection('', dangerSettings)}
 
@@ -553,5 +942,50 @@ const styles = StyleSheet.create({
   },
   dangerText: {
     color: colors.error,
+  },
+  toggleContainer: {
+    minWidth: 51, // Switch width
+    alignItems: 'center',
+  },
+  // 🆕 Phase 4: New styles for expandable notification settings
+  settingItemRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  indentedItem: {
+    paddingLeft: spacing.xl + spacing.md,
+    backgroundColor: colors.gray50,
+  },
+  subsectionTitle: {
+    fontSize: typography.fontSize.xs,
+    fontWeight: typography.fontWeight.semibold,
+    color: colors.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  radioRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    flex: 1,
+  },
+  radioButton: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    borderWidth: 2,
+    borderColor: colors.primary,
+    marginRight: spacing.md,
+    marginTop: 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  radioButtonSelected: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: colors.primary,
+  },
+  radioTextContainer: {
+    flex: 1,
   },
 });

@@ -1,0 +1,78 @@
+src/
+├── api
+│   ├── client.ts
+│   ├── endpoints.ts
+│   ├── filings.ts
+│   ├── notifications.ts
+│   └── subscription.ts
+├── components
+│   ├── CommentItem.tsx
+│   ├── CustomDrawerHeader.tsx
+│   ├── FilingCard.tsx
+│   ├── NotificationSettings.tsx
+│   ├── UpgradePromptModal.tsx
+│   ├── charts
+│   │   ├── AdaptiveChart.tsx
+│   │   ├── ComparisonChart.tsx
+│   │   ├── MetricCards.tsx
+│   │   ├── TrendChart.tsx
+│   │   └── index.ts
+│   ├── filing-details
+│   │   ├── Annual10KDetail.tsx
+│   │   ├── CompanyInfoCard.tsx
+│   │   ├── Current8KDetail.tsx
+│   │   ├── GenericFilingDetail.tsx
+│   │   ├── IPOS1Detail.tsx
+│   │   ├── Quarterly10QDetail.tsx
+│   │   └── index.ts
+│   ├── index.ts
+│   └── interactions
+│       ├── StatsDisplay.tsx
+│       ├── VotingModule.tsx
+│       └── index.ts
+├── constants
+│   ├── history.ts
+│   └── historyManager.ts
+├── hooks
+│   ├── index.ts
+│   ├── useFilingVote.ts
+│   └── useHistory.ts
+├── navigation
+│   ├── AppNavigator.tsx
+│   └── DrawerNavigator.tsx
+├── screens
+│   ├── CalendarScreen.tsx
+│   ├── CompanyFilingsScreen.tsx
+│   ├── FilingDetailScreen.tsx
+│   ├── HistoryScreen.tsx
+│   ├── HomeScreen.tsx
+│   ├── LoginScreen.tsx
+│   ├── ProfileScreen.tsx
+│   ├── SubscriptionScreen.tsx
+│   └── WatchlistScreen.tsx
+├── services
+│   ├── IAPService.ts
+│   └── NotificationService.ts
+├── store
+│   ├── index.ts
+│   └── slices
+│       ├── authSlice.ts
+│       ├── filingsSlice.ts
+│       ├── subscriptionSlice.ts
+│       └── votesSlice.ts
+├── theme
+│   └── index.ts
+├── types
+│   ├── index.ts
+│   ├── notification.ts
+│   └── subscription.ts
+└── utils
+    ├── animations.ts
+    ├── constants.ts
+    ├── dateHelpers.ts
+    ├── historyManager.ts
+    ├── notificationPermission.ts
+    ├── storage.ts
+    └── textHelpers.ts
+
+16 directories, 60 files

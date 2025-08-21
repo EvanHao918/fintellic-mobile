@@ -9,6 +9,7 @@ export type RootStackParamList = {
   FilingDetail: { filingId: number };
   CompanyFilings: { ticker: string; companyName: string };
   Subscription: undefined;
+  NotificationSettings: undefined; // 🆕 Phase 4: Add notification settings route
 };
 
 export type DrawerParamList = {
@@ -66,6 +67,18 @@ export interface User {
   subscription_cancelled_at?: string;  // 订阅取消时间
   monthly_price?: number;  // 月度价格（用于显示）
   yearly_price?: number;  // 年度价格（用于显示）
+  
+  // 🆕 Phase 4: 通知相关字段
+  device_tokens?: Array<{
+    token: string;
+    platform: 'ios' | 'android';
+    created_at: string;
+  }>;
+  notification_settings?: {
+    enabled: boolean;
+    watchlist_only: boolean;
+    filing_types: string[];
+  };
 }
 
 // Auth Types
@@ -406,13 +419,24 @@ export interface DeviceInfo {
 // Biometric Types
 export type BiometricType = 'face_id' | 'touch_id' | 'fingerprint' | 'face_unlock';
 
-// Settings Types
+// Settings Types - 🆕 Phase 4: Enhanced with backend integration
 export interface UserSettings {
   notifications: {
     all_filings: boolean;
     watchlist_only: boolean;
     push_enabled: boolean;
     email_enabled: boolean;
+    // 🆕 Phase 4: Detailed notification preferences
+    filing_types?: {
+      filing_10k: boolean;
+      filing_10q: boolean;
+      filing_8k: boolean;
+      filing_s1: boolean;
+    };
+    quiet_hours?: {
+      start: string | null;
+      end: string | null;
+    };
   };
   privacy: {
     show_profile: boolean;
@@ -543,3 +567,6 @@ export const canUserViewComments = (user: User | null): boolean => {
   // 但只有Pro用户可以发表和互动
   return true;
 };
+
+// 🆕 Phase 4: Export notification types
+export * from './notification';

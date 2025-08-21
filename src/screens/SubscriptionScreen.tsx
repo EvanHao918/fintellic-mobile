@@ -9,6 +9,7 @@ import {
   Platform,
   Dimensions,
   Alert,
+  Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Icon } from 'react-native-elements';
@@ -21,18 +22,39 @@ import {
   fetchCurrentSubscription,
   fetchEarlyBirdStatus,
   mockUpgradeToPro,
+  cancelSubscription,
 } from '../store/slices/subscriptionSlice';
 import { colors, typography, spacing, borderRadius, shadows } from '../theme';
 import { subscriptionHelpers } from '../api/subscription';
 import { SubscriptionType } from '../types/subscription';
 import { isProUser as checkIsProUser, isEarlyBirdUser } from '../types';
 import apiClient from '../api/client';
-// 暂时注释IAP服务，等待Phase 3完全实施
-// import iapService from '../services/IAPService';
 
 const { height: screenHeight, width: screenWidth } = Dimensions.get('window');
 
 type PlanType = 'monthly' | 'yearly';
+
+// 🔥 Web兼容的Alert函数
+const showAlert = (title: string, message: string, buttons?: any[]) => {
+  if (Platform.OS === 'web') {
+    // 在Web环境使用confirm/alert
+    if (buttons && buttons.length > 1) {
+      const result = window.confirm(`${title}\n\n${message}`);
+      const confirmButton = buttons.find(b => b.text !== 'Cancel' && b.text !== 'Keep Subscription');
+      const cancelButton = buttons.find(b => b.text === 'Cancel' || b.text === 'Keep Subscription');
+      
+      if (result && confirmButton?.onPress) {
+        confirmButton.onPress();
+      } else if (!result && cancelButton?.onPress) {
+        cancelButton.onPress();
+      }
+    } else {
+      window.alert(`${title}\n\n${message}`);
+    }
+  } else {
+    Alert.alert(title, message, buttons);
+  }
+};
 
 export default function SubscriptionScreen() {
   const navigation = useNavigation();
@@ -50,31 +72,24 @@ export default function SubscriptionScreen() {
   // Local state
   const [selectedPlan, setSelectedPlan] = useState<PlanType>('monthly');
   const [isUpgrading, setIsUpgrading] = useState(false);
+  const [isCancelling, setIsCancelling] = useState(false);
+  const [statusMessage, setStatusMessage] = useState<string>(''); // 🔥 状态消息
   
-  // Derived state - 使用辅助函数
-  const isProUser = checkIsProUser(user);
+  // Derived state - 使用已验证的逻辑
+  const isProUser = checkIsProUser(user) || user?.tier === 'PRO' || user?.tier === 'pro';
   
-  // 🔥 关键修复：正确判断早鸟状态
-  const isEarlyBird = user?.is_early_bird === true || 
-                      user?.pricing_tier === 'EARLY_BIRD' ||
-                      (user?.user_sequence_number && user.user_sequence_number <= 10000) ||
-                      pricingInfo?.is_early_bird === true;
+  const isEarlyBird = Boolean(
+    user?.is_early_bird === true || 
+    user?.pricing_tier === 'EARLY_BIRD' ||
+    (user?.user_sequence_number && user.user_sequence_number <= 10000) ||
+    pricingInfo?.is_early_bird === true
+  );
   
-  // 🔥 关键修复：使用正确的价格
   const monthlyPrice = isEarlyBird ? 39 : 49;
   const yearlyPrice = isEarlyBird ? 280.80 : 352.80;
   const yearlySavings = subscriptionHelpers.calculateYearlySavingsPercentage(monthlyPrice, yearlyPrice);
 
-  // Load subscription data on mount
-  useEffect(() => {
-    dispatch(fetchEarlyBirdStatus());
-    if (user) {
-      dispatch(fetchPricingInfo());
-      dispatch(fetchCurrentSubscription());
-    }
-  }, [dispatch, user]);
-
-  // Core Platform Features - All users get these capabilities
+  // 增强：平台功能列表
   const platformFeatures = [
     {
       icon: 'speed',
@@ -126,52 +141,208 @@ export default function SubscriptionScreen() {
     },
   ];
 
-  const handleUpgrade = async () => {
-    if (isProUser) return;
+  // Load subscription data on mount
+  useEffect(() => {
+    console.log('🔍 SubscriptionScreen Debug Info:', {
+      user: {
+        id: user?.id,
+        tier: user?.tier,
+        is_early_bird: user?.is_early_bird,
+        pricing_tier: user?.pricing_tier,
+        user_sequence_number: user?.user_sequence_number,
+        is_subscription_active: user?.is_subscription_active,
+      },
+      isProUser,
+      isEarlyBird,
+      monthlyPrice,
+      yearlyPrice,
+      currentSubscription: currentSubscription ? {
+        is_active: currentSubscription.is_active,
+        subscription_type: currentSubscription.subscription_type,
+        pricing_tier: currentSubscription.pricing_tier,
+        current_price: currentSubscription.current_price,
+      } : null,
+    });
 
-    Alert.alert(
+    dispatch(fetchEarlyBirdStatus());
+    if (user) {
+      dispatch(fetchPricingInfo()).catch(console.error);
+      dispatch(fetchCurrentSubscription()).catch(console.error);
+    }
+  }, [dispatch, user]);
+
+  // 🔥 修复的升级处理函数 - 保持原有稳定逻辑
+  const handleUpgrade = async () => {
+    console.log('🚀 handleUpgrade called', { isProUser, selectedPlan, isUpgrading });
+    setStatusMessage('Processing upgrade...');
+    
+    if (isProUser) {
+      showAlert('Already Pro', 'You already have an active Pro subscription.');
+      setStatusMessage('');
+      return;
+    }
+
+    if (isUpgrading) {
+      console.log('⚠️ Already upgrading, ignoring duplicate request');
+      return;
+    }
+
+    // 🔥 修复：将upgradeProcess定义在前面
+    const upgradeProcess = async () => {
+      console.log('💰 Starting mock upgrade process...');
+      setIsUpgrading(true);
+      setStatusMessage('Upgrading account...');
+      
+      try {
+        console.log('📡 Dispatching mockUpgradeToPro...');
+        const result = await dispatch(mockUpgradeToPro(selectedPlan)).unwrap();
+        console.log('✅ Mock upgrade successful:', result);
+        
+        setStatusMessage('Refreshing user info...');
+        console.log('🔄 Refreshing user info...');
+        await dispatch(refreshUserInfo()).unwrap();
+        console.log('✅ User info refreshed');
+        
+        setStatusMessage('Success! You are now a Pro member!');
+        showAlert(
+          'Success!',
+          `You are now a Pro member! ${isEarlyBird ? 'Early bird price locked in forever!' : ''}`,
+          [
+            {
+              text: 'OK',
+              onPress: () => {
+                setStatusMessage('');
+                navigation.goBack();
+              },
+            },
+          ]
+        );
+      } catch (error: any) {
+        console.error('❌ Upgrade error:', error);
+        setStatusMessage('Upgrade failed!');
+        showAlert(
+          'Error', 
+          error?.message || error?.toString() || 'Failed to upgrade. Please try again.'
+        );
+      } finally {
+        setIsUpgrading(false);
+        setTimeout(() => setStatusMessage(''), 3000);
+      }
+    };
+
+    const confirmUpgrade = () => {
+      upgradeProcess();
+    };
+
+    showAlert(
       'Confirm Upgrade',
       `Upgrade to Pro (${selectedPlan === 'monthly' ? 'Monthly' : 'Annual'}) for ${
         selectedPlan === 'monthly' 
-          ? subscriptionHelpers.formatPrice(monthlyPrice) // 🔥 修复：formatPrice接受number
+          ? subscriptionHelpers.formatPrice(monthlyPrice)
           : subscriptionHelpers.formatPrice(yearlyPrice)
-      }?${isEarlyBird ? '\n\n🎉 Your early bird price will be locked forever!' : ''}`,
+      }?${isEarlyBird ? '\n\nYour early bird price will be locked forever!' : ''}`,
       [
-        {
-          text: 'Cancel',
-          style: 'cancel',
-        },
-        {
-          text: 'Upgrade',
-          onPress: async () => {
-            setIsUpgrading(true);
-            try {
-              // 使用 Redux action 进行 mock 升级
-              await dispatch(mockUpgradeToPro(selectedPlan));
-              
-              // 刷新用户信息
-              await dispatch(refreshUserInfo());
-              
-              Alert.alert(
-                'Success!',
-                `You are now a Pro member! ${isEarlyBird ? '🎉 Early bird price locked in forever!' : ''}`,
-                [
-                  {
-                    text: 'OK',
-                    onPress: () => navigation.goBack(),
-                  },
-                ]
-              );
-            } catch (error: any) {
-              console.error('Upgrade error:', error);
-              Alert.alert('Error', 'Failed to upgrade. Please try again.');
-            } finally {
-              setIsUpgrading(false);
-            }
-          },
-        },
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Upgrade', onPress: confirmUpgrade },
       ]
     );
+  };
+
+  // 🔥 增强的取消订阅函数 - 保持原有稳定逻辑
+  const handleCancelSubscription = async () => {
+    console.log('🚫 handleCancelSubscription called', { isProUser, isCancelling });
+    setStatusMessage('Processing cancellation...');
+    
+    if (!isProUser) {
+      showAlert('No Subscription', 'You do not have an active subscription to cancel.');
+      setStatusMessage('');
+      return;
+    }
+
+    if (isCancelling) {
+      console.log('⚠️ Already cancelling, ignoring duplicate request');
+      return;
+    }
+
+    const confirmCancel = async () => {
+      console.log('🚫 Starting subscription cancellation...');
+      setIsCancelling(true);
+      setStatusMessage('Cancelling subscription...');
+      
+      try {
+        console.log('📡 Dispatching cancelSubscription...');
+        const result = await dispatch(cancelSubscription({ 
+          reason: 'User requested cancellation',
+          cancel_immediately: false 
+        })).unwrap();
+        console.log('✅ Cancellation successful:', result);
+        
+        setStatusMessage('Refreshing data...');
+        console.log('🔄 Refreshing data...');
+        await dispatch(refreshUserInfo()).unwrap();
+        await dispatch(fetchCurrentSubscription()).unwrap();
+        console.log('✅ Data refreshed');
+        
+        setStatusMessage('Subscription cancelled successfully!');
+        showAlert(
+          'Subscription Cancelled',
+          'Your subscription has been cancelled. You will continue to have access until the end of your billing period.'
+        );
+      } catch (error: any) {
+        console.error('❌ Cancel subscription error:', error);
+        setStatusMessage('Cancellation failed!');
+        showAlert(
+          'Error', 
+          error?.message || error?.toString() || 'Failed to cancel subscription. Please try again.'
+        );
+      } finally {
+        setIsCancelling(false);
+        setTimeout(() => setStatusMessage(''), 3000);
+      }
+    };
+
+    showAlert(
+      'Cancel Subscription',
+      'Are you sure you want to cancel your subscription? You will still have access until the end of your current billing period.',
+      [
+        { text: 'Keep Subscription', style: 'cancel' },
+        { text: 'Cancel Subscription', onPress: confirmCancel }
+      ]
+    );
+  };
+
+  // 🔥 管理订阅函数
+  const handleManageSubscription = () => {
+    console.log('⚙️ handleManageSubscription called', { platform: Platform.OS });
+    setStatusMessage('Opening subscription management...');
+    
+    if (Platform.OS === 'ios') {
+      Linking.openURL('https://apps.apple.com/account/subscriptions').catch(err => {
+        console.error('Failed to open iOS subscription management:', err);
+        showAlert('Error', 'Unable to open subscription management. Please go to Settings > Apple ID > Subscriptions');
+      });
+    } else if (Platform.OS === 'android') {
+      Linking.openURL('https://play.google.com/store/account/subscriptions').catch(err => {
+        console.error('Failed to open Android subscription management:', err);
+        showAlert('Error', 'Unable to open subscription management. Please go to Play Store > Account > Subscriptions');
+      });
+    } else {
+      showAlert('Manage Subscription', 'Please manage your subscription through your account settings or contact support.');
+    }
+    
+    setTimeout(() => setStatusMessage(''), 2000);
+  };
+
+  const formatExpiryDate = (date: string) => {
+    try {
+      return new Date(date).toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+      });
+    } catch {
+      return 'Invalid date';
+    }
   };
 
   const webStyles = Platform.select({
@@ -181,15 +352,6 @@ export default function SubscriptionScreen() {
     },
     default: {},
   });
-
-  // 格式化到期时间
-  const formatExpiryDate = (date: string) => {
-    return new Date(date).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-    });
-  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -207,6 +369,14 @@ export default function SubscriptionScreen() {
         <View style={styles.backButton} />
       </View>
 
+      {/* 🔥 状态消息显示 */}
+      {statusMessage ? (
+        <View style={styles.statusBanner}>
+          <ActivityIndicator size="small" color={colors.primary} />
+          <Text style={styles.statusText}>{statusMessage}</Text>
+        </View>
+      ) : null}
+
       <ScrollView 
         style={[styles.scrollView, webStyles]}
         contentContainerStyle={styles.scrollContent}
@@ -223,8 +393,7 @@ export default function SubscriptionScreen() {
             Professional-grade financial intelligence system delivering institutional insights to individual investors
           </Text>
           
-          {/* 🔥 修复：正确显示早鸟状态 */}
-          {!isProUser && isEarlyBird && (
+          {!isProUser && isEarlyBird ? (
             <View style={styles.earlyBirdBadge}>
               <Icon name="local-offer" type="material" size={16} color={colors.warning} />
               <Text style={styles.earlyBirdText}>
@@ -234,10 +403,9 @@ export default function SubscriptionScreen() {
                 }
               </Text>
             </View>
-          )}
+          ) : null}
           
-          {/* 显示剩余早鸟名额（如果不是早鸟用户） */}
-          {!isProUser && !isEarlyBird && earlyBirdStatus && earlyBirdStatus.slots_remaining > 0 && (
+          {!isProUser && !isEarlyBird && earlyBirdStatus && earlyBirdStatus.slots_remaining > 0 ? (
             <View style={styles.earlyBirdBadge}>
               <Icon name="local-offer" type="material" size={16} color={colors.warning} />
               <Text style={styles.earlyBirdText}>
@@ -247,7 +415,7 @@ export default function SubscriptionScreen() {
                 }
               </Text>
             </View>
-          )}
+          ) : null}
         </View>
 
         {/* Current Status */}
@@ -262,28 +430,28 @@ export default function SubscriptionScreen() {
                   ? ` • Renews ${formatExpiryDate(currentSubscription.expires_at)}`
                   : ''}
               </Text>
-              {isEarlyBird && (
+              {isEarlyBird && currentSubscription.current_price ? (
                 <Text style={styles.earlyBirdLocked}>
                   🎉 Early bird price locked: ${currentSubscription.current_price}/
                   {currentSubscription.subscription_type === SubscriptionType.MONTHLY ? 'mo' : 'yr'}
                 </Text>
-              )}
+              ) : null}
             </View>
           </View>
         ) : null}
         
         {/* Trial Banner */}
-        {!isProUser && (
+        {!isProUser ? (
           <View style={styles.trialBanner}>
             <Icon name="info" type="material" size={20} color={colors.primary} />
             <Text style={styles.trialText}>
               Free users get 2 reports daily • Upgrade for unlimited access
             </Text>
           </View>
-        )}
+        ) : null}
 
         {/* Plan Toggle - Only show if not Pro */}
-        {!isProUser && (
+        {!isProUser ? (
           <>
             <View style={styles.planToggle}>
               <TouchableOpacity
@@ -317,11 +485,11 @@ export default function SubscriptionScreen() {
                 >
                   Annual
                 </Text>
-                {selectedPlan === 'yearly' && (
+                {selectedPlan === 'yearly' ? (
                   <View style={styles.saveBadge}>
                     <Text style={styles.saveBadgeText}>Save {yearlySavings}%</Text>
                   </View>
-                )}
+                ) : null}
               </TouchableOpacity>
             </View>
 
@@ -333,24 +501,24 @@ export default function SubscriptionScreen() {
               <Text style={styles.pricePeriod}>
                 {selectedPlan === 'monthly' ? 'per month' : 'per year'}
               </Text>
-              {selectedPlan === 'yearly' && (
+              {selectedPlan === 'yearly' ? (
                 <Text style={styles.monthlyEquivalent}>
                   Only ${(yearlyPrice / 12).toFixed(2)}/month
                 </Text>
-              )}
-              {isEarlyBird && (
+              ) : null}
+              {isEarlyBird ? (
                 <View style={styles.earlyBirdPriceBadge}>
                   <Icon name="local-offer" type="material" size={14} color={colors.warning} />
                   <Text style={styles.earlyBirdPriceText}>
                     Early bird price - locked forever!
                   </Text>
                 </View>
-              )}
-              {!isEarlyBird && (
+              ) : null}
+              {!isEarlyBird ? (
                 <Text style={styles.standardPriceNote}>
                   Standard pricing
                 </Text>
-              )}
+              ) : null}
             </View>
 
             {/* Payment Options Section */}
@@ -358,11 +526,11 @@ export default function SubscriptionScreen() {
               <Text style={styles.paymentOptionsTitle}>Choose Payment Method</Text>
               
               {/* Apple Pay Option */}
-              {Platform.OS === 'ios' && (
+              {Platform.OS === 'ios' ? (
                 <TouchableOpacity 
                   style={styles.paymentOption}
                   onPress={() => {
-                    Alert.alert('Coming Soon', 'Apple Pay integration will be available in Phase 3');
+                    showAlert('Coming Soon', 'Apple Pay integration will be available in Phase 3');
                   }}
                 >
                   <View style={styles.paymentOptionContent}>
@@ -372,16 +540,16 @@ export default function SubscriptionScreen() {
                       <Text style={styles.paymentOptionSubtitle}>Quick and secure</Text>
                     </View>
                   </View>
-                  <Icon name="chevron-right" type="material" size={24} color={colors.gray400} />
+                  <Icon name="chevron-right" type="material" size={24} color={colors.textSecondary} />
                 </TouchableOpacity>
-              )}
+              ) : null}
 
               {/* Google Pay Option */}
-              {Platform.OS === 'android' && (
+              {Platform.OS === 'android' ? (
                 <TouchableOpacity 
                   style={styles.paymentOption}
                   onPress={() => {
-                    Alert.alert('Coming Soon', 'Google Pay integration will be available in Phase 3');
+                    showAlert('Coming Soon', 'Google Pay integration will be available in Phase 3');
                   }}
                 >
                   <View style={styles.paymentOptionContent}>
@@ -391,21 +559,25 @@ export default function SubscriptionScreen() {
                       <Text style={styles.paymentOptionSubtitle}>Fast checkout</Text>
                     </View>
                   </View>
-                  <Icon name="chevron-right" type="material" size={24} color={colors.gray400} />
+                  <Icon name="chevron-right" type="material" size={24} color={colors.textSecondary} />
                 </TouchableOpacity>
-              )}
+              ) : null}
 
-              {/* Mock Upgrade Option (Dev Only) */}
+              {/* Mock Upgrade Option */}
               <TouchableOpacity 
-                style={[styles.paymentOption, styles.mockPaymentOption]}
+                style={[
+                  styles.paymentOption, 
+                  styles.mockPaymentOption,
+                  (isUpgrading || subscriptionLoading) && styles.paymentOptionDisabled
+                ]}
                 onPress={handleUpgrade}
-                disabled={isUpgrading}
+                disabled={isUpgrading || subscriptionLoading}
               >
                 <View style={styles.paymentOptionContent}>
                   <Icon name="code" type="material" size={24} color={colors.primary} />
                   <View style={styles.paymentOptionText}>
                     <Text style={[styles.paymentOptionTitle, { color: colors.primary }]}>
-                      Mock Upgrade (Dev Only)
+                      Mock Payment Option
                     </Text>
                     <Text style={styles.paymentOptionSubtitle}>Test subscription without payment</Text>
                   </View>
@@ -418,7 +590,7 @@ export default function SubscriptionScreen() {
               </TouchableOpacity>
             </View>
           </>
-        )}
+        ) : null}
 
         {/* Platform Features Section */}
         <View style={styles.featuresSection}>
@@ -468,10 +640,13 @@ export default function SubscriptionScreen() {
         </View>
 
         {/* Upgrade CTA - Only show if not Pro */}
-        {!isProUser && (
+        {!isProUser ? (
           <View style={styles.upgradeSection}>
             <TouchableOpacity
-              style={styles.upgradeButton}
+              style={[
+                styles.upgradeButton,
+                (isUpgrading || subscriptionLoading) && styles.upgradeButtonDisabled
+              ]}
               onPress={handleUpgrade}
               disabled={isUpgrading || subscriptionLoading}
             >
@@ -492,26 +667,39 @@ export default function SubscriptionScreen() {
               7-day money back guarantee • Cancel anytime
             </Text>
             
-            {/* Development notice */}
             <Text style={styles.devNotice}>
               ⚠️ Development Mode: This is a mock upgrade for testing
             </Text>
           </View>
-        )}
+        ) : null}
 
         {/* Manage Subscription - Only show if Pro */}
-        {isProUser && currentSubscription && (
+        {isProUser ? (
           <View style={styles.manageSection}>
-            <TouchableOpacity style={styles.manageButton}>
+            <TouchableOpacity 
+              style={styles.manageButton}
+              onPress={handleManageSubscription}
+            >
               <Icon name="settings" type="material" size={20} color={colors.primary} />
               <Text style={styles.manageButtonText}>Manage Subscription</Text>
             </TouchableOpacity>
             
-            <TouchableOpacity style={styles.cancelButton}>
-              <Text style={styles.cancelButtonText}>Cancel Subscription</Text>
+            <TouchableOpacity 
+              style={[
+                styles.cancelButton, 
+                isCancelling && styles.cancelButtonDisabled
+              ]}
+              onPress={handleCancelSubscription}
+              disabled={isCancelling}
+            >
+              {isCancelling ? (
+                <ActivityIndicator size="small" color={colors.textSecondary} />
+              ) : (
+                <Text style={styles.cancelButtonText}>Cancel Subscription</Text>
+              )}
             </TouchableOpacity>
           </View>
-        )}
+        ) : null}
 
         {/* Trust Indicators */}
         <View style={styles.trustSection}>
@@ -534,8 +722,8 @@ export default function SubscriptionScreen() {
           </View>
         </View>
 
-        {/* Bottom padding */}
-        <View style={{ height: spacing.xxxl }} />
+        {/* Bottom padding - 🔥 修复：使用View而不是直接的height对象 */}
+        <View style={styles.bottomPadding} />
       </ScrollView>
     </SafeAreaView>
   );
@@ -563,6 +751,20 @@ const styles = StyleSheet.create({
     fontSize: typography.fontSize.lg,
     fontWeight: typography.fontWeight.semibold,
     color: colors.text,
+  },
+  statusBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.primary + '20',
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+  },
+  statusText: {
+    fontSize: typography.fontSize.sm,
+    color: colors.primary,
+    marginLeft: spacing.sm,
+    fontWeight: typography.fontWeight.medium,
   },
   scrollView: {
     flex: 1,
@@ -742,6 +944,54 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     marginTop: spacing.xs,
   },
+  paymentOptionsSection: {
+    paddingHorizontal: spacing.md,
+    marginTop: spacing.xl,
+    marginBottom: spacing.xl,
+  },
+  paymentOptionsTitle: {
+    fontSize: typography.fontSize.lg,
+    fontWeight: typography.fontWeight.semibold,
+    color: colors.text,
+    marginBottom: spacing.md,
+  },
+  paymentOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: colors.white,
+    padding: spacing.md,
+    borderRadius: borderRadius.lg,
+    marginBottom: spacing.sm,
+    ...shadows.sm,
+  },
+  mockPaymentOption: {
+    borderWidth: 2,
+    borderColor: colors.primary + '30',
+    backgroundColor: colors.primary + '05',
+  },
+  paymentOptionDisabled: {
+    opacity: 0.6,
+  },
+  paymentOptionContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  paymentOptionText: {
+    marginLeft: spacing.md,
+    flex: 1,
+  },
+  paymentOptionTitle: {
+    fontSize: typography.fontSize.base,
+    fontWeight: typography.fontWeight.semibold,
+    color: colors.text,
+    marginBottom: spacing.xxs,
+  },
+  paymentOptionSubtitle: {
+    fontSize: typography.fontSize.sm,
+    color: colors.textSecondary,
+  },
   accessModel: {
     backgroundColor: colors.white,
     marginHorizontal: spacing.md,
@@ -855,6 +1105,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     ...shadows.md,
   },
+  upgradeButtonDisabled: {
+    opacity: 0.6,
+  },
   upgradeButtonText: {
     fontSize: typography.fontSize.base,
     fontWeight: typography.fontWeight.semibold,
@@ -904,6 +1157,9 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     textDecorationLine: 'underline',
   },
+  cancelButtonDisabled: {
+    opacity: 0.5,
+  },
   trustSection: {
     marginTop: spacing.xxl,
     paddingHorizontal: spacing.md,
@@ -933,50 +1189,8 @@ const styles = StyleSheet.create({
     fontSize: typography.fontSize.sm,
     color: colors.textSecondary,
   },
-  // Payment Options Styles
-  paymentOptionsSection: {
-    paddingHorizontal: spacing.md,
-    marginTop: spacing.xl,
-    marginBottom: spacing.xl,
-  },
-  paymentOptionsTitle: {
-    fontSize: typography.fontSize.lg,
-    fontWeight: typography.fontWeight.semibold,
-    color: colors.text,
-    marginBottom: spacing.md,
-  },
-  paymentOption: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: colors.white,
-    padding: spacing.md,
-    borderRadius: borderRadius.lg,
-    marginBottom: spacing.sm,
-    ...shadows.sm,
-  },
-  mockPaymentOption: {
-    borderWidth: 2,
-    borderColor: colors.primary + '30',
-    backgroundColor: colors.primary + '05',
-  },
-  paymentOptionContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-  },
-  paymentOptionText: {
-    marginLeft: spacing.md,
-    flex: 1,
-  },
-  paymentOptionTitle: {
-    fontSize: typography.fontSize.base,
-    fontWeight: typography.fontWeight.semibold,
-    color: colors.text,
-    marginBottom: spacing.xxs,
-  },
-  paymentOptionSubtitle: {
-    fontSize: typography.fontSize.sm,
-    color: colors.textSecondary,
+  // 🔥 修复：为底部填充创建专门的样式
+  bottomPadding: {
+    height: spacing.xxxl,
   },
 });
