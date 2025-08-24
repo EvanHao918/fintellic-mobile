@@ -311,28 +311,6 @@ export default function SubscriptionScreen() {
     );
   };
 
-  // 🔥 管理订阅函数
-  const handleManageSubscription = () => {
-    console.log('⚙️ handleManageSubscription called', { platform: Platform.OS });
-    setStatusMessage('Opening subscription management...');
-    
-    if (Platform.OS === 'ios') {
-      Linking.openURL('https://apps.apple.com/account/subscriptions').catch(err => {
-        console.error('Failed to open iOS subscription management:', err);
-        showAlert('Error', 'Unable to open subscription management. Please go to Settings > Apple ID > Subscriptions');
-      });
-    } else if (Platform.OS === 'android') {
-      Linking.openURL('https://play.google.com/store/account/subscriptions').catch(err => {
-        console.error('Failed to open Android subscription management:', err);
-        showAlert('Error', 'Unable to open subscription management. Please go to Play Store > Account > Subscriptions');
-      });
-    } else {
-      showAlert('Manage Subscription', 'Please manage your subscription through your account settings or contact support.');
-    }
-    
-    setTimeout(() => setStatusMessage(''), 2000);
-  };
-
   const formatExpiryDate = (date: string) => {
     try {
       return new Date(date).toLocaleDateString('en-US', {
@@ -393,13 +371,14 @@ export default function SubscriptionScreen() {
             Professional-grade financial intelligence system delivering institutional insights to individual investors
           </Text>
           
+          {/* 🔥 修正：Early Bird状态显示 - 移除倒计时，显示永久锁定 */}
           {!isProUser && isEarlyBird ? (
             <View style={styles.earlyBirdBadge}>
               <Icon name="local-offer" type="material" size={16} color={colors.warning} />
               <Text style={styles.earlyBirdText}>
                 {user?.user_sequence_number 
-                  ? `🎉 Early bird #${user.user_sequence_number} - Save $10/month forever!`
-                  : `🦅 Early bird pricing: Save $10/month forever!`
+                  ? `🎉 Early Bird Member #${user.user_sequence_number} - $39/month locked forever!`
+                  : `🦅 Early bird pricing: $39/month locked forever!`
                 }
               </Text>
             </View>
@@ -418,7 +397,7 @@ export default function SubscriptionScreen() {
           ) : null}
         </View>
 
-        {/* Current Status */}
+        {/* 🔥 修正：Current Status - 显示永久价格锁定而不是倒计时 */}
         {isProUser && currentSubscription ? (
           <View style={styles.currentPlanBanner}>
             <Icon name="star" type="material" size={24} color={colors.warning} />
@@ -426,14 +405,12 @@ export default function SubscriptionScreen() {
               <Text style={styles.currentPlanTitle}>You're a Pro Member!</Text>
               <Text style={styles.currentPlanSubtitle}>
                 {currentSubscription.subscription_type === SubscriptionType.MONTHLY ? 'Monthly' : 'Annual'} plan
-                {currentSubscription.expires_at 
-                  ? ` • Renews ${formatExpiryDate(currentSubscription.expires_at)}`
-                  : ''}
+                {/* 🔥 修正：移除到期时间显示，因为这会造成混淆 */}
               </Text>
               {isEarlyBird && currentSubscription.current_price ? (
                 <Text style={styles.earlyBirdLocked}>
                   🎉 Early bird price locked: ${currentSubscription.current_price}/
-                  {currentSubscription.subscription_type === SubscriptionType.MONTHLY ? 'mo' : 'yr'}
+                  {currentSubscription.subscription_type === SubscriptionType.MONTHLY ? 'mo' : 'yr'} forever
                 </Text>
               ) : null}
             </View>
@@ -673,17 +650,43 @@ export default function SubscriptionScreen() {
           </View>
         ) : null}
 
-        {/* Manage Subscription - Only show if Pro */}
+        {/* 🔥 修正：简化的订阅管理 - 只显示取消功能 */}
         {isProUser ? (
           <View style={styles.manageSection}>
-            <TouchableOpacity 
-              style={styles.manageButton}
-              onPress={handleManageSubscription}
-            >
-              <Icon name="settings" type="material" size={20} color={colors.primary} />
-              <Text style={styles.manageButtonText}>Manage Subscription</Text>
-            </TouchableOpacity>
-            
+            <View style={styles.currentSubscriptionInfo}>
+              <Text style={styles.subscriptionInfoTitle}>Current Subscription</Text>
+              <View style={styles.subscriptionDetails}>
+                <View style={styles.subscriptionDetailRow}>
+                  <Text style={styles.subscriptionDetailLabel}>Plan:</Text>
+                  <Text style={styles.subscriptionDetailValue}>
+                    {currentSubscription?.subscription_type === SubscriptionType.MONTHLY ? 'Monthly' : 'Annual'} Pro
+                  </Text>
+                </View>
+                <View style={styles.subscriptionDetailRow}>
+                  <Text style={styles.subscriptionDetailLabel}>Price:</Text>
+                  <Text style={styles.subscriptionDetailValue}>
+                    ${currentSubscription?.current_price || monthlyPrice}/
+                    {currentSubscription?.subscription_type === SubscriptionType.MONTHLY ? 'month' : 'year'}
+                  </Text>
+                </View>
+                {isEarlyBird ? (
+                  <View style={styles.subscriptionDetailRow}>
+                    <Text style={styles.subscriptionDetailLabel}>Status:</Text>
+                    <Text style={[styles.subscriptionDetailValue, styles.earlyBirdStatus]}>
+                      🎉 Early Bird - Permanent Price Lock
+                    </Text>
+                  </View>
+                ) : null}
+                <View style={styles.subscriptionDetailRow}>
+                  <Text style={styles.subscriptionDetailLabel}>Auto-Renew:</Text>
+                  <Text style={styles.subscriptionDetailValue}>
+                    {currentSubscription?.auto_renew ? 'Enabled' : 'Disabled'}
+                  </Text>
+                </View>
+              </View>
+            </View>
+
+            {/* Simple cancel option */}
             <TouchableOpacity 
               style={[
                 styles.cancelButton, 
@@ -693,11 +696,15 @@ export default function SubscriptionScreen() {
               disabled={isCancelling}
             >
               {isCancelling ? (
-                <ActivityIndicator size="small" color={colors.textSecondary} />
+                <ActivityIndicator size="small" color={colors.white} />
               ) : (
                 <Text style={styles.cancelButtonText}>Cancel Subscription</Text>
               )}
             </TouchableOpacity>
+            
+            <Text style={styles.cancelNote}>
+              You'll continue to have Pro access until the end of your current billing period.
+            </Text>
           </View>
         ) : null}
 
@@ -722,7 +729,7 @@ export default function SubscriptionScreen() {
           </View>
         </View>
 
-        {/* Bottom padding - 🔥 修复：使用View而不是直接的height对象 */}
+        {/* Bottom padding */}
         <View style={styles.bottomPadding} />
       </ScrollView>
     </SafeAreaView>
@@ -820,6 +827,7 @@ const styles = StyleSheet.create({
     color: colors.warning,
     fontWeight: typography.fontWeight.medium,
     marginLeft: spacing.xs,
+    textAlign: 'center',
   },
   currentPlanBanner: {
     flexDirection: 'row',
@@ -845,9 +853,10 @@ const styles = StyleSheet.create({
     opacity: 0.9,
   },
   earlyBirdLocked: {
-    fontSize: typography.fontSize.xs,
+    fontSize: typography.fontSize.sm,
     color: colors.warning,
-    marginTop: spacing.xxs,
+    marginTop: spacing.xs,
+    fontWeight: typography.fontWeight.semibold,
   },
   trialBanner: {
     flexDirection: 'row',
@@ -1127,38 +1136,68 @@ const styles = StyleSheet.create({
     marginTop: spacing.sm,
     fontStyle: 'italic',
   },
+  // 🔥 新增：简化的订阅管理样式
   manageSection: {
     paddingHorizontal: spacing.md,
     marginTop: spacing.xl,
   },
-  manageButton: {
-    flexDirection: 'row',
+  currentSubscriptionInfo: {
     backgroundColor: colors.white,
+    padding: spacing.lg,
+    borderRadius: borderRadius.lg,
+    marginBottom: spacing.lg,
+    ...shadows.sm,
+  },
+  subscriptionInfoTitle: {
+    fontSize: typography.fontSize.lg,
+    fontWeight: typography.fontWeight.semibold,
+    color: colors.text,
+    marginBottom: spacing.md,
+  },
+  subscriptionDetails: {
+    gap: spacing.sm,
+  },
+  subscriptionDetailRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: spacing.xs,
+  },
+  subscriptionDetailLabel: {
+    fontSize: typography.fontSize.base,
+    color: colors.textSecondary,
+    fontWeight: typography.fontWeight.medium,
+  },
+  subscriptionDetailValue: {
+    fontSize: typography.fontSize.base,
+    color: colors.text,
+    fontWeight: typography.fontWeight.semibold,
+  },
+  earlyBirdStatus: {
+    color: colors.warning,
+  },
+  cancelButton: {
+    backgroundColor: colors.error,
     paddingVertical: spacing.md,
     borderRadius: borderRadius.lg,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: colors.primary,
-    marginBottom: spacing.md,
-  },
-  manageButtonText: {
-    fontSize: typography.fontSize.base,
-    fontWeight: typography.fontWeight.semibold,
-    color: colors.primary,
-    marginLeft: spacing.sm,
-  },
-  cancelButton: {
-    paddingVertical: spacing.sm,
-    alignItems: 'center',
+    marginBottom: spacing.sm,
+    ...shadows.sm,
   },
   cancelButtonText: {
-    fontSize: typography.fontSize.sm,
-    color: colors.textSecondary,
-    textDecorationLine: 'underline',
+    fontSize: typography.fontSize.base,
+    fontWeight: typography.fontWeight.semibold,
+    color: colors.white,
   },
   cancelButtonDisabled: {
     opacity: 0.5,
+  },
+  cancelNote: {
+    fontSize: typography.fontSize.sm,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    fontStyle: 'italic',
   },
   trustSection: {
     marginTop: spacing.xxl,
@@ -1189,7 +1228,6 @@ const styles = StyleSheet.create({
     fontSize: typography.fontSize.sm,
     color: colors.textSecondary,
   },
-  // 🔥 修复：为底部填充创建专门的样式
   bottomPadding: {
     height: spacing.xxxl,
   },

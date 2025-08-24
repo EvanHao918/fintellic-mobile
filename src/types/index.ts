@@ -10,6 +10,10 @@ export type RootStackParamList = {
   CompanyFilings: { ticker: string; companyName: string };
   Subscription: undefined;
   NotificationSettings: undefined; // 🆕 Phase 4: Add notification settings route
+  // 🆕 Task 6: Add new routes for profile management
+  ChangePassword: undefined;
+  TermsOfService: undefined;
+  PrivacyPolicy: undefined;
 };
 
 export type DrawerParamList = {
@@ -28,6 +32,16 @@ export type MainTabParamList = {
   Profile: undefined;
 };
 
+// 🆕 Task 6: Password change types
+export interface ChangePasswordRequest {
+  current_password: string;
+  new_password: string;
+}
+
+export interface ChangePasswordResponse {
+  message: string;
+}
+
 // User Types - 更新以包含订阅相关字段
 export interface User {
   id: number;
@@ -36,7 +50,7 @@ export interface User {
   username?: string;
   avatar_url?: string;
   tier: 'free' | 'pro' | 'FREE' | 'PRO'; // 支持大小写
-  is_pro?: boolean;  // 添加is_pro字段
+  is_pro?: boolean;  // 添加 is_pro字段
   is_active: boolean;
   is_verified: boolean;
   created_at: string;
@@ -167,12 +181,14 @@ export interface CompanyInfo {
   sic_description?: string;
 }
 
-// Filing Types
+// Filing Types - ENHANCED with timestamp fields
 export interface Filing {
   id: number;
   company_id: number;
   form_type: string;
-  filing_date: string;
+  filing_date: string;              // SEC official filing date
+  detected_at?: string | null;      // 🔥 NEW: When we detected the filing (precise timestamp)
+  display_time?: string | null;     // 🔥 NEW: Best time for display (backend calculated)
   period_date?: string;
   accession_number: string;
   filing_url: string;
@@ -183,6 +199,11 @@ export interface Filing {
   
   // Enhanced company object with full details
   company?: CompanyInfo;
+  
+  // 🔥 NEW: Timing metadata fields from backend
+  detection_age_minutes?: number | null;   // How many minutes since detection (backend calculated)
+  detection_age_hours?: number | null;     // How many hours since detection (backend calculated)
+  is_recently_detected?: boolean;          // Whether filing was detected recently (backend calculated)
   
   // ==================== UNIFIED ANALYSIS FIELDS (NEW) ====================
   // Core unified content
@@ -227,7 +248,7 @@ export interface Filing {
   
   // 10-K/10-Q specific
   fiscal_year?: number;
-  fiscal_quarter?: string;  // 添加fiscal_quarter字段
+  fiscal_quarter?: string;  // 添加 fiscal_quarter字段
   guidance_update?: string;
   future_outlook?: string;
   risk_factors?: string[];

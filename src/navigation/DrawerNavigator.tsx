@@ -2,6 +2,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { createDrawerNavigator, DrawerContentScrollView, DrawerItemList, DrawerContentComponentProps } from '@react-navigation/drawer';
+import { createStackNavigator } from '@react-navigation/stack';
 import { Icon } from 'react-native-elements';
 import { useNavigation } from '@react-navigation/native';
 import { useSelector, useDispatch } from 'react-redux';
@@ -17,6 +18,10 @@ import CalendarScreen from '../screens/CalendarScreen';
 import WatchlistScreen from '../screens/WatchlistScreen';
 import HistoryScreen from '../screens/HistoryScreen';
 import ProfileScreen from '../screens/ProfileScreen';
+// 🆕 Task 6: Import new screens
+import ChangePasswordScreen from '../screens/ChangePasswordScreen';
+import TermsScreen from '../screens/TermsScreen';
+import PrivacyPolicyScreen from '../screens/PrivacyPolicyScreen';
 
 // Define drawer params
 export type DrawerParamList = {
@@ -27,7 +32,66 @@ export type DrawerParamList = {
   Profile: undefined;
 };
 
+// 🆕 Task 6: Stack navigator param list for Profile-related screens
+export type ProfileStackParamList = {
+  ProfileMain: undefined;
+  ChangePassword: undefined;
+  TermsOfService: undefined;
+  PrivacyPolicy: undefined;
+};
+
 const Drawer = createDrawerNavigator<DrawerParamList>();
+const ProfileStack = createStackNavigator<ProfileStackParamList>();
+
+// 🆕 Task 6: Profile Stack Navigator with nested screens
+function ProfileStackNavigator() {
+  return (
+    <ProfileStack.Navigator
+      screenOptions={{
+        headerShown: false, // We'll use the drawer header
+      }}
+    >
+      <ProfileStack.Screen 
+        name="ProfileMain" 
+        component={ProfileScreen}
+      />
+      {/* 🆕 Task 6: New screens */}
+      <ProfileStack.Screen 
+        name="ChangePassword" 
+        component={ChangePasswordScreen}
+        options={{ 
+          headerShown: true,
+          title: 'Change Password',
+          headerStyle: { backgroundColor: colors.white },
+          headerTitleStyle: { color: colors.text },
+          headerTintColor: colors.primary,
+        }}
+      />
+      <ProfileStack.Screen 
+        name="TermsOfService" 
+        component={TermsScreen}
+        options={{ 
+          headerShown: true,
+          title: 'Terms of Service',
+          headerStyle: { backgroundColor: colors.white },
+          headerTitleStyle: { color: colors.text },
+          headerTintColor: colors.primary,
+        }}
+      />
+      <ProfileStack.Screen 
+        name="PrivacyPolicy" 
+        component={PrivacyPolicyScreen}
+        options={{ 
+          headerShown: true,
+          title: 'Privacy Policy',
+          headerStyle: { backgroundColor: colors.white },
+          headerTitleStyle: { color: colors.text },
+          headerTintColor: colors.primary,
+        }}
+      />
+    </ProfileStack.Navigator>
+  );
+}
 
 // Custom drawer content
 function CustomDrawerContent(props: DrawerContentComponentProps) {
@@ -153,9 +217,10 @@ export default function DrawerNavigator() {
           drawerLabel: 'History',
         }}
       />
+      {/* 🆕 Task 6: Replace ProfileScreen with ProfileStackNavigator */}
       <Drawer.Screen 
         name="Profile" 
-        component={ProfileScreen}
+        component={ProfileStackNavigator}
         options={{ 
           title: 'Profile',
           drawerLabel: 'Profile',

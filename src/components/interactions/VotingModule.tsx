@@ -86,23 +86,26 @@ export const VotingModule: React.FC<VotingModuleProps> = ({
     return Math.round((count / totalVotes) * 100);
   };
 
-  // 投票选项配置
+  // 🔥 修复：更新投票选项配置 - 新的颜文字和文案
   const voteOptions = [
     {
       type: 'bullish' as const,
-      emoji: '😊',
+      emoji: '📈',
+      label: 'Bullish',
       color: colors.bullish,
       count: voteCounts.bullish,
     },
     {
       type: 'neutral' as const,
       emoji: '😐',
+      label: 'Neutral',
       color: colors.neutral,
       count: voteCounts.neutral,
     },
     {
       type: 'bearish' as const,
-      emoji: '😔',
+      emoji: '📉',
+      label: 'Bearish',
       color: colors.bearish,
       count: voteCounts.bearish,
     },
@@ -110,10 +113,10 @@ export const VotingModule: React.FC<VotingModuleProps> = ({
 
   return (
     <View style={[styles.container, mode === 'full' && styles.containerFull, style]}>
-      {/* 添加投票提示文字 */}
+      {/* 🔥 修复：更新提示文字 */}
       <View style={styles.promptContainer}>
         <Text style={[styles.promptText, mode === 'full' && styles.promptTextFull]}>
-          How <Text style={styles.promptTextBold}>profitable</Text> these insights are do you think?
+          How will the <Text style={styles.promptTextBold}>market react</Text> to this filing?
         </Text>
       </View>
       
@@ -141,6 +144,13 @@ export const VotingModule: React.FC<VotingModuleProps> = ({
             >
               <Text style={[styles.voteEmoji, mode === 'full' && styles.voteEmojiFull]}>
                 {option.emoji}
+              </Text>
+              <Text style={[
+                styles.voteLabel,
+                mode === 'full' && styles.voteLabelFull,
+                isSelected && { color: option.color }
+              ]}>
+                {option.label}
               </Text>
               <Text style={[
                 styles.voteCount,
@@ -235,6 +245,15 @@ const styles = StyleSheet.create({
   },
   voteEmojiFull: {
     fontSize: 20,
+  },
+  // 🔥 新增：投票标签样式
+  voteLabel: {
+    fontSize: typography.fontSize.xs,
+    color: colors.gray700,
+    fontWeight: '500',
+  },
+  voteLabelFull: {
+    fontSize: typography.fontSize.sm,
   },
   voteCount: {
     fontSize: typography.fontSize.xs,

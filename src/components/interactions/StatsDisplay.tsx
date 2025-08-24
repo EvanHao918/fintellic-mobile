@@ -1,4 +1,6 @@
 // src/components/interactions/StatsDisplay.tsx
+// 🔥 FIXED: Optimized for top-right positioning to avoid overlap with voting buttons
+
 import React from 'react';
 import {
   View,
@@ -28,19 +30,26 @@ export const StatsDisplay: React.FC<StatsDisplayProps> = ({
   mode = 'compact',
 }) => {
   return (
-    <View style={[styles.container, mode === 'full' && styles.containerFull, style]}>
+    <View style={[
+      mode === 'compact' ? styles.containerCompact : styles.containerFull, 
+      style
+    ]}>
       {/* Comment Count */}
       {onCommentPress ? (
         <TouchableOpacity 
-          style={[styles.statItem, mode === 'full' && styles.statItemFull]} 
+          style={[
+            mode === 'compact' ? styles.statItemCompact : styles.statItemFull
+          ]} 
           onPress={onCommentPress}
         >
           <Icon 
             name="chat-bubble-outline" 
-            size={mode === 'full' ? 18 : 14} 
+            size={mode === 'full' ? 18 : 12} 
             color={colors.textSecondary} 
           />
-          <Text style={[styles.statText, mode === 'full' && styles.statTextFull]}>
+          <Text style={[
+            mode === 'compact' ? styles.statTextCompact : styles.statTextFull
+          ]}>
             {commentCount}
           </Text>
           {mode === 'full' && (
@@ -48,13 +57,17 @@ export const StatsDisplay: React.FC<StatsDisplayProps> = ({
           )}
         </TouchableOpacity>
       ) : (
-        <View style={[styles.statItem, mode === 'full' && styles.statItemFull]}>
+        <View style={[
+          mode === 'compact' ? styles.statItemCompact : styles.statItemFull
+        ]}>
           <Icon 
             name="chat-bubble-outline" 
-            size={mode === 'full' ? 18 : 14} 
+            size={mode === 'full' ? 18 : 12} 
             color={colors.textSecondary} 
           />
-          <Text style={[styles.statText, mode === 'full' && styles.statTextFull]}>
+          <Text style={[
+            mode === 'compact' ? styles.statTextCompact : styles.statTextFull
+          ]}>
             {commentCount}
           </Text>
           {mode === 'full' && (
@@ -64,13 +77,17 @@ export const StatsDisplay: React.FC<StatsDisplayProps> = ({
       )}
       
       {/* View Count */}
-      <View style={[styles.statItem, mode === 'full' && styles.statItemFull]}>
+      <View style={[
+        mode === 'compact' ? styles.statItemCompact : styles.statItemFull
+      ]}>
         <Icon 
           name="visibility" 
-          size={mode === 'full' ? 18 : 14} 
+          size={mode === 'full' ? 18 : 12} 
           color={colors.textSecondary} 
         />
-        <Text style={[styles.statText, mode === 'full' && styles.statTextFull]}>
+        <Text style={[
+          mode === 'compact' ? styles.statTextCompact : styles.statTextFull
+        ]}>
           {viewCount}
         </Text>
         {mode === 'full' && (
@@ -78,8 +95,8 @@ export const StatsDisplay: React.FC<StatsDisplayProps> = ({
         )}
       </View>
 
-      {/* Pro Indicator - only show in compact mode */}
-      {!isProUser && mode === 'compact' && (
+      {/* Pro Indicator - only show in full mode for non-pro users */}
+      {!isProUser && mode === 'full' && (
         <View style={styles.proIndicator}>
           <Icon name="lock" size={12} color={colors.warning} />
           <Text style={styles.proText}>PRO</Text>
@@ -90,38 +107,45 @@ export const StatsDisplay: React.FC<StatsDisplayProps> = ({
 };
 
 const styles = StyleSheet.create({
-  container: {
+  // 🔥 NEW: Separate compact and full container styles
+  containerCompact: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: spacing.xs, // Use gap instead of margins for cleaner spacing
   },
   containerFull: {
+    flexDirection: 'row',
+    alignItems: 'center',
     justifyContent: 'center',
     gap: spacing.xl,
     paddingVertical: spacing.sm,
   },
-  statItem: {
+  
+  // 🔥 NEW: Optimized compact mode for top-right positioning
+  statItemCompact: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginLeft: spacing.sm,
+    gap: 2, // Very tight spacing for compact mode
   },
   statItemFull: {
     flexDirection: 'column',
     alignItems: 'center',
-    marginLeft: 0,
   },
-  statText: {
-    fontSize: typography.fontSize.xs,
+  
+  // 🔥 OPTIMIZED: Smaller text and tighter spacing for compact mode
+  statTextCompact: {
+    fontSize: 10, // Smaller font for compact mode
     color: colors.gray600,
-    marginLeft: 4,
-    fontWeight: '500',
+    fontWeight: '600',
+    lineHeight: 12,
   },
   statTextFull: {
     fontSize: typography.fontSize.lg,
     fontWeight: typography.fontWeight.bold,
     color: colors.gray700,
-    marginLeft: 0,
     marginTop: spacing.xs,
   },
+  
   statLabel: {
     fontSize: typography.fontSize.xs,
     color: colors.textSecondary,
@@ -130,7 +154,6 @@ const styles = StyleSheet.create({
   proIndicator: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginLeft: spacing.sm,
     backgroundColor: colors.warning + '20',
     paddingHorizontal: spacing.xs,
     paddingVertical: 2,

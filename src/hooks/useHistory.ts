@@ -10,6 +10,7 @@ interface UseHistoryReturn {
   history: HistoryItem[];
   isLoading: boolean;
   isRefreshing: boolean;
+  isClearing: boolean; // 新增：清除状态
   error: string | null;
   
   // Actions
@@ -32,6 +33,7 @@ export function useHistory(): UseHistoryReturn {
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isClearing, setIsClearing] = useState(false); // 新增：清除状态
   const [error, setError] = useState<string | null>(null);
 
   // Load history from storage
@@ -74,34 +76,22 @@ export function useHistory(): UseHistoryReturn {
     }
   }, [loadHistory]);
 
-  // Clear all history with confirmation
-  const clearHistory = useCallback(() => {
-    Alert.alert(
-      HISTORY_CONSTANTS.ALERT_TITLES.CLEAR_HISTORY,
-      HISTORY_CONSTANTS.ALERT_MESSAGES.CLEAR_CONFIRMATION,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Clear',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await HistoryManager.clear();
-              setHistory([]);
-              Alert.alert(
-                HISTORY_CONSTANTS.ALERT_TITLES.SUCCESS,
-                HISTORY_CONSTANTS.SUCCESS_MESSAGES.HISTORY_CLEARED
-              );
-            } catch (err) {
-              Alert.alert(
-                HISTORY_CONSTANTS.ALERT_TITLES.ERROR,
-                HISTORY_CONSTANTS.ERROR_MESSAGES.CLEAR_FAILED
-              );
-            }
-          }
-        }
-      ]
-    );
+  // Clear all history - 简化版本，直接清空
+  const clearHistory = useCallback(async () => {
+    try {
+      setIsClearing(true);
+      
+      // 清除存储
+      await HistoryManager.clear();
+      
+      // 立即清空UI
+      setHistory([]);
+      
+    } catch (err) {
+      console.error('Failed to clear history:', err);
+    } finally {
+      setIsClearing(false);
+    }
   }, []);
 
   // Refresh history (pull-to-refresh)
@@ -123,6 +113,7 @@ export function useHistory(): UseHistoryReturn {
     history,
     isLoading,
     isRefreshing,
+    isClearing, // 新增：暴露清除状态
     error,
     
     // Actions

@@ -1,4 +1,5 @@
 // src/api/filings.ts
+// ENHANCED: Handle detected_at timestamps for precise timing display
 import apiClient from './client';
 import { 
   Filing, 
@@ -10,7 +11,16 @@ import {
 import { cleanAISummary, cleanTags, getDisplaySummary } from '../utils/textHelpers';
 
 // Helper function to clean filing data
+// ENHANCED: Process detected_at and display_time fields with proper validation
 const cleanFilingData = (filing: any): Filing => {
+  // ENHANCED: Debug timing information processing
+  console.log(`Processing filing ${filing.id} timing:`, {
+    filing_date: filing.filing_date,
+    detected_at: filing.detected_at,
+    display_time: filing.display_time,
+    created_at: filing.created_at
+  });
+
   return {
     ...filing,
     id: String(filing.id),
@@ -27,6 +37,16 @@ const cleanFilingData = (filing: any): Filing => {
     smart_markup_data: filing.smart_markup_data,
     analyst_expectations: filing.analyst_expectations,
     
+    // ENHANCED: Process timing fields with proper priority and validation
+    filing_date: filing.filing_date || '',
+    detected_at: filing.detected_at || null, // When we detected the filing (precise)
+    display_time: filing.display_time || filing.detected_at || filing.filing_date, // Best time for display
+    
+    // ENHANCED: Add timing metadata for debugging
+    detection_age_minutes: filing.detection_age_minutes || null,
+    detection_age_hours: filing.detection_age_hours || null,
+    is_recently_detected: filing.is_recently_detected || false,
+    
     // 字段映射
     key_tags: cleanTags(filing.tags || filing.key_tags || []),
     item_type: filing.event_type || filing.item_type || null,
@@ -40,7 +60,6 @@ const cleanFilingData = (filing: any): Filing => {
     feed_summary: getDisplaySummary(filing),
     
     // 确保其他重要字段存在
-    filing_date: filing.filing_date || '',
     accession_number: filing.accession_number || '',
     filing_url: filing.file_url || filing.filing_url || '',
     
@@ -92,7 +111,7 @@ const cleanFilingData = (filing: any): Filing => {
     
     company: filing.company,
     
-    // 🔥 添加view_limit_info字段
+    // 🔥 添加 view_limit_info字段
     view_limit_info: filing.view_limit_info,
   };
 };
@@ -126,6 +145,7 @@ const cleanCommentData = (comment: any): Comment => {
 };
 
 // Get filings list with optional ticker filter
+// ENHANCED: Handle detected_at timestamps in response with better logging
 export const getFilings = async (
   page: number = 1, 
   ticker?: string
@@ -142,7 +162,12 @@ export const getFilings = async (
     
     const response = await apiClient.get('/filings/', { params });
     
-    console.log('API Response:', response);
+    console.log('API Response structure:', {
+      hasData: !!response?.data,
+      hasItems: !!response?.items,
+      isArray: Array.isArray(response),
+      firstItemFields: response?.data?.[0] ? Object.keys(response.data[0]) : 'none'
+    });
     
     let items: any[] = [];
     let total = 0;
@@ -162,7 +187,17 @@ export const getFilings = async (
     
     const cleanedFilings = items.map(cleanFilingData);
     
-    console.log('Cleaned filings:', cleanedFilings.length);
+    // ENHANCED: Better logging of timing information
+    console.log('Cleaned filings with timing info:', cleanedFilings.slice(0, 2).map(f => ({
+      id: f.id,
+      ticker: f.company_ticker,
+      form_type: f.form_type,
+      filing_date: f.filing_date,
+      detected_at: f.detected_at,
+      display_time: f.display_time,
+      detection_age_minutes: f.detection_age_minutes,
+      is_recently_detected: f.is_recently_detected
+    })));
     
     return {
       data: cleanedFilings,
@@ -176,10 +211,23 @@ export const getFilings = async (
   }
 };
 
-// Get filing by ID - 🔥 关键修改：处理403错误
+// Get filing by ID - 🔥 关键修改：处理403错误和时间戳
+// ENHANCED: Better timing information handling
 export const getFilingById = async (id: string): Promise<Filing> => {
   try {
     const response = await apiClient.get(`/filings/${id}`);
+    
+    // ENHANCED: Log detailed timing information
+    console.log('Filing detail timing info:', {
+      id: response.id,
+      filing_date: response.filing_date,
+      detected_at: response.detected_at,
+      display_time: response.display_time,
+      detection_age_minutes: response.detection_age_minutes,
+      detection_age_hours: response.detection_age_hours,
+      is_recently_detected: response.is_recently_detected
+    });
+    
     return cleanFilingData(response);
   } catch (error: any) {
     console.error('Error fetching filing:', error);

@@ -29,6 +29,7 @@ export default function HistoryScreen() {
     history,
     isLoading,
     isRefreshing,
+    isClearing, // 从 hook 中获取清除状态
     error,
     loadHistory,
     removeFromHistory,
@@ -170,9 +171,19 @@ export default function HistoryScreen() {
           </Text>
         </View>
         {!isEmpty && (
-          <TouchableOpacity onPress={clearHistory} style={styles.clearButton}>
-            <Icon name="delete-outline" type="material" size={24} color={colors.error} />
-            <Text style={styles.clearButtonText}>Clear</Text>
+          <TouchableOpacity 
+            onPress={clearHistory} 
+            style={[styles.clearButton, isClearing && styles.clearButtonDisabled]}
+            disabled={isClearing}
+          >
+            {isClearing ? (
+              <ActivityIndicator size="small" color={colors.error} />
+            ) : (
+              <Icon name="delete-outline" type="material" size={24} color={colors.error} />
+            )}
+            <Text style={[styles.clearButtonText, isClearing && styles.clearButtonTextDisabled]}>
+              {isClearing ? 'Clearing...' : 'Clear'}
+            </Text>
           </TouchableOpacity>
         )}
       </View>
@@ -246,11 +257,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: spacing.sm,
   },
+  clearButtonDisabled: {
+    opacity: 0.5,
+  },
   clearButtonText: {
     fontSize: typography.fontSize.sm,
     fontFamily: typography.fontFamily.medium,
     color: colors.error,
     marginLeft: spacing.xs,
+  },
+  clearButtonTextDisabled: {
+    opacity: 0.7,
   },
   loadingContainer: {
     flex: 1,

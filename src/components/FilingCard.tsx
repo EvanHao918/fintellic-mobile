@@ -1,5 +1,8 @@
 // src/components/FilingCard.tsx
 // ENHANCED: Display AI-extracted keywords on filing cards
+// ENHANCED: Use detected_at timestamp for precise timing display
+// ENHANCED: Show specific datetime format instead of relative time
+// 🔥 FIXED: Move stats display to top-right to avoid overlap with bearish button
 
 import React from 'react';
 import {
@@ -27,16 +30,23 @@ export default function FilingCard({
   onPress, 
   isProUser = false 
 }: FilingCardProps) {
-  // 添加调试日志
-  console.log(`Filing ${filing.id} 数据:`, {
+  // ENHANCED: æ·»åŠ è¯¦ç»†çš„è°ƒè¯•æ—¥å¿—ï¼ŒåŒ…å«æ—¶é—´æˆ³ä¿¡æ¯
+  console.log(`Filing ${filing.id} æ•°æ®:`, {
     id: filing.id,
     ticker: filing.company_ticker,
-    tags: filing.tags,  // 查看tags内容
+    tags: filing.tags,
     view_count: filing.view_count,
     comment_count: filing.comment_count,
     vote_counts: filing.vote_counts,
     analysis_version: filing.analysis_version,
-    has_unified_feed_summary: !!filing.unified_feed_summary
+    has_unified_feed_summary: !!filing.unified_feed_summary,
+    // ENHANCED: Log comprehensive timing information
+    filing_date: filing.filing_date,
+    detected_at: filing.detected_at,
+    display_time: filing.display_time,
+    detection_age_minutes: filing.detection_age_minutes,
+    detection_age_hours: filing.detection_age_hours,
+    is_recently_detected: filing.is_recently_detected,
   });
 
   const scaleAnim = React.useRef(new Animated.Value(1)).current;
@@ -64,28 +74,62 @@ export default function FilingCard({
   
   const filingConfig = getFilingTypeConfig(filing.form_type);
 
-  // Format date
-  const formatDate = (dateString: string) => {
-    if (!dateString) return '';
+  // ENHANCED: Format date to show specific datetime instead of relative time
+  const formatDate = (filing: Filing) => {
+    // Use detected_at first, then filing_date as fallback
+    const dateToFormat = filing.detected_at || filing.display_time || filing.filing_date;
     
-    const date = new Date(dateString);
-    const now = new Date();
-    const diffInHours = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60));
+    if (!dateToFormat) return '';
     
-    if (diffInHours < 1) {
-      const diffInMinutes = Math.floor((now.getTime() - date.getTime()) / (1000 * 60));
-      return diffInMinutes === 0 ? 'Just now' : `${diffInMinutes}m ago`;
-    } else if (diffInHours < 24) {
-      return `${diffInHours}h ago`;
-    } else if (diffInHours < 48) {
-      return 'Yesterday';
-    } else {
-      return date.toLocaleDateString('en-US', { 
-        month: 'short', 
-        day: 'numeric',
-        year: date.getFullYear() !== now.getFullYear() ? 'numeric' : undefined
-      });
+    const date = new Date(dateToFormat);
+    
+    // Format as: "2025-08-22 17:26" (YYYY-MM-DD HH:mm) in user's local timezone
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const hours = String(date.getHours()).padStart(2, '0');
+    const minutes = String(date.getMinutes()).padStart(2, '0');
+    
+    return `${year}-${month}-${day} ${hours}:${minutes}`;
+  };
+
+  // ENHANCED: Get urgency indicator based on timing and filing type
+  const getUrgencyIndicator = () => {
+    // Check if filing is very recent (within 30 minutes for 8-K/S-1, 60 minutes for others)
+    const isVeryRecent = filing.detection_age_minutes !== null && filing.detection_age_minutes !== undefined && 
+      ((filing.form_type === '8-K' || filing.form_type === 'S-1') ? filing.detection_age_minutes < 30 : filing.detection_age_minutes < 60);
+    
+    const isRecent = filing.detection_age_minutes !== null && filing.detection_age_minutes !== undefined && filing.detection_age_minutes < 120;
+    
+    if (isVeryRecent && (filing.form_type === '8-K' || filing.form_type === 'S-1')) {
+      return (
+        <View style={[styles.urgencyIndicator, styles.urgentIndicator]}>
+          <Icon name="flash-on" size={10} color={colors.error} />
+          <Text style={[styles.urgencyText, styles.urgentText]}>URGENT</Text>
+        </View>
+      );
+    } else if (isRecent) {
+      return (
+        <View style={[styles.urgencyIndicator, styles.recentIndicator]}>
+          <Icon name="fiber-new" size={10} color={colors.warning} />
+          <Text style={[styles.urgencyText, styles.recentText]}>NEW</Text>
+        </View>
+      );
     }
+    
+    return null;
+  };
+
+  // ENHANCED: Get time indicator styling based on recency
+  const getTimeIndicatorStyle = () => {
+    if (filing.detection_age_minutes !== null && filing.detection_age_minutes !== undefined) {
+      if (filing.detection_age_minutes < 60) {
+        return styles.recentTimeText;
+      } else if (filing.detection_age_minutes < 240) { // 4 hours
+        return styles.moderateTimeText;
+      }
+    }
+    return styles.normalTimeText;
   };
 
   // Extract event type for 8-K filings
@@ -93,10 +137,10 @@ export default function FilingCard({
     ? filing.item_type 
     : null;
 
-  // 使用 tags 字段（后端返回的字段名）
+  // ä½¿ç"¨ tags å­—æ®µï¼ˆåŽç«¯è¿"å›žçš„å­—æ®µåï¼‰
   const displayKeywords = filing.tags?.slice(0, 3) || [];
 
-  // 获取显示的摘要文本 - 使用新的优先级逻辑
+  // èŽ·å–æ˜¾ç¤ºçš„æ'˜è¦æ–‡æœ¬ - ä½¿ç"¨æ–°çš„ä¼˜å…ˆçº§é€»è¾'
   const summaryText = getDisplaySummary(filing) || 'Processing summary...';
 
   // Handle press animations
@@ -125,6 +169,7 @@ export default function FilingCard({
         onPressOut={handlePressOut}
       >
         <View style={styles.card}>
+
           {/* Compact Header */}
           <View style={styles.header}>
             <View style={styles.headerLeft}>
@@ -139,12 +184,14 @@ export default function FilingCard({
                     <Icon name="auto-awesome" size={12} color={colors.primary} />
                   </View>
                 )}
+                {/* ENHANCED: Add enhanced urgency indicator */}
+                {getUrgencyIndicator()}
               </View>
               <View style={styles.companyInfoRow}>
                 <Text style={styles.companyName} numberOfLines={1}>
                   {filing.company_name}
                 </Text>
-                {/* 添加指数标签 */}
+                {/* æ·»åŠ æŒ‡æ•°æ ‡ç­¾ */}
                 {(filing.company?.is_sp500 || filing.company?.is_nasdaq100) && (
                   <View style={styles.indexTagsContainer}>
                     {filing.company?.is_sp500 && (
@@ -162,7 +209,13 @@ export default function FilingCard({
               </View>
             </View>
             <View style={styles.headerRight}>
-              <Text style={styles.date}>{formatDate(filing.filing_date)}</Text>
+              <Text style={[styles.date, getTimeIndicatorStyle()]}>{formatDate(filing)}</Text>
+              {/* ENHANCED: Show detection age indicator if available */}
+              {filing.detection_age_minutes !== null && filing.detection_age_minutes !== undefined && (
+                <Text style={styles.detectionIndicator}>
+                  {filing.detection_age_minutes < 60 ? `${filing.detection_age_minutes}m ago` : `${Math.floor(filing.detection_age_minutes / 60)}h ago`}
+                </Text>
+              )}
             </View>
           </View>
 
@@ -178,13 +231,13 @@ export default function FilingCard({
               </Text>
             </View>
 
-            {/* ENHANCED: Keywords Section - 显示AI提取的关键词 */}
+            {/* ENHANCED: Keywords Section - æ˜¾ç¤ºAIæå–çš„å…³é"®è¯ */}
             {displayKeywords.length > 0 && (
               <View style={styles.keywordsRow}>
                 <Icon 
                   name="local-offer" 
-                  size={10}              // 更小的图标
-                  color={colors.gray400} // 更淡的颜色
+                  size={10}              // æ›´å°çš„å›¾æ ‡
+                  color={colors.gray400} // æ›´æ·¡çš„é¢œè‰²
                   style={styles.keywordIcon}
                 />
                 {displayKeywords.map((keyword: string, index: number) => (
@@ -198,7 +251,7 @@ export default function FilingCard({
               </View>
             )}
 
-            {/* Key Info Row - 使用实际存在的字段 */}
+            {/* Key Info Row - ä½¿ç"¨å®žé™…å­˜åœ¨çš„å­—æ®µ */}
             {(filing.form_type === '10-Q' && filing.expectations_comparison) ||
              (filing.form_type === '10-K' && filing.fiscal_year) ||
              (filing.form_type === '8-K' && filing.items && filing.items.length > 0) ||
@@ -207,7 +260,7 @@ export default function FilingCard({
              filing.future_outlook ||
              (filing.risk_factors && filing.risk_factors.length > 0) ? (
               <View style={styles.metricsRow}>
-              {/* 财报类型特定信息 */}
+              {/* è´¢æŠ¥ç±»åž‹ç‰¹å®šä¿¡æ¯ */}
               {filing.form_type === '10-Q' && filing.expectations_comparison && (
                 <View style={styles.metricItem}>
                   <Icon name="assessment" size={12} color={colors.primary} />
@@ -253,24 +306,25 @@ export default function FilingCard({
             ) : null}
           </View>
 
-          {/* Compact Footer */}
+          {/* Compact Footer - 🔥 FIXED: Stats moved to top-right corner of footer */}
           <View style={styles.footer}>
-            {/* 使用新的独立 VotingModule - 提示文字会自动显示 */}
+            {/* 🔥 FIXED: Stats Display positioned in footer top-right */}
+            <View style={styles.footerStatsContainer}>
+              <StatsDisplay
+                commentCount={filing.comment_count || 0}
+                viewCount={filing.view_count || 0}
+                onCommentPress={() => onPress(filing)}
+                isProUser={isProUser}
+                mode="compact"
+              />
+            </View>
+            
             <VotingModule
               filingId={filing.id}
               initialVoteCounts={filing.vote_counts}
               initialUserVote={filing.user_vote}
               mode="compact"
               style={styles.votingModule}
-            />
-            
-            {/* 使用 StatsDisplay 组件 */}
-            <StatsDisplay
-              commentCount={filing.comment_count || 0}
-              viewCount={filing.view_count || 0}
-              onCommentPress={() => onPress(filing)}
-              isProUser={isProUser}
-              mode="compact"
             />
           </View>
         </View>
@@ -293,6 +347,21 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   
+  // 🔥 NEW: Footer stats container positioned in top-right of footer
+  footerStatsContainer: {
+    position: 'absolute',
+    top: spacing.xs, // 🔥 FIXED: Position inside footer, not above it
+    right: spacing.sm,
+    zIndex: 10,
+    backgroundColor: 'rgba(248, 250, 252, 0.9)', // Match footer background better
+    borderRadius: borderRadius.sm, // 🔥 FIXED: Use borderRadius.sm instead of xs
+    paddingHorizontal: spacing.xs,
+    paddingVertical: 1,
+    borderWidth: 0.5,
+    borderColor: colors.gray300,
+  },
+  
+  // Header Styles - Compact
   // Header Styles - Compact
   header: {
     flexDirection: 'row',
@@ -311,6 +380,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 2,
+    flexWrap: 'wrap',
   },
   ticker: {
     fontSize: typography.fontSize.base,
@@ -322,6 +392,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.xs,
     paddingVertical: 1,
     borderRadius: borderRadius.sm,
+    marginRight: spacing.xs,
   },
   filingBadgeText: {
     fontSize: 10,
@@ -330,11 +401,40 @@ const styles = StyleSheet.create({
     letterSpacing: 0.3,
   },
   v2Badge: {
-    marginLeft: spacing.xs,
     backgroundColor: colors.primary + '20',
     padding: 2,
     borderRadius: borderRadius.sm,
+    marginRight: spacing.xs,
   },
+  
+  // ENHANCED: Urgency indicator styles with different levels
+  urgencyIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 4,
+    paddingVertical: 1,
+    borderRadius: borderRadius.sm,
+    marginLeft: spacing.xs,
+  },
+  urgentIndicator: {
+    backgroundColor: colors.error + '20',
+  },
+  recentIndicator: {
+    backgroundColor: colors.warning + '20',
+  },
+  urgencyText: {
+    fontSize: 8,
+    fontWeight: typography.fontWeight.bold,
+    marginLeft: 2,
+    letterSpacing: 0.5,
+  },
+  urgentText: {
+    color: colors.error,
+  },
+  recentText: {
+    color: colors.warning,
+  },
+  
   companyInfoRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -347,7 +447,8 @@ const styles = StyleSheet.create({
     fontStyle: 'italic',
     marginRight: spacing.xs,
   },
-  // 指数标签样式
+  
+  // æŒ‡æ•°æ ‡ç­¾æ ·å¼
   indexTagsContainer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -375,22 +476,44 @@ const styles = StyleSheet.create({
   nasdaqTagText: {
     color: '#14532D',
   },
+  
   headerRight: {
     alignItems: 'flex-end',
   },
   date: {
     fontSize: typography.fontSize.xs,
+    fontWeight: typography.fontWeight.medium,
+  },
+  
+  // ENHANCED: Time indicator styles based on recency
+  recentTimeText: {
+    color: colors.primary,
+    fontWeight: typography.fontWeight.semibold,
+  },
+  moderateTimeText: {
+    color: colors.warning,
+    fontWeight: typography.fontWeight.medium,
+  },
+  normalTimeText: {
     color: colors.gray500,
+  },
+  
+  // ENHANCED: Detection indicator
+  detectionIndicator: {
+    fontSize: 8,
+    color: colors.gray400,
+    marginTop: 1,
+    fontStyle: 'italic',
   },
   
   // Content Styles - Dense
   content: {
     paddingHorizontal: spacing.sm,
     paddingTop: spacing.xs,
-    paddingBottom: spacing.xxs,  // 减少底部内边距
+    paddingBottom: spacing.xxs,  // å‡å°'åº•éƒ¨å†…è¾¹è·
   },
   summarySection: {
-    marginBottom: spacing.xs,     // 减少摘要下方的边距
+    marginBottom: spacing.xs,     // å‡å°'æ'˜è¦ä¸‹æ–¹çš„è¾¹è·
   },
   eventLabel: {
     fontSize: typography.fontSize.sm,
@@ -404,37 +527,37 @@ const styles = StyleSheet.create({
     fontFamily: 'Times New Roman, serif',
   },
   
-  // ENHANCED: Keywords Row - 更低调、紧凑的样式
+  // ENHANCED: Keywords Row - æ›´ä½Žè°ƒã€ç´§å‡'çš„æ ·å¼
   keywordsRow: {
     flexDirection: 'row',
     alignItems: 'center',
     flexWrap: 'wrap',
-    marginTop: -2,                // 负边距，更贴近上方内容
-    marginBottom: 2,              // 极小的底部边距（从4减到2）
+    marginTop: -2,                // è´Ÿè¾¹è·ï¼Œæ›´è´´è¿'ä¸Šæ–¹å†…å®¹
+    marginBottom: 2,              // æžå°çš„åº•éƒ¨è¾¹è·ï¼ˆä»Ž4å‡åˆ°2ï¼‰
   },
   keywordIcon: {
     marginRight: 4,
-    opacity: 0.6,                 // 图标更淡
+    opacity: 0.6,                 // å›¾æ ‡æ›´æ·¡
   },
   keywordBadge: {
-    backgroundColor: colors.gray100,  // 更淡的灰色背景
-    borderColor: colors.gray200,      // 淡边框
-    borderWidth: 0.5,                 // 更细的边框
-    paddingHorizontal: 6,             // 更小的水平内边距
-    paddingVertical: 1,               // 极小的垂直内边距
-    borderRadius: 3,                  // 更小的圆角
+    backgroundColor: colors.gray100,  // æ›´æ·¡çš„ç°è‰²èƒŒæ™¯
+    borderColor: colors.gray200,      // æ·¡è¾¹æ¡†
+    borderWidth: 0.5,                 // æ›´ç»†çš„è¾¹æ¡†
+    paddingHorizontal: 6,             // æ›´å°çš„æ°´å¹³å†…è¾¹è·
+    paddingVertical: 1,               // æžå°çš„åž‚ç›´å†…è¾¹è·
+    borderRadius: 3,                  // æ›´å°çš„åœ†è§'
     marginRight: 4,
   },
   keywordText: {
-    fontSize: 10,                     // 更小的字体
-    color: colors.gray600,            // 更淡的文字颜色
-    fontWeight: typography.fontWeight.medium,  // 不那么粗的字体
+    fontSize: 10,                     // æ›´å°çš„å­—ä½"
+    color: colors.gray600,            // æ›´æ·¡çš„æ–‡å­—é¢œè‰²
+    fontWeight: typography.fontWeight.medium,  // ä¸é‚£ä¹ˆç²—çš„å­—ä½"
     letterSpacing: 0.1,
-    lineHeight: 12,                   // 更紧凑的行高
+    lineHeight: 12,                   // æ›´ç´§å‡'çš„è¡Œé«˜
   },
   moreKeywordsText: {
-    fontSize: 9,                      // 更小
-    color: colors.gray400,            // 更淡
+    fontSize: 9,                      // æ›´å°
+    color: colors.gray400,            // æ›´æ·¡
     fontStyle: 'italic',
     marginLeft: 2,
   },
@@ -459,18 +582,18 @@ const styles = StyleSheet.create({
     fontWeight: typography.fontWeight.medium,
   },
   
-  // Footer - Compact
+  // Footer - Compact - 🔥 FIXED: Position relative to enable absolute positioning of stats
   footer: {
+    position: 'relative', // Enable absolute positioning for stats
     backgroundColor: colors.gray50,
     borderTopWidth: 1,
     borderTopColor: colors.gray100,
     paddingHorizontal: spacing.sm,
     paddingVertical: spacing.xs,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+    justifyContent: 'center',
     alignItems: 'center',
   },
   votingModule: {
-    flex: 1,
+    // 🔥 FIXED: No flex, let it size naturally
   },
 });

@@ -10,6 +10,7 @@ import {
   ActivityIndicator,
   Keyboard,
   Platform,
+  Dimensions,
 } from 'react-native';
 import { Icon } from 'react-native-elements';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -42,6 +43,13 @@ export const CustomDrawerHeader: React.FC<CustomDrawerHeaderProps> = ({
 }) => {
   const navigation = useNavigation<CombinedNavigationProp>();
   const insets = useSafeAreaInsets();
+  
+  // 🔥 问题1修复：获取屏幕宽度，动态计算搜索框宽度
+  const screenWidth = Dimensions.get('window').width;
+  const searchContainerWidth = Math.max(
+    Math.min(screenWidth * 0.4, 280), // 最大280px，屏幕40%
+    160 // 最小160px
+  );
   
   // Search state
   const [searchQuery, setSearchQuery] = useState('');
@@ -140,8 +148,8 @@ export const CustomDrawerHeader: React.FC<CustomDrawerHeaderProps> = ({
             <Text style={styles.title}>{title}</Text>
           </View>
           
-          {/* Always visible search bar */}
-          <View style={styles.searchContainer}>
+          {/* 🔥 问题1修复：响应式搜索框 */}
+          <View style={[styles.searchContainer, { width: searchContainerWidth }]}>
             <View style={styles.searchInputWrapper}>
               <Icon
                 name="search"
@@ -166,6 +174,20 @@ export const CustomDrawerHeader: React.FC<CustomDrawerHeaderProps> = ({
                     performSearch(searchQuery);
                   }
                 }}
+                // 防止浏览器自动填充
+                autoComplete="off"
+                textContentType="none"
+                keyboardType="default"
+                importantForAutofill="no"
+                // 添加Web特定属性（在React Native Web环境中有效）
+                {...(Platform.OS === 'web' && {
+                  autoComplete: 'off',
+                  'data-form-type': 'search',
+                  'data-autofill': 'false',
+                  name: 'ticker-search', // 明确的搜索用途
+                  role: 'searchbox',
+                  'aria-label': 'Search company ticker',
+                })}
               />
               {isSearching && (
                 <ActivityIndicator 
@@ -191,9 +213,15 @@ export const CustomDrawerHeader: React.FC<CustomDrawerHeaderProps> = ({
         </View>
       </View>
 
-      {/* Search Results Dropdown */}
+      {/* 🔥 问题1修复：搜索结果下拉框也使用动态宽度 */}
       {showResults && searchResults.length > 0 && (
-        <View style={styles.resultsContainer}>
+        <View style={[
+          styles.resultsContainer, 
+          { 
+            width: searchContainerWidth,
+            right: spacing.md // 保持右对齐
+          }
+        ]}>
           <ScrollView
             keyboardShouldPersistTaps="handled"
             style={styles.resultsList}
@@ -232,7 +260,14 @@ export const CustomDrawerHeader: React.FC<CustomDrawerHeaderProps> = ({
       
       {/* No Results */}
       {showResults && searchQuery.length > 0 && !isSearching && searchResults.length === 0 && (
-        <View style={[styles.resultsContainer, styles.noResultsWrapper]}>
+        <View style={[
+          styles.resultsContainer, 
+          styles.noResultsWrapper,
+          { 
+            width: searchContainerWidth,
+            right: spacing.md 
+          }
+        ]}>
           <View style={styles.noResultsContainer}>
             <Icon
               name="search-off"
@@ -266,6 +301,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     flex: 1,
+    marginRight: spacing.sm, // 🔥 添加右边距，确保与搜索框有间隔
   },
   menuButton: {
     padding: spacing.xs,
@@ -277,7 +313,10 @@ const styles = StyleSheet.create({
     color: colors.white,
   },
   searchContainer: {
-    width: 300, // 增加到 300px
+    // 🔥 问题1修复：移除固定宽度，改为动态设置
+    // width: 300, // 删除这行
+    minWidth: 160, // 添加最小宽度
+    maxWidth: 280, // 添加最大宽度
   },
   searchInputWrapper: {
     flexDirection: 'row',
@@ -307,8 +346,8 @@ const styles = StyleSheet.create({
   resultsContainer: {
     position: 'absolute',
     top: Platform.OS === 'ios' ? 88 : 68,
-    right: spacing.md,
-    width: 300, // 与搜索框同宽，增加到 300px
+    // 🔥 问题1修复：移除固定宽度，改为动态设置
+    // width: 300, // 删除这行，改为动态设置
     backgroundColor: colors.white,
     maxHeight: 400,
     borderRadius: 12,

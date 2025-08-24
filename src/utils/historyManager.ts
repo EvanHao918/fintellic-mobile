@@ -95,11 +95,28 @@ export class HistoryManager {
   }
 
   /**
-   * Clear all history
+   * Clear all history - 增强版本，包含验证和错误处理
    */
   static async clear(): Promise<void> {
     try {
+      // 先尝试删除存储项
       await AsyncStorage.removeItem(HISTORY_CONSTANTS.STORAGE_KEY);
+      
+      // 验证删除是否成功
+      const verifyCleared = await AsyncStorage.getItem(HISTORY_CONSTANTS.STORAGE_KEY);
+      if (verifyCleared !== null) {
+        // 如果第一次删除失败，再尝试一次
+        console.warn('First clear attempt may have failed, retrying...');
+        await AsyncStorage.removeItem(HISTORY_CONSTANTS.STORAGE_KEY);
+        
+        // 再次验证
+        const secondVerify = await AsyncStorage.getItem(HISTORY_CONSTANTS.STORAGE_KEY);
+        if (secondVerify !== null) {
+          throw new Error('Failed to clear history after multiple attempts');
+        }
+      }
+      
+      console.log('History cleared successfully');
     } catch (error) {
       console.error(HISTORY_CONSTANTS.ERROR_MESSAGES.CLEAR_FAILED, error);
       throw error;
@@ -198,6 +215,77 @@ export class HistoryManager {
     } catch (error) {
       console.error('Failed to get grouped history:', error);
       return {};
+    }
+  }
+
+  /**
+   * 批量操作：清除指定数量的最旧历史记录
+   */
+  static async clearOldestEntries(count: number): Promise<void> {
+    try {
+      const history = await this.getAll();
+      if (history.length <= count) {
+        // 如果要删除的数量大于等于总数，直接清空
+        await this.clear();
+        return;
+      }
+      
+      // 保留最新的记录
+      const updatedHistory = history.slice(0, history.length - count);
+      
+      await AsyncStorage.setItem(
+        HISTORY_CONSTANTS.STORAGE_KEY,
+        JSON.stringify(updatedHistory)
+      );
+    } catch (error) {
+      console.error('Failed to clear oldest entries:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 获取存储大小（用于调试）
+   */
+  static async getStorageSize(): Promise<number> {
+    try {
+      const historyData = await AsyncStorage.getItem(HISTORY_CONSTANTS.STORAGE_KEY);
+      return historyData ? new Blob([historyData]).size : 0;
+    } catch (error) {
+      console.error('Failed to get storage size:', error);
+      return 0;
+    }
+  }
+
+  /**
+   * 验证历史记录数据完整性
+   */
+  static async validateHistory(): Promise<{ isValid: boolean; issues: string[] }> {
+    try {
+      const history = await this.getAll();
+      const issues: string[] = [];
+      
+      // 检查每个历史项的完整性
+      history.forEach((item, index) => {
+        if (!item.filing || !item.filing.id) {
+          issues.push(`Item ${index}: Missing filing or filing ID`);
+        }
+        if (!item.viewedAt) {
+          issues.push(`Item ${index}: Missing viewedAt timestamp`);
+        }
+        if (item.viewedAt && isNaN(new Date(item.viewedAt).getTime())) {
+          issues.push(`Item ${index}: Invalid viewedAt timestamp`);
+        }
+      });
+      
+      return {
+        isValid: issues.length === 0,
+        issues
+      };
+    } catch (error) {
+      return {
+        isValid: false,
+        issues: [`Failed to validate history: ${error}`]
+      };
     }
   }
 }

@@ -501,7 +501,7 @@ export default function ProfileScreen() {
     );
   };
 
-  // Get subscription info text
+  // 🔥 修正：获取订阅信息文本 - 移除倒计时，显示永久价格锁定
   const getSubscriptionSubtitle = () => {
     if (!isProUser) {
       return 'Unlock unlimited access';
@@ -511,11 +511,12 @@ export default function ProfileScreen() {
       const planType = currentSubscription.subscription_type === 'MONTHLY' ? 'Monthly' : 'Annual';
       const price = currentSubscription.current_price || currentSubscription.monthly_price;
       
-      if (currentSubscription.expires_at) {
-        const daysRemaining = subscriptionHelpers.calculateDaysRemaining(currentSubscription.expires_at);
-        return `${planType} • $${price} • ${daysRemaining} days remaining`;
+      // 🔥 修正：Early Bird用户显示永久价格锁定，不显示倒计时
+      if (isEarlyBird) {
+        return `${planType} • $${price} • Permanent Price Lock`;
       }
       
+      // 🔥 修正：普通用户显示计划类型和价格，不显示天数倒计时
       return `${planType} • $${price}`;
     }
     
@@ -555,7 +556,8 @@ export default function ProfileScreen() {
       subtitle: 'Update your password',
       icon: 'lock',
       iconType: 'material',
-      action: () => Alert.alert('Coming Soon', 'Password change feature will be available soon.'),
+      // 🆕 Task 6: Navigate to ChangePassword screen
+      action: () => navigation.navigate('ChangePassword'),
       hasArrow: true,
     },
   ];
@@ -612,7 +614,8 @@ export default function ProfileScreen() {
       title: 'Privacy Policy',
       icon: 'security',
       iconType: 'material',
-      action: () => Alert.alert('Privacy Policy', 'Privacy policy will open in browser.'),
+      // 🆕 Task 6: Navigate to PrivacyPolicy screen
+      action: () => navigation.navigate('PrivacyPolicy'),
       hasArrow: true,
     },
     {
@@ -620,7 +623,8 @@ export default function ProfileScreen() {
       title: 'Terms of Service',
       icon: 'description',
       iconType: 'material',
-      action: () => Alert.alert('Terms', 'Terms of service will open in browser.'),
+      // 🆕 Task 6: Navigate to TermsOfService screen
+      action: () => navigation.navigate('TermsOfService'),
       hasArrow: true,
     },
     {
@@ -757,11 +761,16 @@ export default function ProfileScreen() {
             )}
           </View>
           
-          {/* Show user sequence number if early bird */}
-          {user?.user_sequence_number && user.user_sequence_number <= 10000 && (
-            <Text style={styles.userSequence}>
-              Member #{user.user_sequence_number}
-            </Text>
+          {/* 🔥 修正：显示早鸟用户编号和永久价格锁定状态 */}
+          {isEarlyBird && user?.user_sequence_number && user.user_sequence_number <= 10000 && (
+            <View style={styles.earlyBirdStatus}>
+              <Text style={styles.earlyBirdNumber}>
+                Early Bird Member #{user.user_sequence_number}
+              </Text>
+              <Text style={styles.permanentPriceLock}>
+                Monthly $39 • Permanent Price Lock ✓
+              </Text>
+            </View>
           )}
         </View>
 
@@ -845,6 +854,26 @@ const styles = StyleSheet.create({
     fontSize: typography.fontSize.sm,
     fontWeight: typography.fontWeight.medium,
     color: colors.warning,
+  },
+  // 🔥 新增：早鸟状态显示样式
+  earlyBirdStatus: {
+    alignItems: 'center',
+    marginTop: spacing.md,
+    backgroundColor: colors.warning + '10',
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm,
+    borderRadius: borderRadius.md,
+  },
+  earlyBirdNumber: {
+    fontSize: typography.fontSize.sm,
+    color: colors.warning,
+    fontWeight: typography.fontWeight.semibold,
+    marginBottom: spacing.xs,
+  },
+  permanentPriceLock: {
+    fontSize: typography.fontSize.sm,
+    color: colors.success,
+    fontWeight: typography.fontWeight.semibold,
   },
   userSequence: {
     fontSize: typography.fontSize.xs,

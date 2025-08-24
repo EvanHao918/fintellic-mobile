@@ -10,28 +10,23 @@ import {
   ActivityIndicator,
   RefreshControl,
   Modal,
+  Animated,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Icon } from 'react-native-elements';
 import { useSelector } from 'react-redux';
 import { RootState } from '../store';
-import { colors, typography, spacing, borderRadius } from '../theme';
 import apiClient from '../api/client';
 
-// Updated Types based on new API - 使用 form_type
 interface WatchedCompany {
   ticker: string;
   name: string;
   sector?: string;
-  industry?: string;
   is_sp500: boolean;
   is_nasdaq100: boolean;
-  indices: string[];
-  added_at: string;
   last_filing?: {
-    form_type: string;  // 改为 form_type
+    form_type: string;
     filing_date: string;
-    sentiment?: string;
   };
 }
 
@@ -41,13 +36,10 @@ interface CompanySearchResult {
   sector?: string;
   is_sp500: boolean;
   is_nasdaq100: boolean;
-  indices: string[];
   is_watchlisted: boolean;
 }
 
 export default function WatchlistScreen() {
-  const user = useSelector((state: RootState) => state.auth.user);
-  
   const [watchlist, setWatchlist] = useState<WatchedCompany[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -55,23 +47,17 @@ export default function WatchlistScreen() {
   const [showSearch, setShowSearch] = useState(false);
   const [searchResults, setSearchResults] = useState<CompanySearchResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
-  const [watchlistCount, setWatchlistCount] = useState(0);
-  
-  // Add state for delete confirmation modal
   const [deleteModalVisible, setDeleteModalVisible] = useState(false);
-  const [tickerToDelete, setTickerToDelete] = useState<string>('');
+  const [tickerToDelete, setTickerToDelete] = useState('');
   const [isDeleting, setIsDeleting] = useState(false);
+  const [searchAnimation] = useState(new Animated.Value(0));
 
-  // Load watchlist
   const loadWatchlist = async () => {
     try {
       setIsLoading(true);
-      // API client now returns data directly
       const data = await apiClient.get<WatchedCompany[]>('/watchlist/');
       setWatchlist(data || []);
-      setWatchlistCount(data?.length || 0);
     } catch (error) {
-      console.error('Failed to load watchlist:', error);
       Alert.alert('Error', 'Failed to load watchlist');
     } finally {
       setIsLoading(false);
@@ -83,21 +69,26 @@ export default function WatchlistScreen() {
     loadWatchlist();
   }, []);
 
-  const onRefresh = () => {
-    setRefreshing(true);
-    loadWatchlist();
+  const toggleSearch = () => {
+    setShowSearch(!showSearch);
+    Animated.timing(searchAnimation, {
+      toValue: showSearch ? 0 : 1,
+      duration: 200,
+      useNativeDriver: false,
+    }).start();
+    if (showSearch) {
+      setSearchQuery('');
+      setSearchResults([]);
+    }
   };
 
-  // Search companies using new endpoint
   const searchCompanies = async (query: string) => {
     if (!query.trim()) {
       setSearchResults([]);
       return;
     }
-
     setIsSearching(true);
     try {
-      // API client now returns data directly
       const data = await apiClient.get<CompanySearchResult[]>('/watchlist/search', {
         params: { q: query, limit: 20 }
       });
@@ -109,161 +100,96 @@ export default function WatchlistScreen() {
     }
   };
 
-  // Add to watchlist
   const addToWatchlist = async (ticker: string) => {
     try {
-      // API client now returns data directly
-      const data = await apiClient.post<{ message: string }>(`/watchlist/${ticker}`);
-      Alert.alert('Success', data.message);
-      
-      // Update local state
+      await apiClient.post(`/watchlist/${ticker}`);
       loadWatchlist();
-      
-      // Update search results to reflect watchlist status
       setSearchResults(searchResults.map(company => 
-        company.ticker === ticker 
-          ? { ...company, is_watchlisted: true }
-          : company
+        company.ticker === ticker ? { ...company, is_watchlisted: true } : company
       ));
     } catch (error: any) {
-      Alert.alert(
-        'Error',
-        error.message || 'Failed to add to watchlist'
-      );
+      Alert.alert('Error', error.message || 'Failed to add to watchlist');
     }
   };
 
-  // Remove from watchlist - opens confirmation modal
-  const removeFromWatchlist = async (ticker: string) => {
-    console.log('RemoveFromWatchlist called for ticker:', ticker);
-    setTickerToDelete(ticker);
-    setDeleteModalVisible(true);
-  };
-
-  // Handle actual deletion after confirmation
   const confirmDelete = async () => {
-    console.log('Confirming delete for:', tickerToDelete);
     setIsDeleting(true);
-    
     try {
-      const data = await apiClient.delete<{ message: string }>(`/watchlist/${tickerToDelete}`);
-      console.log('Delete successful:', data);
-      
-      // Close modal
+      await apiClient.delete(`/watchlist/${tickerToDelete}`);
       setDeleteModalVisible(false);
       setTickerToDelete('');
-      
-      // Show success message if Alert is available
-      if (Alert && Alert.alert) {
-        Alert.alert('Success', data.message || 'Company removed from watchlist');
-      }
-      
-      // Reload the watchlist
       loadWatchlist();
     } catch (error: any) {
-      console.error('Failed to remove from watchlist:', error);
-      if (Alert && Alert.alert) {
-        Alert.alert('Error', error.message || 'Failed to remove from watchlist');
-      }
+      Alert.alert('Error', error.message || 'Failed to remove from watchlist');
     } finally {
       setIsDeleting(false);
     }
   };
 
-  // Render watchlist item
-  const renderWatchlistItem = ({ item }: { item: WatchedCompany }) => {
-    const indicesText = item.indices.join(' • ');
-    
-    return (
-      <TouchableOpacity style={styles.watchlistItem}>
-        <View style={styles.companyInfo}>
-          <View style={styles.companyHeader}>
-            <Text style={styles.ticker}>{item.ticker}</Text>
-            <View style={styles.indicesBadge}>
-              <Text style={styles.indicesText}>{indicesText}</Text>
-            </View>
-          </View>
-          <Text style={styles.companyName}>{item.name}</Text>
-          {item.sector && (
-            <Text style={styles.sector}>{item.sector}</Text>
-          )}
-          {item.last_filing && (
-            <View style={styles.filingInfo}>
-              <Icon name="description" type="material" size={14} color={colors.textSecondary} />
-              <Text style={styles.filingText}>
-                {item.last_filing.form_type} • {new Date(item.last_filing.filing_date).toLocaleDateString()}
-              </Text>
-            </View>
-          )}
-        </View>
-        <TouchableOpacity
-          style={styles.removeButton}
-          onPress={() => removeFromWatchlist(item.ticker)}
-        >
-          <Icon name="remove-circle-outline" type="material" size={24} color={colors.error} />
-        </TouchableOpacity>
-      </TouchableOpacity>
-    );
+  const formatDate = (dateString: string) => {
+    const days = Math.floor((Date.now() - new Date(dateString).getTime()) / (1000 * 60 * 60 * 24));
+    if (days === 0) return 'Today';
+    if (days === 1) return 'Yesterday';
+    if (days < 7) return `${days}d ago`;
+    return new Date(dateString).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   };
 
-  // Render search result
-  const renderSearchResult = ({ item }: { item: CompanySearchResult }) => {
-    const indicesText = item.indices.join(' • ');
-    
-    return (
-      <TouchableOpacity 
-        style={styles.searchResultItem}
-        onPress={() => !item.is_watchlisted && addToWatchlist(item.ticker)}
-        disabled={item.is_watchlisted}
-      >
-        <View style={styles.companyInfo}>
-          <View style={styles.companyHeader}>
-            <Text style={styles.ticker}>{item.ticker}</Text>
-            <View style={styles.indicesBadge}>
-              <Text style={styles.indicesText}>{indicesText}</Text>
-            </View>
+  const renderWatchlistItem = ({ item }: { item: WatchedCompany }) => (
+    <View style={styles.card}>
+      <View style={styles.header}>
+        <View style={styles.tickerRow}>
+          <Text style={styles.ticker}>{item.ticker}</Text>
+          {item.is_sp500 && <View style={styles.badge}><Text style={styles.badgeText}>S&P</Text></View>}
+          {item.is_nasdaq100 && <View style={[styles.badge, styles.nasdaqBadge]}><Text style={[styles.badgeText, styles.nasdaqText]}>NASDAQ 100</Text></View>}
+        </View>
+        <TouchableOpacity onPress={() => { setTickerToDelete(item.ticker); setDeleteModalVisible(true); }}>
+          <Icon name="close" size={18} color="#9CA3AF" />
+        </TouchableOpacity>
+      </View>
+      
+      <Text style={styles.companyName}>{item.name}</Text>
+      {item.sector && <Text style={styles.sector}>{item.sector}</Text>}
+      
+      {item.last_filing && (
+        <View style={styles.filingRow}>
+          <View style={styles.filingBadge}>
+            <Text style={styles.filingText}>{item.last_filing.form_type}</Text>
           </View>
-          <Text style={styles.companyName}>{item.name}</Text>
-          {item.sector && (
-            <Text style={styles.sector}>{item.sector}</Text>
-          )}
+          <Text style={styles.filingDate}>{formatDate(item.last_filing.filing_date)}</Text>
+        </View>
+      )}
+    </View>
+  );
+
+  const renderSearchResult = ({ item }: { item: CompanySearchResult }) => (
+    <TouchableOpacity 
+      style={styles.searchCard}
+      onPress={() => !item.is_watchlisted && addToWatchlist(item.ticker)}
+      disabled={item.is_watchlisted}
+    >
+      <View style={styles.header}>
+        <View style={styles.tickerRow}>
+          <Text style={styles.ticker}>{item.ticker}</Text>
+          {item.is_sp500 && <View style={styles.badge}><Text style={styles.badgeText}>S&P</Text></View>}
+          {item.is_nasdaq100 && <View style={[styles.badge, styles.nasdaqBadge]}><Text style={[styles.badgeText, styles.nasdaqText]}>NASDAQ 100</Text></View>}
         </View>
         {item.is_watchlisted ? (
-          <View style={styles.watchedBadge}>
-            <Icon name="check" type="material" size={16} color={colors.success} />
-            <Text style={styles.watchedText}>Watching</Text>
-          </View>
+          <Icon name="check-circle" size={20} color="#10B981" />
         ) : (
-          <Icon name="add-circle-outline" type="material" size={24} color={colors.primary} />
+          <Icon name="add-circle" size={20} color="#3B82F6" />
         )}
-      </TouchableOpacity>
-    );
-  };
-
-  // Render empty state
-  const renderEmptyState = () => (
-    <View style={styles.emptyContainer}>
-      <Icon name="star-border" type="material" size={64} color={colors.textSecondary} />
-      <Text style={styles.emptyTitle}>No Companies in Watchlist</Text>
-      <Text style={styles.emptyText}>
-        Add S&P 500 or NASDAQ 100 companies to track their filings
-      </Text>
-      <TouchableOpacity
-        style={styles.addButton}
-        onPress={() => setShowSearch(true)}
-      >
-        <Icon name="add" type="material" size={20} color={colors.white} />
-        <Text style={styles.addButtonText}>Add Companies</Text>
-      </TouchableOpacity>
-    </View>
+      </View>
+      <Text style={styles.companyName}>{item.name}</Text>
+      {item.sector && <Text style={styles.sector}>{item.sector}</Text>}
+    </TouchableOpacity>
   );
 
   if (isLoading) {
     return (
       <SafeAreaView style={styles.container}>
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={colors.primary} />
-          <Text style={styles.loadingText}>Loading watchlist...</Text>
+        <View style={styles.center}>
+          <ActivityIndicator size="large" color="#3B82F6" />
+          <Text style={styles.loadingText}>Loading...</Text>
         </View>
       </SafeAreaView>
     );
@@ -271,114 +197,86 @@ export default function WatchlistScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
+      <View style={styles.headerContainer}>
         <View>
-          <Text style={styles.headerTitle}>My Watchlist</Text>
-          <Text style={styles.headerSubtitle}>
-            {watchlistCount} {watchlistCount === 1 ? 'company' : 'companies'}
-          </Text>
+          <Text style={styles.title}>Watchlist</Text>
+          <Text style={styles.subtitle}>{watchlist.length} companies</Text>
         </View>
-        <TouchableOpacity
-          style={styles.addIconButton}
-          onPress={() => setShowSearch(!showSearch)}
-        >
-          <Icon 
-            name={showSearch ? "close" : "add"} 
-            type="material" 
-            size={24} 
-            color={colors.primary} 
-          />
+        <TouchableOpacity style={[styles.searchButton, showSearch && styles.searchButtonActive]} onPress={toggleSearch}>
+          <Icon name={showSearch ? "close" : "search"} size={20} color={showSearch ? "#FFF" : "#3B82F6"} />
         </TouchableOpacity>
       </View>
 
-      {/* Search */}
       {showSearch && (
-        <View style={styles.searchContainer}>
-          <View style={styles.searchInputContainer}>
-            <Icon name="search" type="material" size={20} color={colors.textSecondary} />
+        <Animated.View style={[styles.searchContainer, { opacity: searchAnimation }]}>
+          <View style={styles.searchInput}>
+            <Icon name="search" size={18} color="#9CA3AF" />
             <TextInput
-              style={styles.searchInput}
-              placeholder="Search S&P 500 or NASDAQ 100 companies"
+              style={styles.input}
+              placeholder="Search companies..."
               value={searchQuery}
-              onChangeText={(text) => {
-                setSearchQuery(text);
-                searchCompanies(text);
-              }}
-              autoCapitalize="characters"
-              autoCorrect={false}
+              onChangeText={(text) => { setSearchQuery(text); searchCompanies(text); }}
+              autoFocus
+              selectionColor="transparent"
+              underlineColorAndroid="transparent"
             />
             {searchQuery.length > 0 && (
-              <TouchableOpacity onPress={() => setSearchQuery('')}>
-                <Icon name="close" type="material" size={20} color={colors.textSecondary} />
+              <TouchableOpacity onPress={() => { setSearchQuery(''); setSearchResults([]); }}>
+                <Icon name="close" size={16} color="#9CA3AF" />
               </TouchableOpacity>
             )}
           </View>
           
           {isSearching ? (
-            <ActivityIndicator style={styles.searchLoading} color={colors.primary} />
+            <View style={styles.searchLoading}>
+              <ActivityIndicator color="#3B82F6" />
+              <Text style={styles.searchLoadingText}>Searching...</Text>
+            </View>
           ) : searchResults.length > 0 ? (
             <FlatList
               data={searchResults}
               renderItem={renderSearchResult}
               keyExtractor={(item) => item.ticker}
               style={styles.searchResults}
-              keyboardShouldPersistTaps="handled"
             />
-          ) : searchQuery.length > 0 ? (
-            <Text style={styles.noResults}>No companies found</Text>
-          ) : null}
-        </View>
+          ) : searchQuery.length > 0 && (
+            <View style={styles.center}>
+              <Text style={styles.noResults}>No companies found</Text>
+            </View>
+          )}
+        </Animated.View>
       )}
 
-      {/* Watchlist */}
       <FlatList
         data={watchlist}
         renderItem={renderWatchlistItem}
         keyExtractor={(item) => item.ticker}
-        ListEmptyComponent={renderEmptyState}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadWatchlist(); }} />}
+        ListEmptyComponent={
+          <View style={styles.empty}>
+            <Icon name="bookmark-border" size={60} color="#3B82F6" />
+            <Text style={styles.emptyTitle}>Start Your Watchlist</Text>
+            <Text style={styles.emptyText}>Track companies and get instant SEC filing notifications</Text>
+            <TouchableOpacity style={styles.primaryButton} onPress={toggleSearch}>
+              <Icon name="add" size={20} color="#FFF" />
+              <Text style={styles.buttonText}>Add Companies</Text>
+            </TouchableOpacity>
+          </View>
         }
-        contentContainerStyle={watchlist.length === 0 ? styles.emptyListContainer : undefined}
+        contentContainerStyle={watchlist.length === 0 ? styles.emptyContainer : styles.listContainer}
       />
 
-      {/* Delete Confirmation Modal */}
-      <Modal
-        animationType="fade"
-        transparent={true}
-        visible={deleteModalVisible}
-        onRequestClose={() => setDeleteModalVisible(false)}
-      >
+      <Modal visible={deleteModalVisible} transparent animationType="fade">
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Remove from Watchlist</Text>
-            <Text style={styles.modalMessage}>
-              Are you sure you want to remove {tickerToDelete} from your watchlist?
-            </Text>
-            
+          <View style={styles.modal}>
+            <Text style={styles.modalTitle}>Remove {tickerToDelete}?</Text>
+            <Text style={styles.modalText}>You won't receive notifications for this company anymore.</Text>
             <View style={styles.modalButtons}>
-              <TouchableOpacity
-                style={[styles.modalButton, styles.cancelButton]}
-                onPress={() => {
-                  setDeleteModalVisible(false);
-                  setTickerToDelete('');
-                }}
-                disabled={isDeleting}
-              >
-                <Text style={styles.cancelButtonText}>Cancel</Text>
+              <TouchableOpacity style={styles.cancelButton} onPress={() => setDeleteModalVisible(false)}>
+                <Text style={styles.cancelText}>Cancel</Text>
               </TouchableOpacity>
-              
-              <TouchableOpacity
-                style={[styles.modalButton, styles.deleteButton]}
-                onPress={confirmDelete}
-                disabled={isDeleting}
-              >
-                {isDeleting ? (
-                  <ActivityIndicator size="small" color={colors.white} />
-                ) : (
-                  <Text style={styles.deleteButtonText}>Remove</Text>
-                )}
+              <TouchableOpacity style={styles.deleteButton} onPress={confirmDelete}>
+                {isDeleting ? <ActivityIndicator color="#FFF" /> : <Text style={styles.deleteText}>Remove</Text>}
               </TouchableOpacity>
             </View>
           </View>
@@ -389,249 +287,68 @@ export default function WatchlistScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  loadingText: {
-    marginTop: spacing.md,
-    fontSize: typography.fontSize.md,
-    color: colors.textSecondary,
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: spacing.lg,
-    backgroundColor: colors.white,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  headerTitle: {
-    fontSize: typography.fontSize.xl,
-    fontFamily: typography.fontFamily.bold,
-    color: colors.text,
-  },
-  headerSubtitle: {
-    fontSize: typography.fontSize.sm,
-    color: colors.textSecondary,
-    marginTop: spacing.xs,
-  },
-  addIconButton: {
-    padding: spacing.sm,
-  },
-  searchContainer: {
-    backgroundColor: colors.white,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  searchInputContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.backgroundSecondary,
-    borderRadius: borderRadius.md,
-    paddingHorizontal: spacing.md,
-    marginHorizontal: spacing.lg,
-    marginVertical: spacing.md,
-    height: 44,
-  },
-  searchInput: {
-    flex: 1,
-    marginLeft: spacing.sm,
-    fontSize: typography.fontSize.md,
-    color: colors.text,
-  },
-  searchLoading: {
-    marginVertical: spacing.md,
-  },
-  searchResults: {
-    maxHeight: 300,
-    marginBottom: spacing.md,
-  },
-  noResults: {
-    textAlign: 'center',
-    color: colors.textSecondary,
-    fontSize: typography.fontSize.sm,
-    marginVertical: spacing.md,
-  },
-  watchlistItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: spacing.lg,
-    backgroundColor: colors.white,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  searchResultItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
-    backgroundColor: colors.white,
-  },
-  companyInfo: {
-    flex: 1,
-  },
-  companyHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: spacing.xs,
-  },
-  ticker: {
-    fontSize: typography.fontSize.lg,
-    fontFamily: typography.fontFamily.bold,
-    color: colors.text,
-    marginRight: spacing.sm,
-  },
-  indicesBadge: {
-    backgroundColor: colors.primaryLight,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 2,
-    borderRadius: borderRadius.sm,
-  },
-  indicesText: {
-    fontSize: typography.fontSize.xs,
-    color: colors.primary,
-    fontFamily: typography.fontFamily.medium,
-  },
-  companyName: {
-    fontSize: typography.fontSize.md,
-    color: colors.text,
-    marginBottom: spacing.xs,
-  },
-  sector: {
-    fontSize: typography.fontSize.sm,
-    color: colors.textSecondary,
-  },
-  filingInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: spacing.xs,
-  },
-  filingText: {
-    fontSize: typography.fontSize.sm,
-    color: colors.textSecondary,
-    marginLeft: spacing.xs,
-  },
-  removeButton: {
-    padding: spacing.sm,
-  },
-  watchedBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.gray100,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xs,
-    borderRadius: borderRadius.md,
-  },
-  watchedText: {
-    fontSize: typography.fontSize.sm,
-    color: colors.success,
-    marginLeft: spacing.xs,
-    fontFamily: typography.fontFamily.medium,
-  },
-  emptyContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: spacing.xl,
-  },
-  emptyTitle: {
-    fontSize: typography.fontSize.lg,
-    fontFamily: typography.fontFamily.bold,
-    color: colors.text,
-    marginTop: spacing.lg,
-    marginBottom: spacing.sm,
-  },
-  emptyText: {
-    fontSize: typography.fontSize.md,
-    color: colors.textSecondary,
-    textAlign: 'center',
-    marginBottom: spacing.xl,
-  },
-  addButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.primary,
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
-    borderRadius: borderRadius.md,
-  },
-  addButtonText: {
-    color: colors.white,
-    fontSize: typography.fontSize.md,
-    fontFamily: typography.fontFamily.medium,
-    marginLeft: spacing.sm,
-  },
-  emptyListContainer: {
-    flexGrow: 1,
-  },
-  // Modal styles
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  modalContent: {
-    backgroundColor: colors.white,
-    borderRadius: borderRadius.lg,
-    padding: spacing.xl,
-    width: '80%',
-    maxWidth: 400,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    elevation: 5,
-  },
-  modalTitle: {
-    fontSize: typography.fontSize.lg,
-    fontFamily: typography.fontFamily.semibold,
-    color: colors.text,
-    marginBottom: spacing.md,
-    textAlign: 'center',
-  },
-  modalMessage: {
-    fontSize: typography.fontSize.md,
-    color: colors.textSecondary,
-    marginBottom: spacing.xl,
-    textAlign: 'center',
-    lineHeight: typography.fontSize.md * 1.5,
-  },
-  modalButtons: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    gap: spacing.md,
-  },
-  modalButton: {
-    flex: 1,
-    paddingVertical: spacing.md,
-    borderRadius: borderRadius.md,
-    alignItems: 'center',
-  },
-  cancelButton: {
-    backgroundColor: colors.gray100,
-  },
-  cancelButtonText: {
-    color: colors.text,
-    fontSize: typography.fontSize.md,
-    fontFamily: typography.fontFamily.medium,
-  },
-  deleteButton: {
-    backgroundColor: colors.error,
-  },
-  deleteButtonText: {
-    color: colors.white,
-    fontSize: typography.fontSize.md,
-    fontFamily: typography.fontFamily.medium,
-  },
+  container: { flex: 1, backgroundColor: '#F8FAFC' },
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  
+  // Header
+  headerContainer: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, backgroundColor: '#FFF' },
+  title: { fontSize: 28, fontWeight: '700', color: '#111827' },
+  subtitle: { fontSize: 14, color: '#6B7280', marginTop: 2 },
+  searchButton: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#EFF6FF', alignItems: 'center', justifyContent: 'center' },
+  searchButtonActive: { backgroundColor: '#3B82F6' },
+  
+  // Search
+  searchContainer: { backgroundColor: '#FFF', paddingBottom: 16 },
+  searchInput: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F8FAFC', borderRadius: 12, paddingHorizontal: 16, marginHorizontal: 20, marginTop: 16, height: 48 },
+  input: { flex: 1, marginLeft: 12, fontSize: 16, color: '#111827' },
+  searchLoading: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 20 },
+  searchLoadingText: { marginLeft: 8, color: '#6B7280' },
+  searchResults: { maxHeight: 300, marginTop: 8 },
+  noResults: { fontSize: 16, color: '#6B7280', textAlign: 'center', paddingVertical: 20 },
+  
+  // Cards
+  listContainer: { paddingTop: 8 },
+  card: { backgroundColor: '#FFF', marginHorizontal: 16, marginVertical: 6, borderRadius: 16, padding: 16 },
+  searchCard: { backgroundColor: '#FFF', marginHorizontal: 20, marginVertical: 4, borderRadius: 12, padding: 16 },
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
+  tickerRow: { flexDirection: 'row', alignItems: 'center', flex: 1 },
+  ticker: { fontSize: 18, fontWeight: '700', color: '#111827', marginRight: 8 },
+  
+  // Badges
+  badge: { backgroundColor: '#EFF6FF', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, marginLeft: 6 },
+  nasdaqBadge: { backgroundColor: '#F0FDF4' },
+  badgeText: { fontSize: 11, color: '#3B82F6', fontWeight: '700' },
+  nasdaqText: { color: '#059669' },
+  
+  // Content
+  companyName: { fontSize: 16, color: '#374151', fontWeight: '600', marginBottom: 4 },
+  sector: { fontSize: 14, color: '#6B7280' },
+  
+  // Filing
+  filingRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 12 },
+  filingBadge: { backgroundColor: '#F1F5F9', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
+  filingText: { fontSize: 12, fontWeight: '700', color: '#475569' },
+  filingDate: { fontSize: 12, color: '#9CA3AF' },
+  
+  // Empty State
+  emptyContainer: { flexGrow: 1 },
+  empty: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 32 },
+  emptyTitle: { fontSize: 20, fontWeight: '700', color: '#111827', marginTop: 16, marginBottom: 8 },
+  emptyText: { fontSize: 16, color: '#6B7280', textAlign: 'center', marginBottom: 32 },
+  primaryButton: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#3B82F6', paddingHorizontal: 24, paddingVertical: 14, borderRadius: 12 },
+  buttonText: { color: '#FFF', fontSize: 16, fontWeight: '600', marginLeft: 8 },
+  
+  // Modal
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'center', alignItems: 'center', paddingHorizontal: 20 },
+  modal: { backgroundColor: '#FFF', borderRadius: 20, padding: 24, width: '100%', maxWidth: 340 },
+  modalTitle: { fontSize: 18, fontWeight: '700', color: '#111827', marginBottom: 8, textAlign: 'center' },
+  modalText: { fontSize: 15, color: '#6B7280', textAlign: 'center', marginBottom: 24 },
+  modalButtons: { flexDirection: 'row', gap: 12 },
+  cancelButton: { flex: 1, paddingVertical: 12, alignItems: 'center', backgroundColor: '#F1F5F9', borderRadius: 8 },
+  deleteButton: { flex: 1, paddingVertical: 12, alignItems: 'center', backgroundColor: '#EF4444', borderRadius: 8 },
+  cancelText: { color: '#374151', fontWeight: '600' },
+  deleteText: { color: '#FFF', fontWeight: '600' },
+  
+  // Loading
+  loadingText: { marginTop: 16, fontSize: 16, color: '#6B7280' },
 });

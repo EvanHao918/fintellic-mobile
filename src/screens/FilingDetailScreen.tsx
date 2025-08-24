@@ -19,10 +19,12 @@ import Icon from 'react-native-vector-icons/MaterialIcons';
 import { useDispatch, useSelector } from 'react-redux';
 import { RootState, AppDispatch } from '../store';
 import { colors, typography, spacing, borderRadius, shadows } from '../theme';
-import { Filing, Comment, RootStackParamList, VisualData } from '../types';
+import { Filing, Comment, RootStackParamList, VisualData, CompanyInfo } from '../types';
 import { getFilingById, getFilingComments, addComment } from '../api/filings';
+import apiClient from '../api/client';
 import { AdaptiveChart } from '../components/charts';
 import { CommentItem, VotingModule } from '../components';
+import CompanyInfoCard from '../components/filing-details/CompanyInfoCard';
 import UpgradePromptModal from '../components/UpgradePromptModal';
 import { getFilingDetailComponent } from '../components/filing-details';
 import { useAddToHistory } from '../hooks/useHistory';
@@ -67,6 +69,8 @@ export default function FilingDetailScreen() {
   
   // State
   const [filing, setFiling] = useState<Filing | null>(null);
+  const [companyInfo, setCompanyInfo] = useState<CompanyInfo | null>(null);
+  const [isLoadingCompany, setIsLoadingCompany] = useState(false);
   const [comments, setComments] = useState<Comment[]>([]);
   const [newComment, setNewComment] = useState('');
   const [isLoading, setIsLoading] = useState(true);
@@ -79,12 +83,40 @@ export default function FilingDetailScreen() {
   // Use the history hook to automatically add to history when filing is loaded
   useAddToHistory(filing);
 
+  // 🆕 新增：获取公司信息的函数
+  const loadCompanyInfo = async (ticker: string) => {
+    if (!ticker || isLoadingCompany) return;
+    
+    try {
+      setIsLoadingCompany(true);
+      console.log('Loading company info for ticker:', ticker);
+      
+      // 调用公司档案API，包含FMP数据
+      const companyData = await apiClient.get(`/companies/${ticker}/profile`);
+      
+      console.log('Company info loaded:', companyData);
+      setCompanyInfo(companyData);
+      
+    } catch (error: any) {
+      console.error('Error loading company info:', error);
+      // 不要显示错误，因为这不是关键功能
+      // 公司信息加载失败时，组件会显示基础信息
+    } finally {
+      setIsLoadingCompany(false);
+    }
+  };
+
   // Load filing details and comments
   const loadFilingDetails = async () => {
     try {
       // Load filing details using the API function
       const filingData = await getFilingById(filingId.toString());
       setFiling(filingData);
+      
+      // 🆕 如果有公司ticker，加载公司信息
+      if (filingData?.company?.ticker) {
+        await loadCompanyInfo(filingData.company.ticker);
+      }
       
       // 🔥 只有Pro用户才加载评论
       if (isProUser) {
@@ -198,7 +230,14 @@ export default function FilingDetailScreen() {
     if (!filing) return null;
     
     const FilingComponent = getFilingDetailComponent(filing.form_type);
-    return <FilingComponent filing={filing} />;
+    
+    // 为差异化组件传递增强的公司信息
+    const enhancedFiling = {
+      ...filing,
+      company: companyInfo || filing.company
+    };
+    
+    return <FilingComponent filing={enhancedFiling} />;
   };
 
   // Load data on mount
@@ -530,6 +569,33 @@ const styles = StyleSheet.create({
     fontWeight: typography.fontWeight.semibold,
     color: colors.text,
     marginBottom: spacing.md,
+  },
+  // 🆕 公司信息加载状态样式
+  companyLoadingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.white,
+    marginHorizontal: spacing.md,
+    padding: spacing.md,
+    borderRadius: borderRadius.md,
+    marginBottom: spacing.sm,
+    ...Platform.select({
+      ios: {
+        shadowColor: colors.text,
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.05,
+        shadowRadius: 2,
+      },
+      android: {
+        elevation: 1,
+      },
+    }),
+  },
+  companyLoadingText: {
+    marginLeft: spacing.sm,
+    fontSize: typography.fontSize.sm,
+    color: colors.textSecondary,
   },
   replyIndicator: {
     flexDirection: 'row',
