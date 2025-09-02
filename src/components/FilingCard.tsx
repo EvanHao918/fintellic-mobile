@@ -3,6 +3,7 @@
 // ENHANCED: Use detected_at timestamp for precise timing display
 // ENHANCED: Show specific datetime format instead of relative time
 // 🔥 FIXED: Move stats display to top-right to avoid overlap with bearish button
+// 🔥 FIXED: Left align voting module in footer
 
 import React from 'react';
 import {
@@ -30,8 +31,8 @@ export default function FilingCard({
   onPress, 
   isProUser = false 
 }: FilingCardProps) {
-  // ENHANCED: æ·»åŠ è¯¦ç»†çš„è°ƒè¯•æ—¥å¿—ï¼ŒåŒ…å«æ—¶é—´æˆ³ä¿¡æ¯
-  console.log(`Filing ${filing.id} æ•°æ®:`, {
+  // ENHANCED: 添加详细的调试日志，包含时间戳信息
+  console.log(`Filing ${filing.id} 数据:`, {
     id: filing.id,
     ticker: filing.company_ticker,
     tags: filing.tags,
@@ -137,10 +138,10 @@ export default function FilingCard({
     ? filing.item_type 
     : null;
 
-  // ä½¿ç"¨ tags å­—æ®µï¼ˆåŽç«¯è¿"å›žçš„å­—æ®µåï¼‰
+  // 使用 tags 字段（后端返回的字段名）
   const displayKeywords = filing.tags?.slice(0, 3) || [];
 
-  // èŽ·å–æ˜¾ç¤ºçš„æ'˜è¦æ–‡æœ¬ - ä½¿ç"¨æ–°çš„ä¼˜å…ˆçº§é€»è¾'
+  // 获取显示的摘要文本 - 使用新的优先逻辑
   const summaryText = getDisplaySummary(filing) || 'Processing summary...';
 
   // Handle press animations
@@ -191,7 +192,7 @@ export default function FilingCard({
                 <Text style={styles.companyName} numberOfLines={1}>
                   {filing.company_name}
                 </Text>
-                {/* æ·»åŠ æŒ‡æ•°æ ‡ç­¾ */}
+                {/* 添加指数标签 */}
                 {(filing.company?.is_sp500 || filing.company?.is_nasdaq100) && (
                   <View style={styles.indexTagsContainer}>
                     {filing.company?.is_sp500 && (
@@ -231,13 +232,13 @@ export default function FilingCard({
               </Text>
             </View>
 
-            {/* ENHANCED: Keywords Section - æ˜¾ç¤ºAIæå–çš„å…³é"®è¯ */}
+            {/* ENHANCED: Keywords Section - 显示AI提取的关键词 */}
             {displayKeywords.length > 0 && (
               <View style={styles.keywordsRow}>
                 <Icon 
                   name="local-offer" 
-                  size={10}              // æ›´å°çš„å›¾æ ‡
-                  color={colors.gray400} // æ›´æ·¡çš„é¢œè‰²
+                  size={10}              // 更小的图标
+                  color={colors.gray400} // 更淡的颜色
                   style={styles.keywordIcon}
                 />
                 {displayKeywords.map((keyword: string, index: number) => (
@@ -251,7 +252,7 @@ export default function FilingCard({
               </View>
             )}
 
-            {/* Key Info Row - ä½¿ç"¨å®žé™…å­˜åœ¨çš„å­—æ®µ */}
+            {/* Key Info Row - 使用宽松存在的字段 */}
             {(filing.form_type === '10-Q' && filing.expectations_comparison) ||
              (filing.form_type === '10-K' && filing.fiscal_year) ||
              (filing.form_type === '8-K' && filing.items && filing.items.length > 0) ||
@@ -260,7 +261,7 @@ export default function FilingCard({
              filing.future_outlook ||
              (filing.risk_factors && filing.risk_factors.length > 0) ? (
               <View style={styles.metricsRow}>
-              {/* è´¢æŠ¥ç±»åž‹ç‰¹å®šä¿¡æ¯ */}
+              {/* 财务类型特定信息 */}
               {filing.form_type === '10-Q' && filing.expectations_comparison && (
                 <View style={styles.metricItem}>
                   <Icon name="assessment" size={12} color={colors.primary} />
@@ -306,7 +307,7 @@ export default function FilingCard({
             ) : null}
           </View>
 
-          {/* Compact Footer - 🔥 FIXED: Stats moved to top-right corner of footer */}
+          {/* Compact Footer - 🔥 FIXED: Left align voting module */}
           <View style={styles.footer}>
             {/* 🔥 FIXED: Stats Display positioned in footer top-right */}
             <View style={styles.footerStatsContainer}>
@@ -319,6 +320,7 @@ export default function FilingCard({
               />
             </View>
             
+            {/* 🔥 FIXED: Voting module now left-aligned */}
             <VotingModule
               filingId={filing.id}
               initialVoteCounts={filing.vote_counts}
@@ -361,7 +363,6 @@ const styles = StyleSheet.create({
     borderColor: colors.gray300,
   },
   
-  // Header Styles - Compact
   // Header Styles - Compact
   header: {
     flexDirection: 'row',
@@ -448,7 +449,7 @@ const styles = StyleSheet.create({
     marginRight: spacing.xs,
   },
   
-  // æŒ‡æ•°æ ‡ç­¾æ ·å¼
+  // 指数标签样式
   indexTagsContainer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -510,10 +511,10 @@ const styles = StyleSheet.create({
   content: {
     paddingHorizontal: spacing.sm,
     paddingTop: spacing.xs,
-    paddingBottom: spacing.xxs,  // å‡å°'åº•éƒ¨å†…è¾¹è·
+    paddingBottom: spacing.xxs,  // 减少底部边距
   },
   summarySection: {
-    marginBottom: spacing.xs,     // å‡å°'æ'˜è¦ä¸‹æ–¹çš„è¾¹è·
+    marginBottom: spacing.xs,     // 减少摘要下方的边距
   },
   eventLabel: {
     fontSize: typography.fontSize.sm,
@@ -527,37 +528,37 @@ const styles = StyleSheet.create({
     fontFamily: 'Times New Roman, serif',
   },
   
-  // ENHANCED: Keywords Row - æ›´ä½Žè°ƒã€ç´§å‡'çš„æ ·å¼
+  // ENHANCED: Keywords Row - 更低调紧凑的样式
   keywordsRow: {
     flexDirection: 'row',
     alignItems: 'center',
     flexWrap: 'wrap',
-    marginTop: -2,                // è´Ÿè¾¹è·ï¼Œæ›´è´´è¿'ä¸Šæ–¹å†…å®¹
-    marginBottom: 2,              // æžå°çš„åº•éƒ¨è¾¹è·ï¼ˆä»Ž4å‡åˆ°2ï¼‰
+    marginTop: -2,                // 负边距，更贴近上方内容
+    marginBottom: 2,              // 极小的底部边距（从4减到2）
   },
   keywordIcon: {
     marginRight: 4,
-    opacity: 0.6,                 // å›¾æ ‡æ›´æ·¡
+    opacity: 0.6,                 // 图标更淡
   },
   keywordBadge: {
-    backgroundColor: colors.gray100,  // æ›´æ·¡çš„ç°è‰²èƒŒæ™¯
-    borderColor: colors.gray200,      // æ·¡è¾¹æ¡†
-    borderWidth: 0.5,                 // æ›´ç»†çš„è¾¹æ¡†
-    paddingHorizontal: 6,             // æ›´å°çš„æ°´å¹³å†…è¾¹è·
-    paddingVertical: 1,               // æžå°çš„åž‚ç›´å†…è¾¹è·
-    borderRadius: 3,                  // æ›´å°çš„åœ†è§'
+    backgroundColor: colors.gray100,  // 更淡的灰色背景
+    borderColor: colors.gray200,      // 淡边框 
+    borderWidth: 0.5,                 // 更细的边框 
+    paddingHorizontal: 6,             // 更小的水平内边距
+    paddingVertical: 1,               // 极小的垂直内边距
+    borderRadius: 3,                  // 更小的圆角
     marginRight: 4,
   },
   keywordText: {
-    fontSize: 10,                     // æ›´å°çš„å­—ä½"
-    color: colors.gray600,            // æ›´æ·¡çš„æ–‡å­—é¢œè‰²
-    fontWeight: typography.fontWeight.medium,  // ä¸é‚£ä¹ˆç²—çš„å­—ä½"
+    fontSize: 10,                     // 更小的字体
+    color: colors.gray600,            // 更淡的文字颜色
+    fontWeight: typography.fontWeight.medium,  // 中等粗细的字体
     letterSpacing: 0.1,
-    lineHeight: 12,                   // æ›´ç´§å‡'çš„è¡Œé«˜
+    lineHeight: 12,                   // 更紧凑的行高
   },
   moreKeywordsText: {
-    fontSize: 9,                      // æ›´å°
-    color: colors.gray400,            // æ›´æ·¡
+    fontSize: 9,                      // 更小
+    color: colors.gray400,            // 更淡
     fontStyle: 'italic',
     marginLeft: 2,
   },
@@ -582,7 +583,7 @@ const styles = StyleSheet.create({
     fontWeight: typography.fontWeight.medium,
   },
   
-  // Footer - Compact - 🔥 FIXED: Position relative to enable absolute positioning of stats
+  // Footer - 🔥 FIXED: Left align voting module
   footer: {
     position: 'relative', // Enable absolute positioning for stats
     backgroundColor: colors.gray50,
@@ -590,10 +591,10 @@ const styles = StyleSheet.create({
     borderTopColor: colors.gray100,
     paddingHorizontal: spacing.sm,
     paddingVertical: spacing.xs,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: 'flex-start', // 🔥 FIXED: Left align voting module
+    alignItems: 'flex-start',     // 🔥 FIXED: Left align voting module
   },
   votingModule: {
-    // 🔥 FIXED: No flex, let it size naturally
+    // 🔥 FIXED: Voting module will now be left-aligned
   },
 });

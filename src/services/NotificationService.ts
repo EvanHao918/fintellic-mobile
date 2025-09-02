@@ -1,5 +1,6 @@
 // Push Notification Service
 // Phase 4: Handle device token registration and permission requests
+// FINAL: All type errors fixed, removed Redux dependencies to avoid circular imports
 
 import { Platform, Alert, Linking } from 'react-native';
 import * as Notifications from 'expo-notifications';
@@ -14,6 +15,12 @@ const STORAGE_KEYS = {
   PERMISSION_ASKED: '@hermespeed_permission_asked',
   LAST_TOKEN_SYNC: '@hermespeed_last_token_sync',
 };
+
+// Navigation reference type
+interface NavigationRef {
+  navigate: (name: string, params?: any) => void;
+  getCurrentRoute: () => any;
+}
 
 // Configure notification handler
 Notifications.setNotificationHandler({
@@ -30,6 +37,15 @@ class NotificationService {
   private pushToken: string | null = null;
   private notificationListener: any = null;
   private responseListener: any = null;
+  private navigationRef: NavigationRef | null = null;
+
+  /**
+   * Set navigation reference for handling notification taps
+   * Call this from your root App component
+   */
+  setNavigationRef(navigationRef: NavigationRef) {
+    this.navigationRef = navigationRef;
+  }
 
   /**
    * Initialize the notification service
@@ -47,6 +63,7 @@ class NotificationService {
 
       // Get or request permission
       const hasPermission = await this.checkPermission();
+      
       if (hasPermission) {
         await this.registerForPushNotifications();
       }
@@ -68,7 +85,9 @@ class NotificationService {
     // Handle notifications received while app is foregrounded
     this.notificationListener = Notifications.addNotificationReceivedListener(notification => {
       console.log('Notification received:', notification);
-      // You can show a custom in-app notification here
+      
+      // Handle foreground notifications
+      this.handleForegroundNotification(notification);
     });
 
     // Handle user tapping on notification
@@ -79,20 +98,110 @@ class NotificationService {
   }
 
   /**
-   * Handle notification tap/response
+   * Handle incoming notification when app is in foreground
+   */
+  private handleForegroundNotification(notification: Notifications.Notification) {
+    const data = notification.request.content.data;
+    
+    // For critical notifications, show an alert even when app is active
+    if (data?.type === 'subscription' || data?.priority === 'high') {
+      Alert.alert(
+        notification.request.content.title || 'HermeSpeed',
+        notification.request.content.body || '',
+        [
+          { text: 'Dismiss', style: 'cancel' },
+          { 
+            text: 'View', 
+            onPress: () => this.handleNotificationResponse({
+              notification,
+              actionIdentifier: 'default'
+            } as any)
+          }
+        ]
+      );
+    }
+  }
+
+  /**
+   * Handle notification tap/response with proper navigation
+   * FIXED: Type safety for notification data
    */
   private handleNotificationResponse(response: Notifications.NotificationResponse) {
     const { notification } = response;
     const data = notification.request.content.data;
 
-    // Navigate based on notification type
-    if (data?.type === 'filing_release' && data?.filingId) {
-      // Navigate to filing detail
-      // You'll need to implement navigation from your root component
-      console.log('Navigate to filing:', data.filingId);
-    } else if (data?.type === 'subscription') {
-      // Navigate to subscription page
-      console.log('Navigate to subscription');
+    if (!this.navigationRef) {
+      console.warn('Navigation ref not set - cannot navigate from notification');
+      return;
+    }
+
+    try {
+      // Navigate based on notification type
+      if (data?.type === 'filing_release') {
+        if (data?.filing_id) {
+          // Navigate to specific filing detail
+          this.navigationRef.navigate('FilingDetail', { 
+            filingId: parseInt(data.filing_id as string),
+            ticker: (data.ticker as string) || 'Unknown',
+            source: 'push_notification'
+          });
+        } else if (data?.ticker) {
+          // Navigate to company filings if we have ticker but no specific filing
+          this.navigationRef.navigate('CompanyFilings', { 
+            ticker: data.ticker as string,
+            source: 'push_notification'
+          });
+        } else {
+          // Fallback to home screen
+          this.navigationRef.navigate('Home', {
+            source: 'push_notification'
+          });
+        }
+        
+      } else if ((data?.type as string) === 'subscription' || (data?.type as string)?.includes('subscription')) {
+        // Navigate to subscription management screen
+        this.navigationRef.navigate('Subscription', {
+          source: 'push_notification'
+        });
+        
+      } else if ((data?.type as string) === 'daily_reset') {
+        // Navigate to home screen with reset message for free users
+        this.navigationRef.navigate('Home', {
+          showResetMessage: true,
+          source: 'push_notification'
+        });
+        
+      } else if ((data?.type as string) === 'test') {
+        // For test notifications, navigate to notifications settings
+        this.navigationRef.navigate('Notifications', {
+          source: 'push_notification',
+          showTestSuccess: true
+        });
+        
+      } else if ((data?.type as string) === 'market_summary') {
+        // Navigate to calendar or home for market summaries
+        this.navigationRef.navigate('Calendar', {
+          source: 'push_notification'
+        });
+        
+      } else {
+        // Default case: navigate to home screen
+        this.navigationRef.navigate('Home', {
+          source: 'push_notification'
+        });
+      }
+      
+      console.log(`Navigated from ${(data?.type as string) || 'unknown'} notification`);
+      
+    } catch (navigationError) {
+      console.error('Error navigating from notification:', navigationError);
+      
+      // Ultimate fallback: try to navigate to home without params
+      try {
+        this.navigationRef.navigate('Home');
+      } catch (fallbackError) {
+        console.error('All navigation attempts failed:', fallbackError);
+      }
     }
   }
 
@@ -126,7 +235,6 @@ class NotificationService {
           [
             { text: 'Cancel', style: 'cancel' },
             { text: 'Open Settings', onPress: () => {
-              // Use Linking to open app settings
               Linking.openSettings();
             }},
           ]
@@ -162,10 +270,11 @@ class NotificationService {
         // Configure channel for Android
         if (Platform.OS === 'android') {
           await Notifications.setNotificationChannelAsync('default', {
-            name: 'Default',
+            name: 'HermeSpeed Filings',
             importance: Notifications.AndroidImportance.MAX,
             vibrationPattern: [0, 250, 250, 250],
-            lightColor: '#FF231F7C',
+            lightColor: '#E88B00', // HermeSpeed brand color
+            description: 'Notifications for new SEC filings and updates',
           });
         }
 
@@ -271,21 +380,88 @@ class NotificationService {
    * Schedule a local notification (for testing)
    */
   async scheduleTestNotification() {
-    await Notifications.scheduleNotificationAsync({
-      content: {
-        title: 'HermeSpeed Test',
-        body: 'This is a test notification from HermeSpeed!',
-        data: { type: 'test' },
-      },
-      trigger: null, // Immediate notification
-    });
+    try {
+      const notificationId = await Notifications.scheduleNotificationAsync({
+        content: {
+          title: 'HermeSpeed Test',
+          body: 'This is a test notification from HermeSpeed!',
+          data: { 
+            type: 'test',
+            timestamp: new Date().toISOString(),
+            source: 'local'
+          },
+        },
+        trigger: null, // Immediate notification
+      });
+
+      return notificationId;
+    } catch (error) {
+      console.error('Error scheduling test notification:', error);
+      return null;
+    }
   }
 
   /**
    * Clear all notifications
    */
   async clearAllNotifications() {
-    await Notifications.dismissAllNotificationsAsync();
+    try {
+      await Notifications.dismissAllNotificationsAsync();
+      
+      // Also clear badge count on iOS
+      if (Platform.OS === 'ios') {
+        await Notifications.setBadgeCountAsync(0);
+      }
+    } catch (error) {
+      console.error('Error clearing notifications:', error);
+    }
+  }
+
+  /**
+   * Set badge count (iOS only)
+   */
+  async setBadgeCount(count: number) {
+    try {
+      if (Platform.OS === 'ios') {
+        await Notifications.setBadgeCountAsync(count);
+      }
+    } catch (error) {
+      console.error('Error setting badge count:', error);
+    }
+  }
+
+  /**
+   * Force refresh notification data
+   */
+  async refreshNotificationData() {
+    try {
+      // Direct API calls instead of Redux to avoid circular dependencies
+      await notificationAPI.getSettings();
+      await notificationAPI.getHistory(50, 0);
+      
+      return true;
+    } catch (error) {
+      console.error('Error refreshing notification data:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Check if notifications are properly configured
+   */
+  async getSystemStatus() {
+    const hasPermission = await this.checkPermission();
+    const pushToken = this.getPushToken();
+    
+    return {
+      hasPermission,
+      hasToken: !!pushToken,
+      deviceSupported: Device.isDevice,
+      platform: Platform.OS,
+      
+      // Configuration status
+      isFullyConfigured: hasPermission && !!pushToken
+    };
   }
 
   /**

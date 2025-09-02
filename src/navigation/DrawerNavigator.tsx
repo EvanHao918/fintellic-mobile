@@ -10,7 +10,7 @@ import { RootState } from '../store';
 import { logout } from '../store/slices/authSlice';
 import { colors, typography, spacing } from '../theme';
 import CustomDrawerHeader from '../components/CustomDrawerHeader';
-import { isProUser } from '../types'; // 导入辅助函数
+import { isProUser } from '../types'; // å¯¼å…¥è¾…åŠ©å‡½æ•°
 
 // Import screens
 import HomeScreen from '../screens/HomeScreen';
@@ -18,7 +18,8 @@ import CalendarScreen from '../screens/CalendarScreen';
 import WatchlistScreen from '../screens/WatchlistScreen';
 import HistoryScreen from '../screens/HistoryScreen';
 import ProfileScreen from '../screens/ProfileScreen';
-// 🆕 Task 6: Import new screens
+import NotificationScreen from '../screens/NotificationScreen'; // NEW: Import NotificationScreen
+// ðŸ†• Task 6: Import new screens
 import ChangePasswordScreen from '../screens/ChangePasswordScreen';
 import TermsScreen from '../screens/TermsScreen';
 import PrivacyPolicyScreen from '../screens/PrivacyPolicyScreen';
@@ -30,9 +31,10 @@ export type DrawerParamList = {
   Watchlist: undefined;
   History: undefined;
   Profile: undefined;
+  Notifications: undefined; // NEW: Add Notifications to param list
 };
 
-// 🆕 Task 6: Stack navigator param list for Profile-related screens
+// ðŸ†• Task 6: Stack navigator param list for Profile-related screens
 export type ProfileStackParamList = {
   ProfileMain: undefined;
   ChangePassword: undefined;
@@ -43,7 +45,7 @@ export type ProfileStackParamList = {
 const Drawer = createDrawerNavigator<DrawerParamList>();
 const ProfileStack = createStackNavigator<ProfileStackParamList>();
 
-// 🆕 Task 6: Profile Stack Navigator with nested screens
+// ðŸ†• Task 6: Profile Stack Navigator with nested screens
 function ProfileStackNavigator() {
   return (
     <ProfileStack.Navigator
@@ -55,7 +57,7 @@ function ProfileStackNavigator() {
         name="ProfileMain" 
         component={ProfileScreen}
       />
-      {/* 🆕 Task 6: New screens */}
+      {/* ðŸ†• Task 6: New screens */}
       <ProfileStack.Screen 
         name="ChangePassword" 
         component={ChangePasswordScreen}
@@ -103,7 +105,7 @@ function CustomDrawerContent(props: DrawerContentComponentProps) {
     dispatch(logout() as any);
   };
 
-  // 🔥 关键修复：使用统一的isProUser函数判断
+  // ðŸ"¥ å…³é"®ä¿®å¤ï¼šä½¿ç"¨ç»Ÿä¸€çš„isProUserå‡½æ•°åˆ¤æ–­
   const isPro = isProUser(user);
 
   return (
@@ -163,6 +165,9 @@ export default function DrawerNavigator() {
             case 'Profile':
               iconName = 'person';
               break;
+            case 'Notifications': // NEW: Icon for Notifications
+              iconName = 'notifications';
+              break;
             default:
               iconName = 'home';
           }
@@ -217,7 +222,16 @@ export default function DrawerNavigator() {
           drawerLabel: 'History',
         }}
       />
-      {/* 🆕 Task 6: Replace ProfileScreen with ProfileStackNavigator */}
+      {/* NEW: Add Notifications screen */}
+      <Drawer.Screen 
+        name="Notifications" 
+        component={NotificationScreen}
+        options={{ 
+          title: 'Notifications',
+          drawerLabel: 'Notifications',
+        }}
+      />
+      {/* ðŸ†• Task 6: Replace ProfileScreen with ProfileStackNavigator */}
       <Drawer.Screen 
         name="Profile" 
         component={ProfileStackNavigator}

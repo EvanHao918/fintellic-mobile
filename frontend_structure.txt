@@ -42,13 +42,17 @@ src/
 │   └── DrawerNavigator.tsx
 ├── screens
 │   ├── CalendarScreen.tsx
+│   ├── ChangePasswordScreen.tsx
 │   ├── CompanyFilingsScreen.tsx
 │   ├── FilingDetailScreen.tsx
 │   ├── HistoryScreen.tsx
 │   ├── HomeScreen.tsx
 │   ├── LoginScreen.tsx
+│   ├── NotificationScreen.tsx
+│   ├── PrivacyPolicyScreen.tsx
 │   ├── ProfileScreen.tsx
 │   ├── SubscriptionScreen.tsx
+│   ├── TermsScreen.tsx
 │   └── WatchlistScreen.tsx
 ├── services
 │   ├── IAPService.ts
@@ -75,4 +79,4 @@ src/
     ├── storage.ts
     └── textHelpers.ts
 
-16 directories, 60 files
+16 directories, 64 files

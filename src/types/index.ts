@@ -145,7 +145,7 @@ export interface SmartMarkupData {
   insights: string[];     // Key insights prefixed with [!]
 }
 
-// Enhanced Company Type with full details
+// 🔥 关键修复：更新 CompanyInfo 接口以包含 FMP API 新增字段
 export interface CompanyInfo {
   id: number;
   cik: string;
@@ -175,6 +175,11 @@ export interface CompanyInfo {
   fiscal_year_end?: string;
   state?: string;
   ipo_date?: string;
+  
+  // 🆕 FMP API 新增字段（后端优化项目添加）
+  market_cap_formatted?: string;    // 格式化市值显示，如 "$3.38T"
+  pe_ratio?: number;                // PE 比率数据
+  pe_ratio_formatted?: string;      // 格式化 PE 比率显示，如 "31.97"
   
   // SIC classification (legacy)
   sic?: string;

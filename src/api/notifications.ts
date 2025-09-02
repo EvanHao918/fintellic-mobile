@@ -37,6 +37,21 @@ export const notificationAPI = {
     }
   },
 
+  // NEW: Get notification history
+  getHistory: async (limit: number = 50, offset: number = 0): Promise<NotificationHistory[]> => {
+    try {
+      const response = await apiClient.get<NotificationHistory[]>(
+        '/notifications/history',
+        { params: { limit, offset } }
+      );
+      return response;
+    } catch (error) {
+      console.error('Error fetching notification history:', error);
+      // Return empty array on error instead of throwing
+      return [];
+    }
+  },
+
   // Register device token for push notifications
   registerDeviceToken: async (data: DeviceTokenRegistration): Promise<{ message: string; token_id?: number }> => {
     try {
@@ -61,20 +76,6 @@ export const notificationAPI = {
       return response;
     } catch (error) {
       console.error('Error unregistering device token:', error);
-      throw error;
-    }
-  },
-
-  // Get notification history
-  getHistory: async (limit: number = 50, offset: number = 0): Promise<NotificationHistory[]> => {
-    try {
-      const response = await apiClient.get<NotificationHistory[]>(
-        '/notifications/history',
-        { params: { limit, offset } }
-      );
-      return response;
-    } catch (error) {
-      console.error('Error fetching notification history:', error);
       throw error;
     }
   },
@@ -123,7 +124,7 @@ export const notificationAPI = {
     return notificationAPI.updateSettings(preferences);
   },
 
-  // Update quiet hours
+  // Update quiet hours (deprecated but kept for compatibility)
   updateQuietHours: async (start: string | null, end: string | null): Promise<NotificationSettings> => {
     return notificationAPI.updateSettings({
       quiet_hours_start: start,
@@ -139,7 +140,7 @@ export const notificationHelpers = {
     return settings.notification_enabled;
   },
 
-  // Check if quiet hours are active
+  // Check if quiet hours are active (deprecated)
   isInQuietHours: (settings: NotificationSettings): boolean => {
     if (!settings.quiet_hours_start || !settings.quiet_hours_end) {
       return false;
@@ -160,7 +161,7 @@ export const notificationHelpers = {
     return currentTime >= start && currentTime <= end;
   },
 
-  // Format quiet hours for display
+  // Format quiet hours for display (deprecated)
   formatQuietHours: (start: string | null, end: string | null): string => {
     if (!start || !end) {
       return 'Not set';
@@ -189,5 +190,21 @@ export const notificationHelpers = {
     if (settings.subscription_alerts) count++;
     if (settings.market_summary) count++;
     return count;
+  },
+
+  // NEW: Get notification summary text
+  getNotificationSummary: (settings: NotificationSettings): string => {
+    if (!settings.notification_enabled) {
+      return 'Notifications disabled';
+    }
+
+    const enabledTypes = notificationHelpers.getEnabledFilingTypes(settings);
+    const scope = settings.watchlist_only ? 'Watchlist only' : 'All companies';
+    
+    if (enabledTypes.length === 0) {
+      return `${scope} • No filing types selected`;
+    }
+    
+    return `${scope} • ${enabledTypes.length} filing type${enabledTypes.length > 1 ? 's' : ''}`;
   },
 };

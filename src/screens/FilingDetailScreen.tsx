@@ -231,10 +231,10 @@ export default function FilingDetailScreen() {
     
     const FilingComponent = getFilingDetailComponent(filing.form_type);
     
-    // 为差异化组件传递增强的公司信息
+    // 🔥 关键修复：正确传递增强的公司信息，确保类型匹配
     const enhancedFiling = {
       ...filing,
-      company: companyInfo || filing.company
+      company: companyInfo || filing.company  // 这里 companyInfo 是 CompanyInfo | null，与 CompanyInfo | undefined 兼容
     };
     
     return <FilingComponent filing={enhancedFiling} />;
