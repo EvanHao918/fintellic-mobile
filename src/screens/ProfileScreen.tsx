@@ -127,15 +127,17 @@ export default function ProfileScreen() {
     
     if (currentSubscription) {
       const planType = currentSubscription.subscription_type === 'MONTHLY' ? 'Monthly' : 'Annual';
-      const price = currentSubscription.current_price || currentSubscription.monthly_price;
+      const price = currentSubscription.current_price;
       
       // Early Bird users show permanent price lock
-      if (isEarlyBird) {
-        return `${planType} • $${price} • Permanent Price Lock`;
+      if (isEarlyBird && price) {
+        return `${planType} • ${price} • Permanent Price Lock`;
       }
       
       // Regular users show plan type and price
-      return `${planType} • $${price}`;
+      if (price) {
+        return `${planType} • ${price}`;
+      }
     }
     
     return 'Manage your Pro subscription';
@@ -160,19 +162,6 @@ export default function ProfileScreen() {
       icon: 'lock',
       iconType: 'material',
       action: () => navigation.navigate('ChangePassword'),
-      hasArrow: true,
-    },
-  ];
-
-  // Notification settings - temporarily disabled until NotificationScreen is added to navigation
-  const notificationSettings: SettingItem[] = [
-    {
-      id: 'notifications',
-      title: 'Notifications',
-      subtitle: 'Manage push notification preferences',
-      icon: 'notifications',
-      iconType: 'material',
-      action: () => Alert.alert('Coming Soon', 'Notification settings will be available in the next update.'),
       hasArrow: true,
     },
   ];
@@ -295,6 +284,7 @@ export default function ProfileScreen() {
           />
           <Text style={styles.userName}>{user?.full_name || 'User'}</Text>
           <Text style={styles.userEmail}>{user?.email}</Text>
+          
           <View style={styles.membershipBadge}>
             {isProUser ? (
               <>
@@ -342,7 +332,6 @@ export default function ProfileScreen() {
 
         {/* Settings Sections */}
         {renderSection('Account', accountSettings)}
-        {renderSection('Notifications', notificationSettings)}
         {renderSection('App', appSettings)}
         {renderSection('', dangerSettings)}
 
@@ -391,6 +380,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.xs,
     borderRadius: borderRadius.full,
+    marginTop: spacing.sm,
   },
   membershipText: {
     fontSize: typography.fontSize.sm,

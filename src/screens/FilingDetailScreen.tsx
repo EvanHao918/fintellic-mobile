@@ -245,11 +245,15 @@ export default function FilingDetailScreen() {
     loadFilingDetails();
     
     // Fix for web scrolling issue
+    // @ts-ignore - document only exists in web environment
     if (Platform.OS === 'web') {
+      // @ts-ignore
       const originalOverflow = document.body.style.overflow;
+      // @ts-ignore
       document.body.style.overflow = 'auto';
       
       return () => {
+        // @ts-ignore
         document.body.style.overflow = originalOverflow;
       };
     }
@@ -489,7 +493,7 @@ export default function FilingDetailScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: colors.background, // 🎨 Changed back to white
     paddingTop: Platform.OS === 'ios' ? 44 : 0,
   },
   scrollContainer: {

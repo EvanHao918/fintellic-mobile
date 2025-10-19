@@ -1,4 +1,5 @@
-// src/components/NotificationSettings.tsx - 修复版本
+// src/components/NotificationSettings.tsx
+// SIMPLIFIED: Core filing preferences only, removed redundant features
 import React, { useState, useEffect } from 'react';
 import {
   View,
@@ -13,8 +14,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { notificationAPI, notificationHelpers } from '../api/notifications';
-import { NotificationSettings as NotificationSettingsType, NOTIFICATION_LABELS } from '../types/notification';
-import NotificationService from '../services/NotificationService';
+import { NotificationSettings as NotificationSettingsType } from '../types/notification';
 
 interface NotificationSettingsProps {
   settings: NotificationSettingsType | null;
@@ -25,18 +25,12 @@ interface NotificationSettingsProps {
   expanded?: boolean;
 }
 
-// 定义标签结构
+// SIMPLIFIED: Core filing types only
 const FILING_TYPE_LABELS = {
   filing_10k: { title: 'Annual Reports (10-K)', description: 'Comprehensive yearly financial reports' },
   filing_10q: { title: 'Quarterly Reports (10-Q)', description: 'Quarterly financial updates' },
   filing_8k: { title: 'Current Reports (8-K)', description: 'Major events and announcements' },
   filing_s1: { title: 'IPO Filings (S-1)', description: 'Initial public offering registrations' },
-};
-
-const OTHER_NOTIFICATION_LABELS = {
-  daily_reset_reminder: { title: 'Daily Reset Reminder', description: 'Daily summary of market activity' },
-  subscription_alerts: { title: 'Subscription Updates', description: 'Payment and subscription notifications' },
-  market_summary: { title: 'Market Summary', description: 'Daily market overview' },
 };
 
 const NotificationSettings: React.FC<NotificationSettingsProps> = ({
@@ -77,9 +71,9 @@ const NotificationSettings: React.FC<NotificationSettingsProps> = ({
               <Ionicons name="notifications" size={24} color="#4CAF50" />
             </View>
             <View style={styles.textContainer}>
-              <Text style={styles.settingTitle}>All Push Notifications</Text>
+              <Text style={styles.settingTitle}>Push Notifications</Text>
               <Text style={styles.settingDescription}>
-                Enable or disable all notifications
+                Receive alerts for new SEC filings
               </Text>
             </View>
           </View>
@@ -117,7 +111,7 @@ const NotificationSettings: React.FC<NotificationSettingsProps> = ({
         </View>
       </View>
 
-      {/* Filing Types */}
+      {/* Filing Types - CORE FUNCTIONALITY ONLY */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>FILING TYPES</Text>
         {Object.entries(FILING_TYPE_LABELS).map(([key, label]) => (
@@ -142,36 +136,17 @@ const NotificationSettings: React.FC<NotificationSettingsProps> = ({
         ))}
       </View>
 
-      {/* Other Notifications */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>OTHER NOTIFICATIONS</Text>
-        {Object.entries(OTHER_NOTIFICATION_LABELS).map(([key, label]) => (
-          <View key={key} style={styles.settingRow}>
-            <View style={styles.settingInfo}>
-              <View style={styles.iconContainer}>
-                <Ionicons 
-                  name={key === 'daily_reset_reminder' ? 'refresh' : 'card'} 
-                  size={24} 
-                  color="#AB47BC" 
-                />
-              </View>
-              <View style={styles.textContainer}>
-                <Text style={styles.settingTitle}>{label.title}</Text>
-                <Text style={styles.settingDescription}>{label.description}</Text>
-              </View>
-            </View>
-            <Switch
-              value={settings[key as keyof NotificationSettingsType] as boolean}
-              onValueChange={(value) => onToggle(key, value)}
-              trackColor={{ false: '#E0E0E0', true: '#CE93D8' }}
-              thumbColor={settings[key as keyof NotificationSettingsType] ? '#AB47BC' : '#9E9E9E'}
-              disabled={!settings.notification_enabled}
-            />
-          </View>
-        ))}
+      {/* Settings Summary */}
+      <View style={styles.summarySection}>
+        <View style={styles.summaryContainer}>
+          <Ionicons name="information-circle" size={20} color="#757575" />
+          <Text style={styles.summaryText}>
+            {notificationHelpers.getNotificationSummary(settings)}
+          </Text>
+        </View>
       </View>
 
-      {/* Save Button */}
+      {/* Save Indicator */}
       {saving && (
         <View style={styles.savingContainer}>
           <ActivityIndicator size="small" color="#4CAF50" />
@@ -240,6 +215,23 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#757575',
   },
+  summarySection: {
+    marginTop: 10,
+    marginBottom: 20,
+  },
+  summaryContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F5F5F5',
+    padding: 12,
+    borderRadius: 8,
+  },
+  summaryText: {
+    marginLeft: 8,
+    fontSize: 14,
+    color: '#757575',
+    flex: 1,
+  },
   savingContainer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -255,5 +247,3 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
 });
-
-export default NotificationSettings;

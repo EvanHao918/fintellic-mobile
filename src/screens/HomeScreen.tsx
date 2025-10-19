@@ -17,7 +17,7 @@ import { StackNavigationProp } from '@react-navigation/stack';
 import { useDispatch, useSelector } from 'react-redux';
 import { Icon } from 'react-native-elements';
 import { FilingCard } from '../components';
-import { Filing, RootStackParamList, isProUser } from '../types'; // 导入isProUser辅助函数
+import { Filing, RootStackParamList, isProUser } from '../types';
 import { RootState } from '../store';
 import { fetchFilings, voteFiling, clearFilings, selectShouldRefresh } from '../store/slices/filingsSlice';
 import { AppDispatch } from '../store';
@@ -43,10 +43,8 @@ export const HomeScreen: React.FC = () => {
   
   const { isAuthenticated = false, user } = useSelector((state: RootState) => state.auth || {});
   
-  // 🔥 关键修复：使用统一的isProUser函数
   const isPro = isProUser(user);
   
-  // 检查是否需要刷新
   const shouldRefresh = useSelector(selectShouldRefresh);
   
   // Search state
@@ -54,7 +52,7 @@ export const HomeScreen: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [isSearching, setIsSearching] = useState(false);
-  const [searchTimer, setSearchTimer] = useState<NodeJS.Timeout | null>(null);
+  const [searchTimer, setSearchTimer] = useState<ReturnType<typeof setTimeout> | null>(null);
   
   // View limit state
   const [viewStats, setViewStats] = useState<{
@@ -64,7 +62,6 @@ export const HomeScreen: React.FC = () => {
     is_pro: boolean;
   } | null>(null);
 
-  // 使用投票 hook
   const { handleVote } = useFilingVote();
 
   // Fetch view stats
@@ -80,7 +77,6 @@ export const HomeScreen: React.FC = () => {
     }
   };
 
-  // 🔥 关键修复：使用 useFocusEffect 确保每次返回首页时刷新计数
   useFocusEffect(
     useCallback(() => {
       if (isAuthenticated) {
@@ -95,7 +91,6 @@ export const HomeScreen: React.FC = () => {
       if (filings.length === 0 || shouldRefresh) {
         dispatch(fetchFilings({ page: 1, isRefresh: true }));
       }
-      // 初始加载时也获取view stats
       fetchViewStats();
     }
   }, [isAuthenticated, dispatch, shouldRefresh]);
@@ -153,7 +148,6 @@ export const HomeScreen: React.FC = () => {
   const handleRefresh = useCallback(async () => {
     dispatch(clearFilings());
     await dispatch(fetchFilings({ page: 1, isRefresh: true }));
-    // 刷新时也更新view stats
     fetchViewStats();
   }, [dispatch]);
 
@@ -164,7 +158,6 @@ export const HomeScreen: React.FC = () => {
     }
   }, [dispatch, isLoading, hasMore, currentPage, filings.length]);
 
-  // 导航时传递回调以在返回时刷新
   const handleFilingPress = useCallback((filing: Filing) => {
     navigation.navigate('FilingDetail', { filingId: filing.id });
   }, [navigation]);
@@ -180,13 +173,10 @@ export const HomeScreen: React.FC = () => {
   
   // Render header with view limit info
   const renderHeader = () => {
-    // 🔥 关键修复：Pro用户不显示限制信息
     if (!isAuthenticated) return null;
     
-    // 如果是Pro用户或者API返回is_pro为true，不显示限制
     if (isPro || viewStats?.is_pro) return null;
     
-    // 只有Free用户显示限制信息
     if (viewStats && viewStats.views_remaining !== undefined) {
       const isLimitReached = viewStats.views_remaining === 0;
       
@@ -217,7 +207,6 @@ export const HomeScreen: React.FC = () => {
       );
     }
     
-    // 如果还没有加载stats（仅对Free用户显示）
     if (!isPro && !viewStats) {
       return (
         <View style={styles.limitBanner}>
@@ -314,7 +303,7 @@ export const HomeScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: colors.beige, // 🎨 修改：使用米色背景
   },
   listContent: {
     paddingTop: spacing.sm,

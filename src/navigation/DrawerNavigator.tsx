@@ -1,6 +1,6 @@
 // src/navigation/DrawerNavigator.tsx
-import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import React, { useEffect, useRef } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Animated, Platform, Image } from 'react-native';
 import { createDrawerNavigator, DrawerContentScrollView, DrawerItemList, DrawerContentComponentProps } from '@react-navigation/drawer';
 import { createStackNavigator } from '@react-navigation/stack';
 import { Icon } from 'react-native-elements';
@@ -10,7 +10,8 @@ import { RootState } from '../store';
 import { logout } from '../store/slices/authSlice';
 import { colors, typography, spacing } from '../theme';
 import CustomDrawerHeader from '../components/CustomDrawerHeader';
-import { isProUser } from '../types'; // å¯¼å…¥è¾…åŠ©å‡½æ•°
+import { isProUser } from '../types';
+import { BRAND_NAME, BRAND_TAGLINES, BRAND_IMAGES } from '../constants/brand';
 
 // Import screens
 import HomeScreen from '../screens/HomeScreen';
@@ -18,8 +19,7 @@ import CalendarScreen from '../screens/CalendarScreen';
 import WatchlistScreen from '../screens/WatchlistScreen';
 import HistoryScreen from '../screens/HistoryScreen';
 import ProfileScreen from '../screens/ProfileScreen';
-import NotificationScreen from '../screens/NotificationScreen'; // NEW: Import NotificationScreen
-// ðŸ†• Task 6: Import new screens
+import NotificationScreen from '../screens/NotificationScreen';
 import ChangePasswordScreen from '../screens/ChangePasswordScreen';
 import TermsScreen from '../screens/TermsScreen';
 import PrivacyPolicyScreen from '../screens/PrivacyPolicyScreen';
@@ -31,10 +31,9 @@ export type DrawerParamList = {
   Watchlist: undefined;
   History: undefined;
   Profile: undefined;
-  Notifications: undefined; // NEW: Add Notifications to param list
+  Notifications: undefined;
 };
 
-// ðŸ†• Task 6: Stack navigator param list for Profile-related screens
 export type ProfileStackParamList = {
   ProfileMain: undefined;
   ChangePassword: undefined;
@@ -45,19 +44,17 @@ export type ProfileStackParamList = {
 const Drawer = createDrawerNavigator<DrawerParamList>();
 const ProfileStack = createStackNavigator<ProfileStackParamList>();
 
-// ðŸ†• Task 6: Profile Stack Navigator with nested screens
 function ProfileStackNavigator() {
   return (
     <ProfileStack.Navigator
       screenOptions={{
-        headerShown: false, // We'll use the drawer header
+        headerShown: false,
       }}
     >
       <ProfileStack.Screen 
         name="ProfileMain" 
         component={ProfileScreen}
       />
-      {/* ðŸ†• Task 6: New screens */}
       <ProfileStack.Screen 
         name="ChangePassword" 
         component={ChangePasswordScreen}
@@ -95,6 +92,43 @@ function ProfileStackNavigator() {
   );
 }
 
+// Brand Slogan Component with animation - Direct text overlay
+function BrandSlogan() {
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const scaleAnim = useRef(new Animated.Value(0.95)).current;
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 800,
+        useNativeDriver: true,
+      }),
+      Animated.spring(scaleAnim, {
+        toValue: 1,
+        tension: 50,
+        friction: 7,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [fadeAnim, scaleAnim]);
+
+  return (
+    <Animated.View 
+      style={[
+        styles.sloganContainer,
+        {
+          opacity: fadeAnim,
+          transform: [{ scale: scaleAnim }],
+        },
+      ]}
+    >
+      <Text style={styles.sloganLine1}>{BRAND_TAGLINES.DRAWER_LINE1}</Text>
+      <Text style={styles.sloganLine2}>{BRAND_TAGLINES.DRAWER_LINE2}</Text>
+    </Animated.View>
+  );
+}
+
 // Custom drawer content
 function CustomDrawerContent(props: DrawerContentComponentProps) {
   const dispatch = useDispatch();
@@ -105,14 +139,17 @@ function CustomDrawerContent(props: DrawerContentComponentProps) {
     dispatch(logout() as any);
   };
 
-  // ðŸ"¥ å…³é"®ä¿®å¤ï¼šä½¿ç"¨ç»Ÿä¸€çš„isProUserå‡½æ•°åˆ¤æ–­
   const isPro = isProUser(user);
 
   return (
     <DrawerContentScrollView {...props} style={styles.drawerContainer}>
-      {/* Header */}
+      {/* Header - UPDATED: Now using full Logo (icon + text) */}
       <View style={styles.drawerHeader}>
-        <Text style={styles.appName}>HermeSpeed</Text>
+        <Image 
+          source={BRAND_IMAGES.LOGO_FULL}
+          style={styles.drawerLogo}
+          resizeMode="contain"
+        />
         <Text style={styles.userName}>{user?.full_name || user?.username || 'User'}</Text>
         <View style={styles.membershipBadge}>
           {isPro ? (
@@ -126,6 +163,13 @@ function CustomDrawerContent(props: DrawerContentComponentProps) {
         </View>
       </View>
 
+      {/* Tagline - Between membership and menu items */}
+      <View style={styles.taglineContainer}>
+        <Text style={styles.taglineText}>
+          Get the Instant Essential{'\n'}before the Market Digests
+        </Text>
+      </View>
+
       {/* Menu Items */}
       <View style={styles.menuContainer}>
         <DrawerItemList {...props} />
@@ -136,6 +180,9 @@ function CustomDrawerContent(props: DrawerContentComponentProps) {
         <Icon name="logout" type="material" size={20} color={colors.error} />
         <Text style={styles.logoutText}>Logout</Text>
       </TouchableOpacity>
+
+      {/* Brand Slogan - Bottom of drawer */}
+      <BrandSlogan />
     </DrawerContentScrollView>
   );
 }
@@ -165,7 +212,7 @@ export default function DrawerNavigator() {
             case 'Profile':
               iconName = 'person';
               break;
-            case 'Notifications': // NEW: Icon for Notifications
+            case 'Notifications':
               iconName = 'notifications';
               break;
             default:
@@ -181,11 +228,14 @@ export default function DrawerNavigator() {
             />
           );
         },
-        drawerActiveTintColor: colors.primary,
-        drawerInactiveTintColor: colors.textSecondary,
+        drawerActiveTintColor: colors.brown,
+        drawerInactiveTintColor: colors.brownLight,
         drawerLabelStyle: {
           fontFamily: typography.fontFamily.medium,
           fontSize: typography.fontSize.md,
+          textShadowColor: 'rgba(0, 0, 0, 0.3)',
+          textShadowOffset: { width: 1, height: 1 },
+          textShadowRadius: 2,
         },
         header: (props) => <CustomDrawerHeader title={props.options.title || route.name} />,
       })}
@@ -194,7 +244,7 @@ export default function DrawerNavigator() {
         name="Home" 
         component={HomeScreen}
         options={{ 
-          title: 'HermeSpeed',
+          title: BRAND_NAME,
           drawerLabel: 'Home',
         }}
       />
@@ -222,7 +272,6 @@ export default function DrawerNavigator() {
           drawerLabel: 'History',
         }}
       />
-      {/* NEW: Add Notifications screen */}
       <Drawer.Screen 
         name="Notifications" 
         component={NotificationScreen}
@@ -231,7 +280,6 @@ export default function DrawerNavigator() {
           drawerLabel: 'Notifications',
         }}
       />
-      {/* ðŸ†• Task 6: Replace ProfileScreen with ProfileStackNavigator */}
       <Drawer.Screen 
         name="Profile" 
         component={ProfileStackNavigator}
@@ -247,19 +295,19 @@ export default function DrawerNavigator() {
 const styles = StyleSheet.create({
   drawerContainer: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: colors.beige,
   },
   drawerHeader: {
     padding: spacing.lg,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
-    marginBottom: spacing.md,
+    alignItems: 'flex-start',
   },
-  appName: {
-    fontSize: typography.fontSize.xxl,
-    fontFamily: typography.fontFamily.bold,
-    color: colors.primary,
-    marginBottom: spacing.xs,
+  drawerLogo: {
+    height: 120,
+    width: 220,
+    marginBottom: spacing.md,
+    alignSelf: 'flex-start',
   },
   userName: {
     fontSize: typography.fontSize.md,
@@ -277,6 +325,63 @@ const styles = StyleSheet.create({
     fontFamily: typography.fontFamily.regular,
     color: colors.textSecondary,
     marginLeft: spacing.xs,
+  },
+  taglineContainer: {
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+    marginTop: spacing.sm,
+    marginBottom: spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  taglineText: {
+    fontSize: typography.fontSize.md,
+    fontWeight: '600',
+    fontStyle: 'italic',
+    fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif',
+    color: colors.gray700,
+    letterSpacing: 0.3,
+    textAlign: 'center',
+    lineHeight: typography.fontSize.md * 1.5,
+    textShadowColor: 'rgba(55, 65, 81, 0.15)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
+  },
+  sloganContainer: {
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.xl,
+    marginTop: spacing.xl,
+    marginBottom: spacing.xl,
+    alignItems: 'flex-start',
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  },
+  sloganLine1: {
+    fontSize: typography.fontSize.lg,
+    fontWeight: '600',
+    fontStyle: 'italic',
+    fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif',
+    color: colors.gray700,
+    letterSpacing: 0.5,
+    textAlign: 'left',
+    marginBottom: spacing.sm,
+    lineHeight: typography.fontSize.lg * 1.5,
+    textShadowColor: 'rgba(55, 65, 81, 0.15)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
+  },
+  sloganLine2: {
+    fontSize: typography.fontSize.lg,
+    fontWeight: '600',
+    fontStyle: 'italic',
+    fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif',
+    color: colors.gray600,
+    letterSpacing: 0.5,
+    textAlign: 'left',
+    lineHeight: typography.fontSize.lg * 1.5,
+    textShadowColor: 'rgba(75, 85, 99, 0.15)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
   },
   menuContainer: {
     flex: 1,

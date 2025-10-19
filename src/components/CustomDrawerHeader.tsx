@@ -11,7 +11,9 @@ import {
   Keyboard,
   Platform,
   Dimensions,
+  Image,
 } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { Icon } from 'react-native-elements';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
@@ -20,6 +22,7 @@ import { StackNavigationProp } from '@react-navigation/stack';
 import { colors, typography, spacing } from '../theme';
 import apiClient from '../api/client';
 import type { RootStackParamList, DrawerParamList } from '../types';
+import { BRAND_IMAGES, BRAND_NAME } from '../constants/brand';
 
 // Combined navigation type
 type CombinedNavigationProp = DrawerNavigationProp<DrawerParamList> & 
@@ -38,24 +41,23 @@ interface CompanySearchResult {
 }
 
 export const CustomDrawerHeader: React.FC<CustomDrawerHeaderProps> = ({ 
-  title = 'HermeSpeed',
+  title,
   showMenuButton = true 
 }) => {
   const navigation = useNavigation<CombinedNavigationProp>();
   const insets = useSafeAreaInsets();
   
-  // 🔥 问题1修复：获取屏幕宽度，动态计算搜索框宽度
   const screenWidth = Dimensions.get('window').width;
   const searchContainerWidth = Math.max(
-    Math.min(screenWidth * 0.4, 280), // 最大280px，屏幕40%
-    160 // 最小160px
+    Math.min(screenWidth * 0.4, 280),
+    160
   );
   
   // Search state
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<CompanySearchResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
-  const [searchTimer, setSearchTimer] = useState<NodeJS.Timeout | null>(null);
+  const [searchTimer, setSearchTimer] = useState<ReturnType<typeof setTimeout> | null>(null);
   const [showResults, setShowResults] = useState(false);
 
   // Perform search
@@ -75,7 +77,6 @@ export const CustomDrawerHeader: React.FC<CustomDrawerHeaderProps> = ({
       });
       console.log('Search response:', response);
       
-      // Handle both array response and object with data property
       const results = Array.isArray(response) ? response : 
                      (response.data || response.items || response.results || []);
       setSearchResults(results);
@@ -106,13 +107,11 @@ export const CustomDrawerHeader: React.FC<CustomDrawerHeaderProps> = ({
   const handleSelectCompany = (company: CompanySearchResult) => {
     console.log('Selected company:', company);
     
-    // Clear search
     setSearchQuery('');
     setSearchResults([]);
     setShowResults(false);
     Keyboard.dismiss();
     
-    // Navigate to CompanyFilings screen with proper typing
     (navigation as StackNavigationProp<RootStackParamList>).navigate('CompanyFilings', { 
       ticker: company.ticker,
       companyName: company.name 
@@ -126,7 +125,6 @@ export const CustomDrawerHeader: React.FC<CustomDrawerHeaderProps> = ({
   };
 
   const handleSearchBlur = () => {
-    // Delay hiding results to allow clicking on them
     setTimeout(() => {
       setShowResults(false);
     }, 200);
@@ -134,7 +132,12 @@ export const CustomDrawerHeader: React.FC<CustomDrawerHeaderProps> = ({
 
   return (
     <>
-      <View style={[styles.header, { paddingTop: insets.top + spacing.md }]}>
+      <LinearGradient
+        colors={[colors.headerGreen, colors.warning, colors.primary]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 0 }}
+        style={[styles.header, { paddingTop: insets.top + spacing.md }]}
+      >
         <View style={styles.headerContent}>
           <View style={styles.leftSection}>
             {showMenuButton && (
@@ -145,10 +148,13 @@ export const CustomDrawerHeader: React.FC<CustomDrawerHeaderProps> = ({
                 <Icon name="menu" type="material" color={colors.white} size={24} />
               </TouchableOpacity>
             )}
-            <Text style={styles.title}>{title}</Text>
+            <Image 
+              source={BRAND_IMAGES.TEXT_LOGO}
+              style={styles.brandLogo}
+              resizeMode="contain"
+            />
           </View>
           
-          {/* 🔥 问题1修复：响应式搜索框 */}
           <View style={[styles.searchContainer, { width: searchContainerWidth }]}>
             <View style={styles.searchInputWrapper}>
               <Icon
@@ -174,17 +180,15 @@ export const CustomDrawerHeader: React.FC<CustomDrawerHeaderProps> = ({
                     performSearch(searchQuery);
                   }
                 }}
-                // 防止浏览器自动填充
                 autoComplete="off"
                 textContentType="none"
                 keyboardType="default"
                 importantForAutofill="no"
-                // 添加Web特定属性（在React Native Web环境中有效）
                 {...(Platform.OS === 'web' && {
                   autoComplete: 'off',
                   'data-form-type': 'search',
                   'data-autofill': 'false',
-                  name: 'ticker-search', // 明确的搜索用途
+                  name: 'ticker-search',
                   role: 'searchbox',
                   'aria-label': 'Search company ticker',
                 })}
@@ -211,15 +215,15 @@ export const CustomDrawerHeader: React.FC<CustomDrawerHeaderProps> = ({
             </View>
           </View>
         </View>
-      </View>
+      </LinearGradient>
 
-      {/* 🔥 问题1修复：搜索结果下拉框也使用动态宽度 */}
+      {/* Search results dropdown */}
       {showResults && searchResults.length > 0 && (
         <View style={[
           styles.resultsContainer, 
           { 
             width: searchContainerWidth,
-            right: spacing.md // 保持右对齐
+            right: spacing.md
           }
         ]}>
           <ScrollView
@@ -286,7 +290,6 @@ export const CustomDrawerHeader: React.FC<CustomDrawerHeaderProps> = ({
 
 const styles = StyleSheet.create({
   header: {
-    backgroundColor: colors.primary, // This now uses the dark amber color #D97706
     paddingHorizontal: spacing.md,
     paddingBottom: spacing.md,
     zIndex: 1000,
@@ -301,30 +304,28 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     flex: 1,
-    marginRight: spacing.sm, // 🔥 添加右边距，确保与搜索框有间隔
+    marginRight: spacing.sm,
   },
   menuButton: {
     padding: spacing.xs,
     marginRight: spacing.sm,
   },
-  title: {
-    fontSize: typography.fontSize.xl,
-    fontWeight: typography.fontWeight.bold,
-    color: colors.white,
+  brandLogo: {
+    height: 28,
+    width: 140,
+    backgroundColor: 'transparent',
   },
   searchContainer: {
-    // 🔥 问题1修复：移除固定宽度，改为动态设置
-    // width: 300, // 删除这行
-    minWidth: 160, // 添加最小宽度
-    maxWidth: 280, // 添加最大宽度
+    minWidth: 160,
+    maxWidth: 280,
   },
   searchInputWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: colors.white,
-    borderRadius: 20, // 圆角
+    borderRadius: 20,
     paddingHorizontal: spacing.sm,
-    height: 36, // 适中的高度
+    height: 36,
   },
   searchIcon: {
     marginRight: spacing.xs,
@@ -346,8 +347,6 @@ const styles = StyleSheet.create({
   resultsContainer: {
     position: 'absolute',
     top: Platform.OS === 'ios' ? 88 : 68,
-    // 🔥 问题1修复：移除固定宽度，改为动态设置
-    // width: 300, // 删除这行，改为动态设置
     backgroundColor: colors.white,
     maxHeight: 400,
     borderRadius: 12,
@@ -391,22 +390,22 @@ const styles = StyleSheet.create({
     gap: spacing.xs,
   },
   indexBadge: {
-    backgroundColor: colors.primary + '20',  // 使用 primary 颜色的透明版本 (现在是暗金色)
+    backgroundColor: colors.primary + '20',
     paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xs / 2,  // 使用 xs 的一半作为更小的间距
+    paddingVertical: spacing.xs / 2,
     borderRadius: 4,
     marginLeft: spacing.xs,
   },
   nasdaqBadge: {
-    backgroundColor: colors.success + '20',  // 使用 success 颜色的透明版本
+    backgroundColor: colors.success + '20',
   },
   indexBadgeText: {
     fontSize: typography.fontSize.xs,
-    color: colors.primary, // 现在显示暗金色
+    color: colors.primary,
     fontWeight: typography.fontWeight.medium,
   },
   noResultsWrapper: {
-    // 继承 resultsContainer 的所有样式
+    // Inherits resultsContainer styles
   },
   noResultsContainer: {
     padding: spacing.lg,

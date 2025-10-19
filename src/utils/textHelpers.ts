@@ -494,9 +494,100 @@ const getHeadingStyle = (level: number): TextStyle => {
   }
 };
 
+// ==================== NEW: SMART TEXT PAGINATION (SOLUTION 2) ====================
+
+/**
+ * 智能文本分页函数
+ * 
+ * 核心策略：
+ * 1. 按段落（\n\n）分割文本
+ * 2. 优先在标题（## ）后截断
+ * 3. 保证每页不超过目标字符数
+ * 4. 避免单页过长（强制截断）
+ * 
+ * @param text - 原始Markdown文本
+ * @param charsPerPage - 每页目标字符数（默认2000）
+ * @returns 分页后的文本数组
+ */
+export const smartPaginateText = (
+  text: string,
+  charsPerPage: number = 2000
+): string[] => {
+  if (!text || text.trim().length === 0) {
+    return [''];
+  }
+  
+  // 如果文本很短，不分页
+  if (text.length < charsPerPage * 0.75) {
+    console.log(`Content too short (${text.length} chars), no pagination needed`);
+    return [text];
+  }
+  
+  // 按段落分割（双换行符）
+  const paragraphs = text.split('\n\n').filter(p => p.trim().length > 0);
+  
+  if (paragraphs.length === 0) {
+    return [text];
+  }
+  
+  const pages: string[] = [];
+  let currentPage = '';
+  
+  for (let i = 0; i < paragraphs.length; i++) {
+    const para = paragraphs[i];
+    const nextLength = currentPage.length + (currentPage ? 2 : 0) + para.length;
+    
+    // 检查是否为标题（优先截断点）
+    const isHeading = /^#{1,4}\s+/.test(para.trim());
+    
+    // 检查是否为InsightBox（另一个优先截断点）
+    const isInsightBox = /\[!.+\]/.test(para);
+    
+    if (nextLength > charsPerPage && currentPage) {
+      // 如果即将加入的是标题，先结束当前页
+      if (isHeading) {
+        pages.push(currentPage.trim());
+        currentPage = para;
+        console.log(`  Split before heading at ${nextLength} chars`);
+      }
+      // 如果当前页已经很长，强制截断
+      else if (nextLength > charsPerPage * 1.5) {
+        pages.push(currentPage.trim());
+        currentPage = para;
+        console.log(`  Force split at ${nextLength} chars (too long)`);
+      }
+      // 否则继续积累
+      else {
+        currentPage += '\n\n' + para;
+      }
+    } else {
+      // 正常累积段落
+      currentPage += (currentPage ? '\n\n' : '') + para;
+    }
+  }
+  
+  // 添加最后一页
+  if (currentPage.trim()) {
+    pages.push(currentPage.trim());
+  }
+  
+  // 如果没有成功分页，返回原文
+  if (pages.length === 0) {
+    return [text];
+  }
+  
+  // 输出分页统计
+  console.log(`✅ Paginated ${text.length} chars into ${pages.length} pages:`);
+  pages.forEach((page, idx) => {
+    const wordCount = page.split(/\s+/).length;
+    console.log(`   Page ${idx + 1}: ${page.length} chars, ~${wordCount} words`);
+  });
+  
+  return pages;
+};
+
 // Check if filing has unified analysis
 export const hasUnifiedAnalysis = (filing: any): boolean => {
-  // 更灵活的判断：只要有 unified_analysis 就使用它
   return !!filing?.unified_analysis && !!filing?.analysis_version;
 };
 
@@ -586,7 +677,7 @@ const styles = StyleSheet.create({
   
   // Important concepts: **transformation**
   keyConcept: {
-    backgroundColor: '#FEF3C7', // Warm yellow background
+    backgroundColor: '#FEF3C7',
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 4,
@@ -597,7 +688,7 @@ const styles = StyleSheet.create({
   
   // Positive trends: +[revenue up 15%]
   positiveTrend: {
-    color: '#10B981', // Green
+    color: '#10B981',
     fontWeight: typography.fontWeight.semibold as any,
     fontSize: typography.fontSize.base,
     fontFamily: 'Times New Roman, serif',
@@ -605,25 +696,25 @@ const styles = StyleSheet.create({
   
   // Negative trends: -[margins down 5%]
   negativeTrend: {
-    color: '#EF4444', // Red
+    color: '#EF4444',
     fontWeight: typography.fontWeight.semibold as any,
     fontSize: typography.fontSize.base,
     fontFamily: 'Times New Roman, serif',
   },
   
-  // Italic text: _text_ or *text* (non-numeric)
+  // Italic text
   italicText: {
-    fontSize: typography.fontSize.lg,  // 放大字体
+    fontSize: typography.fontSize.lg,
     color: colors.text,
-    fontWeight: typography.fontWeight.semibold as any,  // 加粗
+    fontWeight: typography.fontWeight.semibold as any,
     fontStyle: 'italic' as any,
     lineHeight: 28,
     fontFamily: 'Times New Roman, serif',
   },
   
-  // Bold + Italic text: ***text*** or ___text___
+  // Bold + Italic text
   boldItalicText: {
-    fontSize: typography.fontSize.lg,  // 放大字体
+    fontSize: typography.fontSize.lg,
     color: colors.text,
     fontWeight: typography.fontWeight.bold as any,
     fontStyle: 'italic' as any,
@@ -635,7 +726,7 @@ const styles = StyleSheet.create({
   insightBox: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    backgroundColor: '#EBF8FF', // Light blue background
+    backgroundColor: '#EBF8FF',
     padding: spacing.lg,
     borderRadius: borderRadius.md,
     marginVertical: spacing.md,

@@ -9,11 +9,11 @@ export type RootStackParamList = {
   FilingDetail: { filingId: number };
   CompanyFilings: { ticker: string; companyName: string };
   Subscription: undefined;
-  NotificationSettings: undefined; // 🆕 Phase 4: Add notification settings route
-  // 🆕 Task 6: Add new routes for profile management
+  NotificationSettings: undefined;
   ChangePassword: undefined;
   TermsOfService: undefined;
   PrivacyPolicy: undefined;
+  ResetPassword: { token?: string };  // 新增：密码重置路由
 };
 
 export type DrawerParamList = {
@@ -32,7 +32,7 @@ export type MainTabParamList = {
   Profile: undefined;
 };
 
-// 🆕 Task 6: Password change types
+// Password change types
 export interface ChangePasswordRequest {
   current_password: string;
   new_password: string;
@@ -42,15 +42,15 @@ export interface ChangePasswordResponse {
   message: string;
 }
 
-// User Types - 更新以包含订阅相关字段
+// User Types - 包含订阅相关字段
 export interface User {
   id: number;
   email: string;
   full_name?: string;
   username?: string;
   avatar_url?: string;
-  tier: 'free' | 'pro' | 'FREE' | 'PRO'; // 支持大小写
-  is_pro?: boolean;  // 添加 is_pro字段
+  tier: 'free' | 'pro' | 'FREE' | 'PRO';
+  is_pro?: boolean;
   is_active: boolean;
   is_verified: boolean;
   created_at: string;
@@ -58,31 +58,30 @@ export interface User {
   last_login_at?: string;
   registration_source?: 'email' | 'apple' | 'google' | 'linkedin';
   has_social_auth?: boolean;
-  biometric_enabled?: boolean;
   daily_view_count?: number;
   daily_reports_count?: number;
   
-  // 订阅相关字段（Phase 2新增）
-  is_early_bird?: boolean;  // 是否为早鸟用户
-  pricing_tier?: 'EARLY_BIRD' | 'STANDARD';  // 价格层级
-  user_sequence_number?: number;  // 用户序号（前10000名）
-  subscription_type?: 'MONTHLY' | 'YEARLY';  // 订阅类型
-  subscription_price?: number;  // 订阅价格
-  is_subscription_active?: boolean;  // 订阅是否激活
-  subscription_started_at?: string;  // 订阅开始时间
-  subscription_expires_at?: string;  // 订阅到期时间
-  next_billing_date?: string;  // 下次计费日期
-  subscription_auto_renew?: boolean;  // 是否自动续费
-  last_payment_date?: string;  // 最后支付日期
-  last_payment_amount?: number;  // 最后支付金额
-  total_payment_amount?: number;  // 总支付金额
-  subscription_status?: 'active' | 'cancelled' | 'expired';  // 订阅状态
-  subscription_plan?: 'monthly' | 'yearly';  // 订阅计划（小写版本）
-  subscription_cancelled_at?: string;  // 订阅取消时间
-  monthly_price?: number;  // 月度价格（用于显示）
-  yearly_price?: number;  // 年度价格（用于显示）
+  // 订阅相关字段
+  is_early_bird?: boolean;
+  pricing_tier?: 'EARLY_BIRD' | 'STANDARD';
+  user_sequence_number?: number;
+  subscription_type?: 'MONTHLY' | 'YEARLY';
+  subscription_price?: number;
+  is_subscription_active?: boolean;
+  subscription_started_at?: string;
+  subscription_expires_at?: string;
+  next_billing_date?: string;
+  subscription_auto_renew?: boolean;
+  last_payment_date?: string;
+  last_payment_amount?: number;
+  total_payment_amount?: number;
+  subscription_status?: 'active' | 'cancelled' | 'expired';
+  subscription_plan?: 'monthly' | 'yearly';
+  subscription_cancelled_at?: string;
+  monthly_price?: number;
+  yearly_price?: number;
   
-  // 🆕 Phase 4: 通知相关字段
+  // 通知相关字段
   device_tokens?: Array<{
     token: string;
     platform: 'ios' | 'android';
@@ -117,18 +116,6 @@ export interface RegisterCredentials {
   full_name?: string;
 }
 
-export interface SocialAuthCredentials {
-  provider: 'apple' | 'google' | 'linkedin';
-  token: string;
-  authorizationCode?: string;
-  user: {
-    id: string;
-    email?: string | null;
-    fullName?: string | null;
-    photoUrl?: string | null;
-  };
-}
-
 export interface AuthResponse {
   access_token: string;
   refresh_token?: string;
@@ -138,27 +125,27 @@ export interface AuthResponse {
 
 // Smart Markup Types for Unified Analysis
 export interface SmartMarkupData {
-  numbers: string[];      // Key numbers like "37%", "$5.2B"
-  concepts: string[];     // Important concepts like "transformation"
-  positive: string[];     // Positive trends like "revenue up 15%"
-  negative: string[];     // Negative trends like "margins compressed"
-  insights: string[];     // Key insights prefixed with [!]
+  numbers: string[];
+  concepts: string[];
+  positive: string[];
+  negative: string[];
+  insights: string[];
 }
 
-// 🔥 关键修复：更新 CompanyInfo 接口以包含 FMP API 新增字段
+// Company Info Interface
 export interface CompanyInfo {
   id: number;
   cik: string;
   ticker: string;
   name: string;
   
-  // 基础信息（所有公司都有）
+  // 基础信息
   is_sp500: boolean;
   is_nasdaq100: boolean;
   is_public: boolean;
   has_s1_filing: boolean;
   
-  // 扩展信息（成熟公司可能有）
+  // 扩展信息
   legal_name?: string;
   sector?: string;
   industry?: string;
@@ -176,24 +163,24 @@ export interface CompanyInfo {
   state?: string;
   ipo_date?: string;
   
-  // 🆕 FMP API 新增字段（后端优化项目添加）
-  market_cap_formatted?: string;    // 格式化市值显示，如 "$3.38T"
-  pe_ratio?: number;                // PE 比率数据
-  pe_ratio_formatted?: string;      // 格式化 PE 比率显示，如 "31.97"
+  // FMP API 新增字段
+  market_cap_formatted?: string;
+  pe_ratio?: number;
+  pe_ratio_formatted?: string;
   
-  // SIC classification (legacy)
+  // SIC classification
   sic?: string;
   sic_description?: string;
 }
 
-// Filing Types - ENHANCED with timestamp fields
+// Filing Types
 export interface Filing {
   id: number;
   company_id: number;
   form_type: string;
-  filing_date: string;              // SEC official filing date
-  detected_at?: string | null;      // 🔥 NEW: When we detected the filing (precise timestamp)
-  display_time?: string | null;     // 🔥 NEW: Best time for display (backend calculated)
+  filing_date: string;
+  detected_at?: string | null;
+  display_time?: string | null;
   period_date?: string;
   accession_number: string;
   filing_url: string;
@@ -202,21 +189,18 @@ export interface Filing {
   company_ticker: string;
   company_cik: string;
   
-  // Enhanced company object with full details
   company?: CompanyInfo;
   
-  // 🔥 NEW: Timing metadata fields from backend
-  detection_age_minutes?: number | null;   // How many minutes since detection (backend calculated)
-  detection_age_hours?: number | null;     // How many hours since detection (backend calculated)
-  is_recently_detected?: boolean;          // Whether filing was detected recently (backend calculated)
+  detection_age_minutes?: number | null;
+  detection_age_hours?: number | null;
+  is_recently_detected?: boolean;
   
-  // ==================== UNIFIED ANALYSIS FIELDS (NEW) ====================
-  // Core unified content
-  unified_analysis?: string;           // 800-1200 word narrative analysis
-  unified_feed_summary?: string;       // One-line feed summary (max 100 chars)
-  analysis_version?: 'v1' | 'v2';      // Analysis version indicator
-  smart_markup_data?: SmartMarkupData; // Smart markup metadata
-  analyst_expectations?: {             // Analyst expectations for 10-Q
+  // Unified analysis fields
+  unified_analysis?: string;
+  unified_feed_summary?: string;
+  analysis_version?: 'v1' | 'v2';
+  smart_markup_data?: SmartMarkupData;
+  analyst_expectations?: {
     revenue_estimate?: {
       value: number;
       analysts: number;
@@ -226,9 +210,8 @@ export interface Filing {
       analysts: number;
     };
   };
-  // ========================================================================
   
-  // AI-generated fields (LEGACY - kept for backward compatibility)
+  // AI-generated fields (legacy)
   ai_summary?: string;
   management_tone?: 'bullish' | 'neutral' | 'bearish';
   key_insights?: string[];
@@ -240,8 +223,8 @@ export interface Filing {
   one_liner?: string;
   feed_summary?: string;
   key_tags?: string[];
-  tags?: string[];  // 后端返回的是 tags 字段（与 key_tags 相同）
-  keywords?: string[];  // ENHANCED: AI-extracted keywords (3-5 conceptual terms)
+  tags?: string[];
+  keywords?: string[];
   
   // 8-K specific
   item_type?: string;
@@ -253,7 +236,7 @@ export interface Filing {
   
   // 10-K/10-Q specific
   fiscal_year?: number;
-  fiscal_quarter?: string;  // 添加 fiscal_quarter字段
+  fiscal_quarter?: string;
   guidance_update?: string;
   future_outlook?: string;
   risk_factors?: string[];
@@ -295,14 +278,12 @@ export interface Filing {
   comment_count?: number;
   view_count?: number;
   
-  // View limit info
   view_limit_info?: {
     views_remaining: number;
     is_pro: boolean;
     views_today: number;
   };
   
-  // Processing status
   status: 'pending' | 'processing' | 'completed' | 'failed';
   processed_at?: string;
   error_message?: string;
@@ -319,7 +300,7 @@ export interface FilingListResponse {
 // Vote Types
 export type VoteType = 'bullish' | 'neutral' | 'bearish';
 
-// Comment Types - 修复评论类型
+// Comment Types
 export interface Comment {
   id: string;
   user_id: string;
@@ -334,7 +315,7 @@ export interface Comment {
   user_name?: string;
   user_avatar?: string;
   is_pro_user?: boolean;
-  user_tier?: 'free' | 'pro' | 'FREE' | 'PRO';  // 支持大小写
+  user_tier?: 'free' | 'pro' | 'FREE' | 'PRO';
   
   // Interaction
   vote_count?: number;
@@ -343,7 +324,7 @@ export interface Comment {
   downvotes?: number;
   net_votes?: number;
   
-  // Reply info - 更新为匹配后端返回的结构
+  // Reply info
   reply_to?: {
     comment_id?: string | number;
     user_id?: string | number;
@@ -351,7 +332,6 @@ export interface Comment {
     content_preview: string;
   };
   
-  // Edit info
   is_editable?: boolean;
 }
 
@@ -373,7 +353,7 @@ export interface CommentListResponse {
   limit?: number;
 }
 
-// Company Types (简化版，用于列表)
+// Company Types
 export interface Company {
   id: number;
   ticker: string;
@@ -394,8 +374,6 @@ export interface WatchlistItem {
   user_id: number;
   company_id: number;
   added_at: string;
-  
-  // Company info
   company: Company;
 }
 
@@ -418,7 +396,6 @@ export interface Subscription {
   expires_at: string;
   cancelled_at?: string;
   
-  // Payment info
   payment_method?: 'stripe' | 'apple' | 'google';
   payment_id?: string;
   amount: number;
@@ -442,17 +419,13 @@ export interface DeviceInfo {
   app_version?: string;
 }
 
-// Biometric Types
-export type BiometricType = 'face_id' | 'touch_id' | 'fingerprint' | 'face_unlock';
-
-// Settings Types - 🆕 Phase 4: Enhanced with backend integration
+// Settings Types
 export interface UserSettings {
   notifications: {
     all_filings: boolean;
     watchlist_only: boolean;
     push_enabled: boolean;
     email_enabled: boolean;
-    // 🆕 Phase 4: Detailed notification preferences
     filing_types?: {
       filing_10k: boolean;
       filing_10q: boolean;
@@ -472,11 +445,6 @@ export interface UserSettings {
     theme: 'light' | 'dark' | 'auto';
     language: string;
     timezone: string;
-  };
-  biometric: {
-    enabled: boolean;
-    type?: BiometricType;
-    devices: string[];
   };
 }
 
@@ -503,47 +471,32 @@ export interface VisualData {
 }
 
 export const HISTORY_CONSTANTS = {
-  // Storage key for AsyncStorage
   STORAGE_KEY: '@fintellic_history',
-  
-  // Maximum number of history items to store
   MAX_HISTORY_ITEMS: 100,
-  
-  // Time formatting thresholds (in seconds)
   TIME_THRESHOLDS: {
-    JUST_NOW: 60,           // Less than 1 minute
-    MINUTES: 3600,          // Less than 1 hour  
-    HOURS: 86400,           // Less than 24 hours
-    DAYS: 604800,           // Less than 7 days
+    JUST_NOW: 60,
+    MINUTES: 3600,
+    HOURS: 86400,
+    DAYS: 604800,
   },
-  
-  // Date grouping labels
   DATE_GROUPS: {
     TODAY: 'Today',
     YESTERDAY: 'Yesterday',
   },
-  
-  // Error messages
   ERROR_MESSAGES: {
     LOAD_FAILED: 'Failed to load history',
     ADD_FAILED: 'Failed to add to history',
     REMOVE_FAILED: 'Failed to remove from history',
     CLEAR_FAILED: 'Failed to clear history',
   },
-  
-  // Success messages
   SUCCESS_MESSAGES: {
     HISTORY_CLEARED: 'History cleared',
   },
-  
-  // Alert titles
   ALERT_TITLES: {
     CLEAR_HISTORY: 'Clear History',
     ERROR: 'Error',
     SUCCESS: 'Success',
   },
-  
-  // Alert messages
   ALERT_MESSAGES: {
     CLEAR_CONFIRMATION: 'Are you sure you want to clear all browsing history?',
   },
@@ -552,18 +505,13 @@ export const HISTORY_CONSTANTS = {
 // Helper type to determine if filing has unified analysis
 export type HasUnifiedAnalysis = (filing: Filing) => boolean;
 
-// 🔥 关键修复：更新辅助函数以正确处理大小写
+// Helper functions
 export const isProUser = (user: User | null): boolean => {
   if (!user) return false;
-  
-  // 检查所有可能的Pro状态标识
   return (
-    // 检查tier字段（大小写兼容）
     user.tier === 'pro' || 
     user.tier === 'PRO' ||
-    // 检查is_pro字段
     user.is_pro === true ||
-    // 检查订阅激活状态
     user.is_subscription_active === true
   );
 };
@@ -574,7 +522,6 @@ export const isEarlyBirdUser = (user: User | null): boolean => {
          user.pricing_tier === 'EARLY_BIRD';
 };
 
-// 新增：获取用户显示的tier（统一为小写）
 export const getUserTierDisplay = (user: User | null): 'free' | 'pro' => {
   if (isProUser(user)) {
     return 'pro';
@@ -582,17 +529,13 @@ export const getUserTierDisplay = (user: User | null): 'free' | 'pro' => {
   return 'free';
 };
 
-// 新增：检查用户是否可以发表评论
 export const canUserComment = (user: User | null): boolean => {
   return isProUser(user);
 };
 
-// 新增：检查用户是否可以查看评论
 export const canUserViewComments = (user: User | null): boolean => {
-  // 根据您的设计，所有用户都可以查看评论
-  // 但只有Pro用户可以发表和互动
   return true;
 };
 
-// 🆕 Phase 4: Export notification types
+// Export notification types
 export * from './notification';
