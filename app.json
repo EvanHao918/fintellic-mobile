@@ -42,13 +42,14 @@
     },
     "plugins": [
       "expo-web-browser",
-      {
-        "expo-build-properties": {
+      [
+        "expo-build-properties",
+        {
           "ios": {
             "useFrameworks": "static"
           }
         }
-      }
+      ]
     ],
     "extra": {
       "eas": {
