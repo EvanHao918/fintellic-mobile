@@ -238,23 +238,28 @@ export const CustomDrawerHeader: React.FC<CustomDrawerHeaderProps> = ({
                 onPress={() => handleSelectCompany(company)}
                 activeOpacity={0.7}
               >
-                <View style={styles.resultContent}>
-                  <Text style={styles.resultTicker}>{company.ticker}</Text>
-                  <Text style={styles.resultName} numberOfLines={1}>
+                {/* ✅ NEW: Vertical layout for better mobile display */}
+                <View style={styles.resultMainContent}>
+                  <View style={styles.resultHeader}>
+                    <Text style={styles.resultTicker}>{company.ticker}</Text>
+                    {/* ✅ Moved badges to top row next to ticker */}
+                    <View style={styles.resultIndices}>
+                      {company.is_sp500 && (
+                        <View style={styles.indexBadge}>
+                          <Text style={styles.indexBadgeText}>S&P 500</Text>
+                        </View>
+                      )}
+                      {company.is_nasdaq100 && (
+                        <View style={[styles.indexBadge, styles.nasdaqBadge]}>
+                          <Text style={styles.indexBadgeText}>NASDAQ</Text>
+                        </View>
+                      )}
+                    </View>
+                  </View>
+                  {/* ✅ Company name gets full width on second row */}
+                  <Text style={styles.resultName} numberOfLines={2}>
                     {company.name}
                   </Text>
-                </View>
-                <View style={styles.resultIndices}>
-                  {company.is_sp500 && (
-                    <View style={styles.indexBadge}>
-                      <Text style={styles.indexBadgeText}>S&P 500</Text>
-                    </View>
-                  )}
-                  {company.is_nasdaq100 && (
-                    <View style={[styles.indexBadge, styles.nasdaqBadge]}>
-                      <Text style={styles.indexBadgeText}>NASDAQ</Text>
-                    </View>
-                  )}
                 </View>
               </TouchableOpacity>
             ))}
@@ -362,47 +367,53 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   resultItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.sm,     // ✅ REDUCED: from spacing.md (16) to spacing.sm (12)
+    paddingVertical: spacing.xs,       // ✅ REDUCED: from spacing.sm (12) to spacing.xs (8)
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
     backgroundColor: colors.white,
   },
-  resultContent: {
+  // ✅ NEW: Vertical layout structure
+  resultMainContent: {
     flex: 1,
-    marginRight: spacing.sm,
+  },
+  resultHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 2,                   // ✅ REDUCED: from spacing.xxs (4) to 2px
   },
   resultTicker: {
-    fontSize: typography.fontSize.md,
+    fontSize: typography.fontSize.sm,  // ✅ REDUCED: from md (18) to sm (14)
     fontWeight: typography.fontWeight.bold,
     color: colors.text,
+    marginRight: spacing.xs,           // ✅ REDUCED: from spacing.sm (12) to spacing.xs (8)
+    flexShrink: 0,                     // ✅ NEW: Prevent ticker from shrinking
   },
   resultName: {
-    fontSize: typography.fontSize.sm,
+    fontSize: typography.fontSize.xs,  // ✅ REDUCED: from sm (14) to xs (12)
     color: colors.textSecondary,
-    marginTop: 2,
+    lineHeight: typography.fontSize.xs * 1.4,  // ✅ Better line height for readability
   },
   resultIndices: {
     flexDirection: 'row',
-    gap: spacing.xs,
+    alignItems: 'center',
+    flexShrink: 0, // ✅ Prevent badges from shrinking
+    gap: 4,        // ✅ NEW: Consistent 4px gap between badges
   },
   indexBadge: {
     backgroundColor: colors.primary + '20',
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xs / 2,
-    borderRadius: 4,
-    marginLeft: spacing.xs,
+    paddingHorizontal: spacing.xxs,    // ✅ REDUCED: from spacing.xs (8) to spacing.xxs (4)
+    paddingVertical: 1,                // ✅ REDUCED: from 2 to 1px
+    borderRadius: 3,                   // ✅ REDUCED: from 4 to 3px
   },
   nasdaqBadge: {
     backgroundColor: colors.success + '20',
   },
   indexBadgeText: {
-    fontSize: typography.fontSize.xs,
+    fontSize: 9,                       // ✅ REDUCED: from 10 to 9px
     color: colors.primary,
-    fontWeight: typography.fontWeight.medium,
+    fontWeight: typography.fontWeight.semibold,
   },
   noResultsWrapper: {
     // Inherits resultsContainer styles

@@ -1,5 +1,5 @@
 // src/screens/LoginScreen.tsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
   StyleSheet,
@@ -395,6 +395,16 @@ export default function LoginScreen() {
     navigation.navigate('ResetPassword', {});
   };
 
+  // ✅ NEW: Dynamic scroll content style based on mode
+  const dynamicScrollContentStyle = useMemo(() => {
+    // Use minHeight to ensure content always exceeds viewport
+    // This forces the ScrollView to be scrollable
+    return {
+      ...styles.scrollContent,
+      minHeight: height + 100, // Always taller than screen
+    };
+  }, [isLoginMode]);
+
   return (
     <View style={styles.container}>
       {/* Animated Financial Chart Background */}
@@ -413,7 +423,7 @@ export default function LoginScreen() {
             style={styles.keyboardView}
           >
             <ScrollView 
-              contentContainerStyle={styles.scrollContent}
+              contentContainerStyle={dynamicScrollContentStyle}
               showsVerticalScrollIndicator={false}
               keyboardShouldPersistTaps="handled"
             >
@@ -670,32 +680,35 @@ const styles = StyleSheet.create({
   keyboardView: {
     flex: 1,
   },
+  // ✅ MODIFIED: Base style with consistent padding
   scrollContent: {
     flexGrow: 1,
     paddingHorizontal: spacing.lg,
-    paddingBottom: spacing.xl,
+    paddingTop: spacing.md,      // ✅ NEW: Top padding
+    paddingBottom: spacing.xxxl + spacing.xxl, // ✅ 64 + 48 = 112px bottom padding
+    // minHeight will be applied dynamically to ensure scrollability
   },
   headerContainer: {
     alignItems: 'center',
-    marginTop: spacing.xxl,
-    marginBottom: spacing.xl,
+    marginTop: spacing.lg,      
+    marginBottom: spacing.lg,   // ✅ INCREASED: from spacing.md (16) to spacing.lg (24) - more breathing room
   },
   // ⚡ Logo Animation Styles - REMOVED (using simple logo now)
   logoContainer: {
-    width: 200,
-    height: 200,
+    width: 160,                  // ✅ REDUCED: from 200 to 160
+    height: 160,                 // ✅ REDUCED: from 200 to 160
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: spacing.lg,
+    marginBottom: spacing.sm,    // ✅ REDUCED: from spacing.lg (24) to spacing.sm (12)
   },
   logoImage: {
-    width: 200,
-    height: 200,
+    width: 160,                  // ✅ REDUCED: from 200 to 160
+    height: 160,                 // ✅ REDUCED: from 200 to 160
   },
   // 📝 Tagline Styles with Typewriter
   sloganContainer: {
-    minHeight: 30,
-    marginBottom: spacing.xs,
+    minHeight: 24,               // ✅ REDUCED: from 30 to 24
+    marginBottom: spacing.xxs,   // ✅ REDUCED: from spacing.xs (8) to spacing.xxs (4)
   },
   slogan: {
     fontSize: typography.fontSize.lg,
@@ -711,9 +724,10 @@ const styles = StyleSheet.create({
     textShadowRadius: 4,
   },
   subSloganContainer: {
-    minHeight: 60,
+    minHeight: 50,
     paddingHorizontal: spacing.md,
     justifyContent: 'center',
+    marginBottom: spacing.sm,    // ✅ NEW: Add small bottom margin for spacing
   },
   subSlogan: {
     fontSize: typography.fontSize.md,
@@ -738,7 +752,7 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: 'rgba(139, 69, 19, 0.3)',
     padding: spacing.lg,
-    marginBottom: spacing.lg,
+    marginBottom: spacing.md, // ✅ ADJUSTED: from spacing.sm (12) to spacing.md (16) - moderate increase
     ...shadows.xl,
   },
   inputWrapper: {
@@ -826,16 +840,18 @@ const styles = StyleSheet.create({
     fontWeight: typography.fontWeight.bold,
     color: colors.fintechGoldLight,
   },
+  // ✅ MODIFIED: Enhanced footer style with moderate padding
   footer: {
-    paddingTop: spacing.md,
-    paddingBottom: spacing.xl,
+    paddingTop: spacing.sm,      // ✅ ADJUSTED: from spacing.xs (8) to spacing.sm (12) - slight increase
+    paddingBottom: spacing.xxl,  // Keep this for safe area
+    paddingHorizontal: spacing.xl,
   },
   footerText: {
     fontSize: typography.fontSize.xs,
     fontWeight: typography.fontWeight.regular,
     color: colors.textMuted,
     textAlign: 'center',
-    lineHeight: typography.fontSize.xs * 1.5,
+    lineHeight: typography.fontSize.xs * 2.0, // ✅ INCREASED: from 1.8 to 2.0 for better spacing
   },
   linkText: {
     color: colors.fintechGoldLight,

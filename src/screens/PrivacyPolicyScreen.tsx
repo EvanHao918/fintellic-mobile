@@ -4,12 +4,27 @@ import {
   Text,
   StyleSheet,
   ScrollView,
+  TouchableOpacity,
+  Platform,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { Icon } from 'react-native-elements';
+import { useNavigation, useRoute, useNavigationState } from '@react-navigation/native';
 import { colors, typography, spacing, borderRadius } from '../theme';
 
 export default function PrivacyPolicyScreen() {
+  const navigation = useNavigation();
+  const route = useRoute();
+  
+  // ✅ Better detection: check if header is already provided by stack
+  // If we can go back AND the route has params, we're likely from Login
+  const canGoBack = navigation.canGoBack();
+  const hasParams = route.params !== undefined;
+  
+  // Show custom header if we CAN go back (meaning we came from somewhere)
+  // ProfileStack already provides header, so we check the route name
+  const isProfileStackRoute = route.name === 'PrivacyPolicy';
+  const shouldShowCustomHeader = canGoBack && !isProfileStackRoute;
+
   const renderSection = (title: string, content: string) => (
     <View style={styles.section}>
       <Text style={styles.sectionTitle}>{title}</Text>
@@ -48,10 +63,31 @@ export default function PrivacyPolicyScreen() {
   );
 
   return (
-    <SafeAreaView style={styles.container} edges={['bottom']}>
+    <View style={styles.container}>
+      {/* ✅ Always show custom header when not in ProfileStack */}
+      {shouldShowCustomHeader && (
+        <View style={styles.header}>
+          <TouchableOpacity
+            onPress={() => navigation.goBack()}
+            style={styles.backButton}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <Icon
+              name="arrow-back"
+              type="material"
+              size={24}
+              color={colors.text}
+            />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Privacy Policy</Text>
+          <View style={styles.headerRight} />
+        </View>
+      )}
+
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={true}
+        bounces={true}
       >
         <View style={styles.lastUpdated}>
           <Text style={styles.lastUpdatedText}>Last Updated: December 2024</Text>
@@ -238,7 +274,7 @@ export default function PrivacyPolicyScreen() {
 
         <View style={{ height: spacing.xxl }} />
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -246,6 +282,45 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    paddingTop: Platform.OS === 'ios' ? spacing.xl + spacing.md : spacing.sm,
+    backgroundColor: colors.white,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 4,
+      },
+      web: {
+        boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)',
+      },
+    }),
+  },
+  backButton: {
+    padding: spacing.xs,
+    marginRight: spacing.sm,
+  },
+  headerTitle: {
+    flex: 1,
+    fontSize: typography.fontSize.lg,
+    fontWeight: typography.fontWeight.semibold,
+    color: colors.text,
+    textAlign: 'center',
+  },
+  headerRight: {
+    width: 40,
   },
   scrollContent: {
     paddingHorizontal: spacing.md,

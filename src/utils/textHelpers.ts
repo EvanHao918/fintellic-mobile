@@ -1,4 +1,17 @@
 // src/utils/textHelpers.ts
+/**
+ * Text processing utilities for cleaning API responses and rendering formatted content
+ * 
+ * FORMATTING SUPPORT:
+ * - Markdown headings (# ## ### ####) with emoji support
+ * - Bold (**text**) and Italic (_text_ or *text*)
+ * - Key numbers (*$5.2B*) with emphasis
+ * - Positive/Negative trends (+[...] / -[...])
+ * - Insight boxes ([!...]) with emoji icons
+ * - Full emoji support in all contexts
+ * 
+ * Updated: 2025-10-24 - Enhanced emoji rendering and spacing
+ */
 import React from 'react';
 import { Text, View, StyleSheet, TextStyle, ViewStyle } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
@@ -627,6 +640,7 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md,
     lineHeight: 32,
     fontFamily: 'Times New Roman, serif',
+    letterSpacing: 0.5,  // Better emoji spacing
   },
   
   heading2: {
@@ -637,6 +651,7 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md,
     lineHeight: 28,
     fontFamily: 'Times New Roman, serif',
+    letterSpacing: 0.5,  // Better emoji spacing
   },
   
   heading3: {
@@ -647,6 +662,7 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm,
     lineHeight: 26,
     fontFamily: 'Times New Roman, serif',
+    letterSpacing: 0.3,  // Better emoji spacing
   },
   
   heading4: {
@@ -657,6 +673,7 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm,
     lineHeight: 24,
     fontFamily: 'Times New Roman, serif',
+    letterSpacing: 0.3,  // Better emoji spacing
   },
   
   // Base text styles
@@ -673,33 +690,37 @@ const styles = StyleSheet.create({
     fontWeight: typography.fontWeight.bold as any,
     fontSize: typography.fontSize.lg,
     fontFamily: 'Times New Roman, serif',
+    letterSpacing: 0.3,  // Better number readability
   },
   
   // Important concepts: **transformation**
   keyConcept: {
-    backgroundColor: '#FEF3C7',
+    backgroundColor: '#FEF3C7',  // Warm yellow highlight
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 4,
     fontWeight: typography.fontWeight.semibold as any,
     color: colors.text,
     fontFamily: 'Times New Roman, serif',
+    overflow: 'visible',  // Ensure emoji display correctly
   },
   
   // Positive trends: +[revenue up 15%]
   positiveTrend: {
-    color: '#10B981',
+    color: '#10B981',  // Green
     fontWeight: typography.fontWeight.semibold as any,
     fontSize: typography.fontSize.base,
     fontFamily: 'Times New Roman, serif',
+    letterSpacing: 0.2,
   },
   
   // Negative trends: -[margins down 5%]
   negativeTrend: {
-    color: '#EF4444',
+    color: '#EF4444',  // Red
     fontWeight: typography.fontWeight.semibold as any,
     fontSize: typography.fontSize.base,
     fontFamily: 'Times New Roman, serif',
+    letterSpacing: 0.2,
   },
   
   // Italic text
@@ -710,6 +731,7 @@ const styles = StyleSheet.create({
     fontStyle: 'italic' as any,
     lineHeight: 28,
     fontFamily: 'Times New Roman, serif',
+    letterSpacing: 0.2,
   },
   
   // Bold + Italic text
@@ -726,7 +748,7 @@ const styles = StyleSheet.create({
   insightBox: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    backgroundColor: '#EBF8FF',
+    backgroundColor: '#EBF8FF',  // Light blue background
     padding: spacing.lg,
     borderRadius: borderRadius.md,
     marginVertical: spacing.md,
@@ -737,6 +759,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.06,
     shadowRadius: 4,
     elevation: 2,
+    overflow: 'visible',  // Ensure emoji display correctly
   },
   
   insightIconContainer: {
@@ -747,6 +770,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: spacing.md,
+    overflow: 'visible',  // Ensure emoji display correctly
   },
   
   insightText: {
@@ -756,5 +780,6 @@ const styles = StyleSheet.create({
     lineHeight: 24,
     fontWeight: typography.fontWeight.medium as any,
     fontFamily: 'Times New Roman, serif',
+    letterSpacing: 0.2,
   },
 });
