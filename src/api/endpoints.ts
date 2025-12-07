@@ -10,8 +10,35 @@ import {
 import {
   SubscriptionInfo,
   PricingInfo,
-  EarlyBirdStatus,
 } from '../types/subscription';
+
+// Social auth response types
+export interface SocialAuthResponse {
+  id: number;
+  email: string | null;
+  full_name: string | null;
+  username: string | null;
+  access_token: string;
+  refresh_token: string;
+  token_type: string;
+  is_new_user: boolean;
+  email_verified: boolean;
+  tier: string;
+  is_early_bird: boolean;
+  pricing_tier: string | null;
+  user_sequence_number: number | null;
+  monthly_price: number;
+  yearly_price: number;
+  early_bird_slots_remaining: number | null;
+  linked_providers: string[];
+}
+
+export interface SocialAccountStatus {
+  apple_linked: boolean;
+  google_linked: boolean;
+  linkedin_linked: boolean;
+  can_unlink: boolean;
+}
 
 // Auth endpoints
 export const authAPI = {
@@ -25,7 +52,7 @@ export const authAPI = {
         'Content-Type': 'application/x-www-form-urlencoded',
       },
     });
-    return response; // Already returns .data due to ApiClient changes
+    return response;
   },
 
   register: async (data: { email: string; password: string; full_name: string }) => {
@@ -33,7 +60,6 @@ export const authAPI = {
     return response;
   },
 
-  // FIXED: Changed from '/auth/me' to '/users/me'
   getCurrentUser: async () => {
     const response = await apiClient.get<User>('/users/me');
     return response;
@@ -44,15 +70,72 @@ export const authAPI = {
     return response;
   },
 
-  // Add upgrade endpoint to auth API for convenience
   upgradeToProMock: async (plan: string) => {
     const response = await apiClient.post('/users/me/upgrade-mock', { plan });
     return response;
   },
+
+  // Password Reset APIs
+  requestPasswordReset: async (email: string) => {
+    const response = await apiClient.post('/auth/password/reset-request', { email });
+    return response;
+  },
+
+  confirmPasswordReset: async (token: string, newPassword: string) => {
+    const response = await apiClient.post('/auth/password/reset-confirm', { 
+      token, 
+      new_password: newPassword 
+    });
+    return response;
+  },
+
+  // ==================== Social Auth APIs ====================
   
-  // 新增：获取早鸟状态（无需认证）
-  getEarlyBirdStatus: async () => {
-    const response = await apiClient.get<EarlyBirdStatus>('/auth/early-bird-status');
+  // Apple Sign In
+  appleSignIn: async (data: {
+    identity_token: string;
+    authorization_code?: string;
+    full_name?: string;
+    given_name?: string;
+    family_name?: string;
+    device_id?: string;
+    device_type?: string;
+  }) => {
+    const response = await apiClient.post<SocialAuthResponse>('/auth/apple', data);
+    return response;
+  },
+
+  // Google Sign In
+  googleSignIn: async (data: {
+    id_token: string;
+    access_token?: string;
+    device_id?: string;
+    device_type?: string;
+  }) => {
+    const response = await apiClient.post<SocialAuthResponse>('/auth/google', data);
+    return response;
+  },
+
+  // Get social account status
+  getSocialAccounts: async () => {
+    const response = await apiClient.get<SocialAccountStatus>('/auth/social-accounts');
+    return response;
+  },
+
+  // Link social account
+  linkSocialAccount: async (provider: 'apple' | 'google' | 'linkedin', token: string) => {
+    const response = await apiClient.post<SocialAccountStatus>('/auth/link-social', {
+      provider,
+      token,
+    });
+    return response;
+  },
+
+  // Unlink social account
+  unlinkSocialAccount: async (provider: 'apple' | 'google' | 'linkedin') => {
+    const response = await apiClient.post<SocialAccountStatus>('/auth/unlink-social', {
+      provider,
+    });
     return response;
   },
 };
@@ -109,7 +192,7 @@ export const companiesAPI = {
   },
 };
 
-// User endpoints - 更新订阅相关
+// User endpoints
 export const userAPI = {
   getCurrentUser: async () => {
     const response = await apiClient.get<User>('/users/me');
@@ -126,7 +209,6 @@ export const userAPI = {
     return response;
   },
 
-  // 订阅相关端点
   getSubscription: async () => {
     const response = await apiClient.get<SubscriptionInfo>('/users/me/subscription');
     return response;
@@ -138,8 +220,11 @@ export const userAPI = {
   },
 };
 
-// 新增：订阅专用端点（导出以便其他地方使用）
+// 订阅专用端点
 export { subscriptionAPI } from '../api/subscription';
 
-// 🆕 Phase 4: 导出通知API
+// 导出通知API
 export { notificationAPI, notificationHelpers } from './notifications';
+
+// watchlist API - TODO: implement when needed
+// export { watchlistAPI, watchlistHelpers } from './watchlist';

@@ -4,12 +4,28 @@ import { AuthState, User, LoginCredentials, AuthResponse } from '../../types';
 import { STORAGE_KEYS } from '../../utils/constants';
 import { HISTORY_CONSTANTS } from '../../constants/history';
 import apiClient from '../../api/client';
+import { authAPI, SocialAuthResponse } from '../../api/endpoints';
 
 // Add register credentials interface
 interface RegisterCredentials {
   email: string;
   password: string;
   username: string;
+}
+
+// Apple Sign In credentials
+interface AppleSignInCredentials {
+  identityToken: string;
+  authorizationCode?: string;
+  fullName?: string;
+  givenName?: string;
+  familyName?: string;
+}
+
+// Google Sign In credentials
+interface GoogleSignInCredentials {
+  idToken: string;
+  accessToken?: string;
 }
 
 // 扩展User类型以包含订阅信息
@@ -274,6 +290,115 @@ export const mockUpgradeToPro = createAsyncThunk(
   }
 );
 
+// ==================== Social Auth Thunks ====================
+
+// Apple Sign In
+export const appleSignIn = createAsyncThunk(
+  'auth/appleSignIn',
+  async (credentials: AppleSignInCredentials) => {
+    try {
+      console.log('Apple Sign In starting...');
+      
+      const response = await authAPI.appleSignIn({
+        identity_token: credentials.identityToken,
+        authorization_code: credentials.authorizationCode,
+        full_name: credentials.fullName,
+        given_name: credentials.givenName,
+        family_name: credentials.familyName,
+        device_type: 'ios',
+      });
+
+      console.log('Apple Sign In response:', response);
+
+      // Set token to API client
+      apiClient.setAuthToken(response.access_token);
+
+      // Fetch complete user information
+      const userResponse = await apiClient.get<UserWithSubscription>('/users/me');
+      console.log('User info after Apple Sign In:', userResponse);
+
+      // Store token and user info
+      await AsyncStorage.setItem(STORAGE_KEYS.AUTH_TOKEN, response.access_token);
+      if (response.refresh_token) {
+        await AsyncStorage.setItem(STORAGE_KEYS.REFRESH_TOKEN, response.refresh_token);
+      }
+      await AsyncStorage.setItem(STORAGE_KEYS.USER_INFO, JSON.stringify(userResponse));
+
+      // Log new user registration
+      if (response.is_new_user) {
+        console.log('🎉 New user registered via Apple Sign In!');
+        if (response.is_early_bird) {
+          await AsyncStorage.setItem('@is_early_bird', 'true');
+          console.log(`🎉 Early bird status granted!`);
+        }
+      }
+
+      return {
+        access_token: response.access_token,
+        refresh_token: response.refresh_token || null,
+        token_type: 'bearer',
+        user: userResponse,
+        is_new_user: response.is_new_user,
+      };
+    } catch (error) {
+      console.error('Apple Sign In error:', error);
+      throw error;
+    }
+  }
+);
+
+// Google Sign In
+export const googleSignIn = createAsyncThunk(
+  'auth/googleSignIn',
+  async (credentials: GoogleSignInCredentials) => {
+    try {
+      console.log('Google Sign In starting...');
+      
+      const response = await authAPI.googleSignIn({
+        id_token: credentials.idToken,
+        access_token: credentials.accessToken,
+        device_type: 'ios', // or detect platform
+      });
+
+      console.log('Google Sign In response:', response);
+
+      // Set token to API client
+      apiClient.setAuthToken(response.access_token);
+
+      // Fetch complete user information
+      const userResponse = await apiClient.get<UserWithSubscription>('/users/me');
+      console.log('User info after Google Sign In:', userResponse);
+
+      // Store token and user info
+      await AsyncStorage.setItem(STORAGE_KEYS.AUTH_TOKEN, response.access_token);
+      if (response.refresh_token) {
+        await AsyncStorage.setItem(STORAGE_KEYS.REFRESH_TOKEN, response.refresh_token);
+      }
+      await AsyncStorage.setItem(STORAGE_KEYS.USER_INFO, JSON.stringify(userResponse));
+
+      // Log new user registration
+      if (response.is_new_user) {
+        console.log('🎉 New user registered via Google Sign In!');
+        if (response.is_early_bird) {
+          await AsyncStorage.setItem('@is_early_bird', 'true');
+          console.log(`🎉 Early bird status granted!`);
+        }
+      }
+
+      return {
+        access_token: response.access_token,
+        refresh_token: response.refresh_token || null,
+        token_type: 'bearer',
+        user: userResponse,
+        is_new_user: response.is_new_user,
+      };
+    } catch (error) {
+      console.error('Google Sign In error:', error);
+      throw error;
+    }
+  }
+);
+
 // Create slice
 const authSlice = createSlice({
   name: 'auth',
@@ -400,6 +525,54 @@ const authSlice = createSlice({
       .addCase(mockUpgradeToPro.rejected, (state, action) => {
         state.isLoading = false;
         state.error = action.error.message || 'Upgrade failed';
+      });
+
+    // Apple Sign In cases
+    builder
+      .addCase(appleSignIn.pending, (state) => {
+        state.isLoading = true;
+        state.error = null;
+      })
+      .addCase(appleSignIn.fulfilled, (state, action) => {
+        state.isLoading = false;
+        state.isAuthenticated = true;
+        state.token = action.payload.access_token;
+        state.refreshToken = action.payload.refresh_token;
+        state.user = action.payload.user;
+        state.error = null;
+        console.log('Apple Sign In successful:', action.payload.user);
+      })
+      .addCase(appleSignIn.rejected, (state, action) => {
+        state.isLoading = false;
+        state.isAuthenticated = false;
+        state.user = null;
+        state.token = null;
+        state.refreshToken = null;
+        state.error = action.error.message || 'Apple Sign In failed';
+      });
+
+    // Google Sign In cases
+    builder
+      .addCase(googleSignIn.pending, (state) => {
+        state.isLoading = true;
+        state.error = null;
+      })
+      .addCase(googleSignIn.fulfilled, (state, action) => {
+        state.isLoading = false;
+        state.isAuthenticated = true;
+        state.token = action.payload.access_token;
+        state.refreshToken = action.payload.refresh_token;
+        state.user = action.payload.user;
+        state.error = null;
+        console.log('Google Sign In successful:', action.payload.user);
+      })
+      .addCase(googleSignIn.rejected, (state, action) => {
+        state.isLoading = false;
+        state.isAuthenticated = false;
+        state.user = null;
+        state.token = null;
+        state.refreshToken = null;
+        state.error = action.error.message || 'Google Sign In failed';
       });
   },
 });

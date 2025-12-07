@@ -9,6 +9,7 @@ import {
   TouchableOpacity,
   Alert,
   Animated,
+  Image,
 } from 'react-native';
 import { Text, Input, Button } from 'react-native-elements';
 import { useDispatch, useSelector } from 'react-redux';
@@ -16,15 +17,18 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as LocalAuthentication from 'expo-local-authentication';
+import * as AppleAuthentication from 'expo-apple-authentication';
 import { AppDispatch, RootState } from '../store';
-import { login, register } from '../store/slices/authSlice';
+import { login, register, appleSignIn, googleSignIn } from '../store/slices/authSlice';
 import themeConfig from '../theme';
 import { STORAGE_KEYS } from '../utils/constants';
+import { useNavigation } from '@react-navigation/native';
 
 const { colors, typography, spacing, borderRadius } = themeConfig;
 
 export default function LoginScreen() {
   const dispatch = useDispatch<AppDispatch>();
+  const navigation = useNavigation();
   const { isLoading, error } = useSelector((state: RootState) => state.auth);
   
   // Form state
@@ -39,6 +43,9 @@ export default function LoginScreen() {
   const [biometricAvailable, setBiometricAvailable] = useState(false);
   const [biometricType, setBiometricType] = useState<string>('');
   
+  // Apple Sign In state
+  const [isAppleSignInAvailable, setIsAppleSignInAvailable] = useState(false);
+  
   // Error state
   const [emailError, setEmailError] = useState('');
   const [passwordError, setPasswordError] = useState('');
@@ -52,7 +59,14 @@ export default function LoginScreen() {
   useEffect(() => {
     checkBiometricAvailability();
     checkForSavedCredentials();
+    checkAppleSignInAvailability();
   }, []);
+
+  // Check Apple Sign In availability
+  const checkAppleSignInAvailability = async () => {
+    const isAvailable = await AppleAuthentication.isAvailableAsync();
+    setIsAppleSignInAvailable(isAvailable);
+  };
 
   const checkBiometricAvailability = async () => {
     try {
@@ -261,17 +275,65 @@ export default function LoginScreen() {
         'Please enter your email address first.',
         [{ text: 'OK' }]
       );
-      return;
+    } else {
+      // Navigate to reset password screen
+      (navigation as any).navigate('ResetPassword', { email });
     }
-    
-    if (!validateEmail(email)) {
-      return;
-    }
+  };
 
+  // ==================== Social Sign In Handlers ====================
+  
+  // Apple Sign In
+  const handleAppleSignIn = async () => {
+    try {
+      const credential = await AppleAuthentication.signInAsync({
+        requestedScopes: [
+          AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
+          AppleAuthentication.AppleAuthenticationScope.EMAIL,
+        ],
+      });
+
+      console.log('Apple credential:', credential);
+
+      // Build full name from Apple's response (only available on first sign in)
+      let fullName: string | undefined;
+      if (credential.fullName) {
+        const parts = [
+          credential.fullName.givenName,
+          credential.fullName.familyName,
+        ].filter(Boolean);
+        fullName = parts.length > 0 ? parts.join(' ') : undefined;
+      }
+
+      // Dispatch Apple Sign In
+      await dispatch(appleSignIn({
+        identityToken: credential.identityToken!,
+        authorizationCode: credential.authorizationCode || undefined,
+        fullName,
+        givenName: credential.fullName?.givenName || undefined,
+        familyName: credential.fullName?.familyName || undefined,
+      })).unwrap();
+
+      console.log('Apple Sign In successful');
+    } catch (error: any) {
+      if (error.code === 'ERR_REQUEST_CANCELED') {
+        // User cancelled, do nothing
+        console.log('Apple Sign In cancelled');
+      } else {
+        console.error('Apple Sign In error:', error);
+        Alert.alert(
+          'Sign In Failed',
+          error.message || 'Apple Sign In failed. Please try again.'
+        );
+      }
+    }
+  };
+
+  // Google Sign In (placeholder - requires additional setup)
+  const handleGoogleSignIn = async () => {
     Alert.alert(
-      'Password Reset',
-      `Instructions have been sent to ${email}`,
-      [{ text: 'OK' }]
+      'Coming Soon',
+      'Google Sign In will be available soon!'
     );
   };
 
@@ -469,6 +531,47 @@ export default function LoginScreen() {
               titleStyle={styles.submitButtonText}
             />
 
+            {/* Social Sign In Divider */}
+            <View style={styles.dividerContainer}>
+              <View style={styles.dividerLine} />
+              <Text style={styles.dividerText}>or continue with</Text>
+              <View style={styles.dividerLine} />
+            </View>
+
+            {/* Social Sign In Buttons */}
+            <View style={styles.socialButtonsContainer}>
+              {/* Apple Sign In Button */}
+              {isAppleSignInAvailable && (
+                <TouchableOpacity
+                  style={styles.socialButton}
+                  onPress={handleAppleSignIn}
+                  disabled={isLoading}
+                  activeOpacity={0.8}
+                >
+                  <View style={styles.socialButtonContent}>
+                    <Icon name="apple" size={20} color="#000" style={styles.socialIcon} />
+                    <Text style={styles.socialButtonText}>Apple</Text>
+                  </View>
+                </TouchableOpacity>
+              )}
+
+              {/* Google Sign In Button */}
+              <TouchableOpacity
+                style={[styles.socialButton, styles.googleButton]}
+                onPress={handleGoogleSignIn}
+                disabled={isLoading}
+                activeOpacity={0.8}
+              >
+                <View style={styles.socialButtonContent}>
+                  <Image
+                    source={{ uri: 'https://www.google.com/favicon.ico' }}
+                    style={styles.googleIcon}
+                  />
+                  <Text style={styles.socialButtonText}>Google</Text>
+                </View>
+              </TouchableOpacity>
+            </View>
+
             {/* Switch Mode Link */}
             <View style={styles.switchContainer}>
               <Text style={styles.switchText}>
@@ -620,6 +723,59 @@ const styles = StyleSheet.create({
     fontSize: typography.fontSize.base,
     fontWeight: typography.fontWeight.semibold,
     color: colors.primary,
+  },
+  // Social Sign In Styles
+  dividerContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: spacing.md,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: colors.border,
+  },
+  dividerText: {
+    fontSize: typography.fontSize.sm,
+    color: colors.textSecondary,
+    paddingHorizontal: spacing.md,
+    fontWeight: typography.fontWeight.medium,
+  },
+  socialButtonsContainer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: spacing.md,
+    marginBottom: spacing.lg,
+  },
+  socialButton: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.lg,
+  },
+  googleButton: {
+    // Additional styles for Google button if needed
+  },
+  socialButtonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  socialIcon: {
+    marginRight: spacing.sm,
+  },
+  googleIcon: {
+    width: 18,
+    height: 18,
+    marginRight: spacing.sm,
+  },
+  socialButtonText: {
+    fontSize: typography.fontSize.base,
+    fontWeight: typography.fontWeight.semibold,
+    color: '#333333',
   },
   footer: {
     paddingTop: spacing.lg,
