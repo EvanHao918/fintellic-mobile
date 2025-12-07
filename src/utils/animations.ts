@@ -34,6 +34,20 @@ export const animationConfig = {
     easing: Easing.inOut(Easing.ease),
     useNativeDriver: true,
   },
+  
+  // NEW - Very slow for background animations
+  timingVerySlow: {
+    duration: animationDurations.verySlow,
+    easing: Easing.inOut(Easing.ease),
+    useNativeDriver: true,
+  },
+  
+  // NEW - Smooth spring for glass effects
+  smoothSpring: {
+    tension: 50,
+    friction: 10,
+    useNativeDriver: true,
+  },
 };
 
 // Common animation patterns
@@ -126,6 +140,78 @@ export const animations = {
       }),
     ]);
   },
+  
+  // Pulse animation for emphasis (like button glow)
+  pulse: (animatedValue: Animated.Value, config = {}) => {
+    return Animated.loop(
+      Animated.sequence([
+        Animated.timing(animatedValue, {
+          toValue: 1.05,
+          duration: 1000,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+        Animated.timing(animatedValue, {
+          toValue: 1,
+          duration: 1000,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+      ])
+    );
+  },
+  
+  // Shimmer effect for loading/premium feel
+  shimmer: (animatedValue: Animated.Value) => {
+    return Animated.loop(
+      Animated.timing(animatedValue, {
+        toValue: 1,
+        duration: 2000,
+        easing: Easing.linear,
+        useNativeDriver: true,
+      })
+    );
+  },
+  
+  // Float animation (up and down gently)
+  float: (animatedValue: Animated.Value) => {
+    return Animated.loop(
+      Animated.sequence([
+        Animated.timing(animatedValue, {
+          toValue: -10,
+          duration: 2000,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+        Animated.timing(animatedValue, {
+          toValue: 0,
+          duration: 2000,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+      ])
+    );
+  },
+  
+  // Glow pulse (for gold elements)
+  glowPulse: (animatedValue: Animated.Value) => {
+    return Animated.loop(
+      Animated.sequence([
+        Animated.timing(animatedValue, {
+          toValue: 1,
+          duration: 1500,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+        Animated.timing(animatedValue, {
+          toValue: 0.6,
+          duration: 1500,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+      ])
+    );
+  },
 };
 
 // Stagger animation helper
@@ -186,6 +272,136 @@ export const useSlideAnimation = (initialValue = 300) => {
       toValue: 300,
       ...animationConfig.timing,
     }).start(),
+  };
+};
+
+// Hook for pulse animation (button glow effect)
+export const usePulseAnimation = (autoStart = true) => {
+  const pulseAnim = React.useRef(new Animated.Value(1)).current;
+  
+  React.useEffect(() => {
+    if (autoStart) {
+      animations.pulse(pulseAnim).start();
+    }
+  }, [autoStart, pulseAnim]);
+  
+  return {
+    pulseAnim,
+    start: () => animations.pulse(pulseAnim).start(),
+    stop: () => pulseAnim.stopAnimation(),
+  };
+};
+
+// Hook for shimmer effect
+export const useShimmerAnimation = (autoStart = true) => {
+  const shimmerAnim = React.useRef(new Animated.Value(0)).current;
+  
+  React.useEffect(() => {
+    if (autoStart) {
+      animations.shimmer(shimmerAnim).start();
+    }
+  }, [autoStart, shimmerAnim]);
+  
+  return {
+    shimmerAnim,
+    start: () => animations.shimmer(shimmerAnim).start(),
+    stop: () => shimmerAnim.stopAnimation(),
+  };
+};
+
+// Hook for float animation
+export const useFloatAnimation = (autoStart = true) => {
+  const floatAnim = React.useRef(new Animated.Value(0)).current;
+  
+  React.useEffect(() => {
+    if (autoStart) {
+      animations.float(floatAnim).start();
+    }
+  }, [autoStart, floatAnim]);
+  
+  return {
+    floatAnim,
+    start: () => animations.float(floatAnim).start(),
+    stop: () => floatAnim.stopAnimation(),
+  };
+};
+
+// Hook for glow pulse (gold button effect)
+export const useGlowPulseAnimation = (autoStart = true) => {
+  const glowAnim = React.useRef(new Animated.Value(0.8)).current;
+  
+  React.useEffect(() => {
+    if (autoStart) {
+      animations.glowPulse(glowAnim).start();
+    }
+  }, [autoStart, glowAnim]);
+  
+  return {
+    glowAnim,
+    start: () => animations.glowPulse(glowAnim).start(),
+    stop: () => glowAnim.stopAnimation(),
+  };
+};
+
+// ✨ NEW - Hook for typewriter effect
+export const useTypewriterAnimation = (
+  text: string,
+  speed: number = 80,
+  startDelay: number = 500,
+  autoStart: boolean = true
+) => {
+  const [displayedText, setDisplayedText] = React.useState('');
+  const [isComplete, setIsComplete] = React.useState(false);
+  const timeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  
+  const startTyping = React.useCallback(() => {
+    setDisplayedText('');
+    setIsComplete(false);
+    
+    const startTimeout = setTimeout(() => {
+      let index = 0;
+      
+      const typeNextChar = () => {
+        if (index < text.length) {
+          setDisplayedText(text.substring(0, index + 1));
+          index++;
+          timeoutRef.current = setTimeout(typeNextChar, speed);
+        } else {
+          setIsComplete(true);
+        }
+      };
+      
+      typeNextChar();
+    }, startDelay);
+    
+    return () => {
+      clearTimeout(startTimeout);
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
+    };
+  }, [text, speed, startDelay]);
+  
+  React.useEffect(() => {
+    if (autoStart) {
+      const cleanup = startTyping();
+      return cleanup;
+    }
+  }, [autoStart, startTyping]);
+  
+  const reset = React.useCallback(() => {
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+    }
+    setDisplayedText('');
+    setIsComplete(false);
+  }, []);
+  
+  return {
+    displayedText,
+    isComplete,
+    startTyping,
+    reset,
   };
 };
 

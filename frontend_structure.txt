@@ -4,7 +4,17 @@ src/
 │   ├── endpoints.ts
 │   ├── filings.ts
 │   ├── notifications.ts
-│   └── subscription.ts
+│   ├── subscription.ts
+│   └── watchlist.ts
+├── assets
+│   └── images
+│       ├── AllSight_Icon.png
+│       ├── AllSight_Logo copy.png
+│       ├── AllSight_Logo.png
+│       ├── AllSight_text.png
+│       ├── insightflash_icon.png
+│       ├── insightflash_logo.png
+│       └── insightflash_text.png
 ├── components
 │   ├── CommentItem.tsx
 │   ├── CustomDrawerHeader.tsx
@@ -23,6 +33,7 @@ src/
 │   │   ├── Current8KDetail.tsx
 │   │   ├── GenericFilingDetail.tsx
 │   │   ├── IPOS1Detail.tsx
+│   │   ├── PaginatedAnalysis.tsx
 │   │   ├── Quarterly10QDetail.tsx
 │   │   └── index.ts
 │   ├── index.ts
@@ -31,6 +42,7 @@ src/
 │       ├── VotingModule.tsx
 │       └── index.ts
 ├── constants
+│   ├── brand.ts
 │   ├── history.ts
 │   └── historyManager.ts
 ├── hooks
@@ -51,6 +63,7 @@ src/
 │   ├── NotificationScreen.tsx
 │   ├── PrivacyPolicyScreen.tsx
 │   ├── ProfileScreen.tsx
+│   ├── ResetPasswordScreen.tsx
 │   ├── SubscriptionScreen.tsx
 │   ├── TermsScreen.tsx
 │   └── WatchlistScreen.tsx
@@ -62,8 +75,8 @@ src/
 │   └── slices
 │       ├── authSlice.ts
 │       ├── filingsSlice.ts
-│       ├── subscriptionSlice.ts
-│       └── votesSlice.ts
+│       ├── notificationSlice.ts
+│       └── subscriptionSlice.ts
 ├── theme
 │   └── index.ts
 ├── types
@@ -79,4 +92,4 @@ src/
     ├── storage.ts
     └── textHelpers.ts
 
-16 directories, 64 files
+18 directories, 75 files

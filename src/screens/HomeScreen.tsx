@@ -1,4 +1,4 @@
-import React, { useEffect, useCallback, useState } from 'react';
+import React, { useEffect, useCallback, useState, useMemo } from 'react';
 import {
   View,
   StyleSheet,
@@ -11,25 +11,29 @@ import {
   ScrollView,
   Keyboard,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { useDispatch, useSelector } from 'react-redux';
 import { Icon } from 'react-native-elements';
 import { FilingCard } from '../components';
-import { Filing, RootStackParamList, isProUser } from '../types'; // 导入isProUser辅助函数
+import { Filing, RootStackParamList, isProUser } from '../types';
 import { RootState } from '../store';
-import { fetchFilings, voteFiling, clearFilings, selectShouldRefresh } from '../store/slices/filingsSlice';
+import { fetchFilings, voteFiling, clearFilings, selectShouldRefresh, loadFilingTypeFilter } from '../store/slices/filingsSlice';
 import { AppDispatch } from '../store';
 import { colors, typography, spacing, borderRadius } from '../theme';
 import apiClient from '../api/client';
 import { useFilingVote } from '../hooks/useFilingVote';
+import { storage } from '../utils/storage';
 
 type HomeScreenNavigationProp = StackNavigationProp<RootStackParamList>;
 
 export const HomeScreen: React.FC = () => {
   const navigation = useNavigation<HomeScreenNavigationProp>();
   const dispatch = useDispatch<AppDispatch>();
+  
+  // FlatList ref for scroll control
+  const flatListRef = React.useRef<FlatList>(null);
   
   // Redux state
   const { 
@@ -39,22 +43,32 @@ export const HomeScreen: React.FC = () => {
     hasMore = true, 
     error = null,
     currentPage = 1,
+    filingTypeFilter = 'all', // 读取当前筛选类型
   } = useSelector((state: RootState) => state.filings || {});
   
   const { isAuthenticated = false, user } = useSelector((state: RootState) => state.auth || {});
   
-  // 🔥 关键修复：使用统一的isProUser函数
   const isPro = isProUser(user);
   
-  // 检查是否需要刷新
   const shouldRefresh = useSelector(selectShouldRefresh);
+  
+  // 🔥 后端已经过滤，前端不需要再过滤
+  const filteredFilings = useMemo(() => {
+    console.log('📊 Displaying filings:', {
+      filingTypeFilter,
+      totalFilings: filings.length,
+      filingTypes: filings.map(f => f.form_type).slice(0, 5)
+    });
+    
+    return filings;
+  }, [filings, filingTypeFilter]);
   
   // Search state
   const [showSearch, setShowSearch] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [isSearching, setIsSearching] = useState(false);
-  const [searchTimer, setSearchTimer] = useState<NodeJS.Timeout | null>(null);
+  const [searchTimer, setSearchTimer] = useState<ReturnType<typeof setTimeout> | null>(null);
   
   // View limit state
   const [viewStats, setViewStats] = useState<{
@@ -64,7 +78,6 @@ export const HomeScreen: React.FC = () => {
     is_pro: boolean;
   } | null>(null);
 
-  // 使用投票 hook
   const { handleVote } = useFilingVote();
 
   // Fetch view stats
@@ -80,25 +93,84 @@ export const HomeScreen: React.FC = () => {
     }
   };
 
-  // 🔥 关键修复：使用 useFocusEffect 确保每次返回首页时刷新计数
-  useFocusEffect(
-    useCallback(() => {
-      if (isAuthenticated) {
-        fetchViewStats();
-      }
-    }, [isAuthenticated])
-  );
+  // 🔥 移除自动加载保存的过滤器 - 每次启动都默认 'all'
+  // useEffect(() => {
+  //   const loadSavedFilter = async () => {
+  //     const savedFilter = await storage.get<'all' | '10-Q' | '10-K' | '8-K' | 'S-1'>('filingTypeFilter');
+  //     if (savedFilter) {
+  //       dispatch(loadFilingTypeFilter(savedFilter));
+  //     }
+  //   };
+  //   loadSavedFilter();
+  // }, [dispatch]);
 
-  // Load initial data
+  // 🔥 Workaround: Fix scroll issue after browser refresh (RN Web specific)
   useEffect(() => {
-    if (isAuthenticated) {
-      if (filings.length === 0 || shouldRefresh) {
-        dispatch(fetchFilings({ page: 1, isRefresh: true }));
-      }
-      // 初始加载时也获取view stats
+    // Only run in web environment
+    // @ts-ignore - Web-only code, DOM types not available in RN
+    if (typeof window !== 'undefined' && typeof document !== 'undefined' && filings.length > 0) {
+      // Give React time to render
+      const timer = setTimeout(() => {
+        // Force recalculate container height
+        // @ts-ignore - Web-only code
+        const container = document.querySelector('[style*="flex"]');
+        // @ts-ignore - Web-only code
+        if (container && container.scrollHeight === container.offsetHeight) {
+          console.log('🔧 Applying scroll fix for RN Web...');
+          // @ts-ignore - Web-only code
+          container.style.overflow = 'auto';
+          // @ts-ignore - Web-only code
+          container.style.height = '100vh';
+        }
+      }, 500);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [filings.length]);
+
+  // 🔥 确保初始状态为 'all'
+  useEffect(() => {
+    dispatch(loadFilingTypeFilter('all'));
+  }, [dispatch]);
+
+  // 🔥 主数据加载逻辑 - 监听认证状态和刷新需求
+  useEffect(() => {
+    if (isAuthenticated && (filings.length === 0 || shouldRefresh)) {
+      dispatch(fetchFilings({ page: 1, isRefresh: true, formType: filingTypeFilter }));
       fetchViewStats();
     }
-  }, [isAuthenticated, dispatch, shouldRefresh]);
+  }, [isAuthenticated, shouldRefresh, dispatch]);
+
+  // 🔥 FIX: 确保登录后立即获取 viewStats（解决首次登录一直转圈的问题）
+  useEffect(() => {
+    if (isAuthenticated && !isPro && !viewStats) {
+      console.log('📊 Fetching view stats for free user...');
+      fetchViewStats();
+    }
+  }, [isAuthenticated, isPro, viewStats]);
+  
+  // 🔥 当过滤器改变时，清空并重新加载
+  const prevFilterRef = React.useRef<string | undefined>(undefined);
+  useEffect(() => {
+    // 跳过初始化
+    if (prevFilterRef.current === undefined) {
+      prevFilterRef.current = filingTypeFilter;
+      return;
+    }
+    
+    // 过滤器改变时 - 直接用 isRefresh 覆盖数据，不清空
+    if (prevFilterRef.current !== filingTypeFilter && isAuthenticated) {
+      console.log('🔄 Filter changed:', prevFilterRef.current, '→', filingTypeFilter);
+      dispatch(fetchFilings({ page: 1, isRefresh: true, formType: filingTypeFilter }));
+      
+      // 🔥 滚动到顶部
+      setTimeout(() => {
+        flatListRef.current?.scrollToOffset({ offset: 0, animated: true });
+      }, 100);
+    }
+    
+    prevFilterRef.current = filingTypeFilter;
+  }, [filingTypeFilter, isAuthenticated, dispatch]);
 
   // Perform search
   const performSearch = async (query: string) => {
@@ -152,21 +224,31 @@ export const HomeScreen: React.FC = () => {
   // Handle refresh
   const handleRefresh = useCallback(async () => {
     dispatch(clearFilings());
-    await dispatch(fetchFilings({ page: 1, isRefresh: true }));
-    // 刷新时也更新view stats
+    await dispatch(fetchFilings({ page: 1, isRefresh: true, formType: filingTypeFilter }));
     fetchViewStats();
-  }, [dispatch]);
+  }, [dispatch, filingTypeFilter]);
 
   // Handle load more
   const handleLoadMore = useCallback(() => {
-    if (!isLoading && hasMore && filings.length > 0) {
-      dispatch(fetchFilings({ page: currentPage + 1, isRefresh: false }));
+    console.log('🔄 Load more triggered:', {
+      isLoading,
+      hasMore,
+      filingsLength: filings.length,
+      currentPage,
+      filingTypeFilter
+    });
+    
+    // 🔥 移除 filings.length > 0 的限制，允许空列表时加载
+    if (!isLoading && hasMore) {
+      console.log('✅ Loading more filings...');
+      dispatch(fetchFilings({ page: currentPage + 1, isRefresh: false, formType: filingTypeFilter }));
+    } else {
+      console.log('❌ Cannot load more:', { isLoading, hasMore });
     }
-  }, [dispatch, isLoading, hasMore, currentPage, filings.length]);
+  }, [dispatch, isLoading, hasMore, currentPage, filings.length, filingTypeFilter]);
 
-  // 导航时传递回调以在返回时刷新
   const handleFilingPress = useCallback((filing: Filing) => {
-    navigation.navigate('FilingDetail', { filingId: filing.id });
+    navigation.navigate('FilingDetail', { filingId: filing.id, initialFiling: filing });
   }, [navigation]);
 
   // Render filing item
@@ -180,13 +262,10 @@ export const HomeScreen: React.FC = () => {
   
   // Render header with view limit info
   const renderHeader = () => {
-    // 🔥 关键修复：Pro用户不显示限制信息
     if (!isAuthenticated) return null;
     
-    // 如果是Pro用户或者API返回is_pro为true，不显示限制
     if (isPro || viewStats?.is_pro) return null;
     
-    // 只有Free用户显示限制信息
     if (viewStats && viewStats.views_remaining !== undefined) {
       const isLimitReached = viewStats.views_remaining === 0;
       
@@ -217,7 +296,6 @@ export const HomeScreen: React.FC = () => {
       );
     }
     
-    // 如果还没有加载stats（仅对Free用户显示）
     if (!isPro && !viewStats) {
       return (
         <View style={styles.limitBanner}>
@@ -287,12 +365,21 @@ export const HomeScreen: React.FC = () => {
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['left', 'right']}>
       <FlatList
-        data={filings}
+        ref={flatListRef}
+        data={filteredFilings}
         renderItem={renderFiling}
         keyExtractor={(item) => item.id.toString()}
+        style={{ flex: 1 } as any}  // 🔥 确保 FlatList 占满容器
         contentContainerStyle={styles.listContent}
+        
+        // 🔥 禁用虚拟化，显示所有卡片
+        removeClippedSubviews={false}
+        initialNumToRender={20}
+        maxToRenderPerBatch={20}
+        windowSize={21}
+        
         refreshControl={
           <RefreshControl
             refreshing={isRefreshing}
@@ -314,7 +401,7 @@ export const HomeScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: colors.beige, // 🎨 修改：使用米色背景
   },
   listContent: {
     paddingTop: spacing.sm,

@@ -18,7 +18,7 @@ import { logout, refreshUserInfo } from '../store/slices/authSlice';
 import { fetchCurrentSubscription } from '../store/slices/subscriptionSlice';
 import { colors, typography, spacing, borderRadius } from '../theme';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { RootStackParamList, isProUser as checkIsProUser, isEarlyBirdUser } from '../types';
+import { RootStackParamList, isProUser as checkIsProUser } from '../types';
 
 type ProfileScreenNavigationProp = StackNavigationProp<RootStackParamList, 'Main'>;
 
@@ -48,7 +48,6 @@ export default function ProfileScreen() {
   
   // Derived state
   const isProUser = checkIsProUser(user);
-  const isEarlyBird = isEarlyBirdUser(user);
   
   // State
   const [refreshing, setRefreshing] = useState(false);
@@ -127,15 +126,11 @@ export default function ProfileScreen() {
     
     if (currentSubscription) {
       const planType = currentSubscription.subscription_type === 'MONTHLY' ? 'Monthly' : 'Annual';
-      const price = currentSubscription.current_price || currentSubscription.monthly_price;
+      const price = currentSubscription.current_price;
       
-      // Early Bird users show permanent price lock
-      if (isEarlyBird) {
-        return `${planType} • $${price} • Permanent Price Lock`;
+      if (price) {
+        return `${planType} • ${price}`;
       }
-      
-      // Regular users show plan type and price
-      return `${planType} • $${price}`;
     }
     
     return 'Manage your Pro subscription';
@@ -150,29 +145,6 @@ export default function ProfileScreen() {
       icon: 'star',
       iconType: 'material',
       action: () => navigation.navigate('Subscription'),
-      hasArrow: true,
-      badge: isEarlyBird ? 'Early Bird' : undefined,
-    },
-    {
-      id: 'password',
-      title: 'Change Password',
-      subtitle: 'Update your password',
-      icon: 'lock',
-      iconType: 'material',
-      action: () => navigation.navigate('ChangePassword'),
-      hasArrow: true,
-    },
-  ];
-
-  // Notification settings - temporarily disabled until NotificationScreen is added to navigation
-  const notificationSettings: SettingItem[] = [
-    {
-      id: 'notifications',
-      title: 'Notifications',
-      subtitle: 'Manage push notification preferences',
-      icon: 'notifications',
-      iconType: 'material',
-      action: () => Alert.alert('Coming Soon', 'Notification settings will be available in the next update.'),
       hasArrow: true,
     },
   ];
@@ -277,7 +249,7 @@ export default function ProfileScreen() {
   );
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['bottom', 'left', 'right']}>
       <ScrollView
         showsVerticalScrollIndicator={false}
         refreshControl={
@@ -295,31 +267,17 @@ export default function ProfileScreen() {
           />
           <Text style={styles.userName}>{user?.full_name || 'User'}</Text>
           <Text style={styles.userEmail}>{user?.email}</Text>
+          
           <View style={styles.membershipBadge}>
             {isProUser ? (
               <>
                 <Icon name="star" type="material" size={16} color={colors.warning} />
                 <Text style={styles.membershipText}>Pro Member</Text>
-                {isEarlyBird && (
-                  <Text style={styles.earlyBirdIndicator}>• Early Bird</Text>
-                )}
               </>
             ) : (
               <Text style={styles.membershipText}>Free Member</Text>
             )}
           </View>
-          
-          {/* Early Bird user status */}
-          {isEarlyBird && user?.user_sequence_number && user.user_sequence_number <= 10000 && (
-            <View style={styles.earlyBirdStatus}>
-              <Text style={styles.earlyBirdNumber}>
-                Early Bird Member #{user.user_sequence_number}
-              </Text>
-              <Text style={styles.permanentPriceLock}>
-                Monthly $39 • Permanent Price Lock ✓
-              </Text>
-            </View>
-          )}
         </View>
 
         {/* User Stats */}
@@ -342,7 +300,6 @@ export default function ProfileScreen() {
 
         {/* Settings Sections */}
         {renderSection('Account', accountSettings)}
-        {renderSection('Notifications', notificationSettings)}
         {renderSection('App', appSettings)}
         {renderSection('', dangerSettings)}
 
@@ -391,36 +348,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.xs,
     borderRadius: borderRadius.full,
+    marginTop: spacing.sm,
   },
   membershipText: {
     fontSize: typography.fontSize.sm,
     fontWeight: typography.fontWeight.medium,
     color: colors.primary,
     marginLeft: spacing.xs,
-  },
-  earlyBirdIndicator: {
-    fontSize: typography.fontSize.sm,
-    fontWeight: typography.fontWeight.medium,
-    color: colors.warning,
-  },
-  earlyBirdStatus: {
-    alignItems: 'center',
-    marginTop: spacing.md,
-    backgroundColor: colors.warning + '10',
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.sm,
-    borderRadius: borderRadius.md,
-  },
-  earlyBirdNumber: {
-    fontSize: typography.fontSize.sm,
-    color: colors.warning,
-    fontWeight: typography.fontWeight.semibold,
-    marginBottom: spacing.xs,
-  },
-  permanentPriceLock: {
-    fontSize: typography.fontSize.sm,
-    color: colors.success,
-    fontWeight: typography.fontWeight.semibold,
   },
   statsContainer: {
     flexDirection: 'row',

@@ -1,36 +1,23 @@
 // Notification types definition for HermeSpeed
 // Phase 4: Notification System
+// SIMPLIFIED: Core filing preferences only, removed redundant features
 
 export interface NotificationSettings {
-  // Filing notifications
+  // Core filing notifications only
   filing_10k: boolean;
   filing_10q: boolean;
   filing_8k: boolean;
   filing_s1: boolean;
   watchlist_only: boolean;
   
-  // Other notifications
-  daily_reset_reminder: boolean;
-  subscription_alerts: boolean;
-  market_summary: boolean;
-  
-  // Quiet hours
-  quiet_hours_start: string | null;  // HH:MM format
-  quiet_hours_end: string | null;    // HH:MM format
-  
   // Master switch
   notification_enabled: boolean;
   
-  // Device tokens (managed by backend)
-  device_tokens?: DeviceToken[];
-}
-
-export interface DeviceToken {
-  token: string;
-  platform: 'ios' | 'android';
-  device_name?: string;
+  // Metadata (from backend)
+  id?: number;
+  user_id?: number;
   created_at?: string;
-  last_used?: string;
+  updated_at?: string;
 }
 
 export interface NotificationSettingsUpdate {
@@ -39,11 +26,6 @@ export interface NotificationSettingsUpdate {
   filing_8k?: boolean;
   filing_s1?: boolean;
   watchlist_only?: boolean;
-  daily_reset_reminder?: boolean;
-  subscription_alerts?: boolean;
-  market_summary?: boolean;
-  quiet_hours_start?: string | null;
-  quiet_hours_end?: string | null;
   notification_enabled?: boolean;
 }
 
@@ -54,24 +36,19 @@ export interface NotificationHistory {
   body: string;
   data?: any;
   sent_at: string;
-  read_at?: string;
-  clicked_at?: string;
-  platform?: string;
-  status: 'sent' | 'delivered' | 'failed' | 'clicked';
+  status: 'sent' | 'delivered' | 'failed' | 'pending';
+  error_message?: string;
+  created_at: string;
 }
 
 export interface NotificationStats {
   total_sent: number;
-  total_delivered: number;
-  total_clicked: number;
-  by_type: {
-    [key: string]: {
-      sent: number;
-      delivered: number;
-      clicked: number;
-    };
+  total_failed: number;
+  device_count: number;
+  settings: {
+    enabled: boolean;
+    watchlist_only?: boolean;
   };
-  recent_notifications: NotificationHistory[];
 }
 
 export interface DeviceTokenRegistration {
@@ -83,21 +60,17 @@ export interface DeviceTokenRegistration {
 }
 
 export interface TestNotificationRequest {
-  notification_type?: 'filing_release' | 'daily_reset' | 'subscription' | 'test';
   title?: string;
   body?: string;
 }
 
-// Notification preference labels for UI
+// SIMPLIFIED: Core notification preference labels for UI
 export const NOTIFICATION_LABELS = {
   filing_10k: 'Annual Reports (10-K)',
   filing_10q: 'Quarterly Reports (10-Q)',
   filing_8k: 'Current Reports (8-K)',
   filing_s1: 'IPO Filings (S-1)',
   watchlist_only: 'Watchlist Only',
-  daily_reset_reminder: 'Daily Reset Reminder',
-  subscription_alerts: 'Subscription Updates',
-  market_summary: 'Weekly Market Summary',
   notification_enabled: 'Push Notifications',
 } as const;
 
@@ -108,23 +81,107 @@ export const NOTIFICATION_DESCRIPTIONS = {
   filing_8k: 'Get notified about significant events and changes',
   filing_s1: 'Get notified when companies file for IPO',
   watchlist_only: 'Only receive notifications for companies in your watchlist',
-  daily_reset_reminder: 'Reminder when your daily view limit resets (Free users)',
-  subscription_alerts: 'Important updates about your subscription',
-  market_summary: 'Weekly summary of market activity',
   notification_enabled: 'Master switch for all push notifications',
 } as const;
 
-// Default notification settings
+// Default notification settings for new users
 export const DEFAULT_NOTIFICATION_SETTINGS: NotificationSettings = {
   filing_10k: true,
   filing_10q: true,
   filing_8k: true,
   filing_s1: true,
   watchlist_only: false,
-  daily_reset_reminder: true,
-  subscription_alerts: true,
-  market_summary: false,
-  quiet_hours_start: '22:00',
-  quiet_hours_end: '08:00',
   notification_enabled: true,
+};
+
+// Filing type validation helpers
+export const FILING_TYPES = ['filing_10k', 'filing_10q', 'filing_8k', 'filing_s1'] as const;
+export type FilingType = typeof FILING_TYPES[number];
+
+// Push token management types
+export interface PushTokenInfo {
+  token: string | null;
+  hasPermission: boolean;
+  synced: boolean;
+  lastSyncAt?: string;
+  platform?: 'ios' | 'android';
+}
+
+// Redux state types (for store integration)
+export interface NotificationState {
+  settings: NotificationSettings | null;
+  history: NotificationHistory[];
+  stats: NotificationStats | null;
+  pushTokenInfo: PushTokenInfo;
+  loading: {
+    settings: boolean;
+    history: boolean;
+    updating: boolean;
+    sendingTest: boolean;
+  };
+  errors: {
+    settings: string | null;
+    history: string | null;
+    updating: string | null;
+    sendingTest: string | null;
+  };
+}
+
+// API response types
+export interface ApiResponse<T> {
+  success: boolean;
+  data?: T;
+  message?: string;
+  error?: string;
+}
+
+// Test notification response
+export interface TestNotificationResponse {
+  success: boolean;
+  message: string;
+  firebase_configured?: boolean;
+  notifications_sent?: number;
+}
+
+// Device token response
+export interface DeviceTokenResponse {
+  success: boolean;
+  message: string;
+}
+
+// Validation helpers
+export const isValidFilingType = (type: string): type is FilingType => {
+  return FILING_TYPES.includes(type as FilingType);
+};
+
+export const hasAnyFilingTypeEnabled = (settings: NotificationSettings): boolean => {
+  return FILING_TYPES.some(type => settings[type]);
+};
+
+export const getEnabledFilingTypes = (settings: NotificationSettings): FilingType[] => {
+  return FILING_TYPES.filter(type => settings[type]);
+};
+
+// Notification configuration validation
+export const validateNotificationSettings = (settings: NotificationSettingsUpdate): {
+  valid: boolean;
+  errors: string[];
+} => {
+  const errors: string[] = [];
+  
+  // If notifications are enabled, at least one filing type should be enabled
+  if (settings.notification_enabled) {
+    const hasEnabledType = FILING_TYPES.some(type => 
+      settings[type] === true || (settings[type] === undefined && DEFAULT_NOTIFICATION_SETTINGS[type])
+    );
+    
+    if (!hasEnabledType) {
+      errors.push('At least one filing type must be enabled when notifications are turned on');
+    }
+  }
+  
+  return {
+    valid: errors.length === 0,
+    errors
+  };
 };

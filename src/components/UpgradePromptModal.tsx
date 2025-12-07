@@ -144,10 +144,9 @@ export default function UpgradePromptModal({
             <View style={styles.priceSection}>
               <Text style={styles.priceLabel}>LIMITED TIME OFFER</Text>
               <View style={styles.priceRow}>
-                <Text style={styles.currentPrice}>$39</Text>
+                <Text style={styles.currentPrice}>$19.99</Text>
                 <Text style={styles.priceUnit}>/month</Text>
               </View>
-              <Text style={styles.priceNote}>Cancel anytime · 7-day money back</Text>
             </View>
 
             {/* Action Buttons */}

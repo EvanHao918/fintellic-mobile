@@ -10,8 +10,9 @@ import {
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { colors, typography, spacing, borderRadius } from '../../theme';
-import { parseUnifiedAnalysis, hasUnifiedAnalysis, getDisplayAnalysis } from '../../utils/textHelpers';
+import { hasUnifiedAnalysis, getDisplayAnalysis, smartPaginateText } from '../../utils/textHelpers';
 import CompanyInfoCard from './CompanyInfoCard';
+import PaginatedAnalysis from './PaginatedAnalysis';
 import { Filing } from '../../types';
 
 interface Annual10KDetailProps {
@@ -19,21 +20,34 @@ interface Annual10KDetailProps {
 }
 
 const Annual10KDetail: React.FC<Annual10KDetailProps> = ({ filing }) => {
-  // Format helper functions
-  const formatDate = (date: string) => {
-    return new Date(date).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-    });
+  // Format filing time - use precise datetime format consistent with FilingCard
+  const formatFilingTime = () => {
+    // Priority: detected_at > display_time > filing_date (same as FilingCard)
+    const dateToFormat = filing.detected_at || filing.display_time || filing.filing_date;
+    
+    if (!dateToFormat) return '';
+    
+    const date = new Date(dateToFormat);
+    
+    // Format as: "2025-12-02 17:21" (YYYY-MM-DD HH:mm)
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const hours = String(date.getHours()).padStart(2, '0');
+    const minutes = String(date.getMinutes()).padStart(2, '0');
+    
+    return `${year}-${month}-${day} ${hours}:${minutes}`;
   };
 
-  // 统一分析内容 - 唯一的内容区域
+  // 统一分析内容 - 唯一的内容区域（使用分页）
   const renderUnifiedAnalysis = () => {
     const content = getDisplayAnalysis(filing);
     if (!content) return null;
 
     const isUnified = hasUnifiedAnalysis(filing);
+
+    // 🆕 使用智能分页
+    const textPages = smartPaginateText(content, 2000);
 
     return (
       <View style={styles.unifiedSection}>
@@ -48,17 +62,8 @@ const Annual10KDetail: React.FC<Annual10KDetailProps> = ({ filing }) => {
           )}
         </View>
 
-        <View style={styles.unifiedContent}>
-          {isUnified ? (
-            // 使用智能标记解析
-            <View style={styles.analysisText}>
-              {parseUnifiedAnalysis(content)}
-            </View>
-          ) : (
-            // 降级到普通文本 - 为了向后兼容
-            <Text style={styles.legacyText}>{content}</Text>
-          )}
-        </View>
+        {/* 🆕 使用分页组件 */}
+        <PaginatedAnalysis pages={textPages} />
       </View>
     );
   };
@@ -80,6 +85,12 @@ const Annual10KDetail: React.FC<Annual10KDetailProps> = ({ filing }) => {
             Fiscal Year {filing.fiscal_year || new Date(filing.filing_date).getFullYear()}
           </Text>
         </View>
+        <View style={styles.filedBadge}>
+          <Icon name="schedule" size={16} color={colors.white} />
+          <Text style={styles.filedText}>
+            Filed {formatFilingTime()}
+          </Text>
+        </View>
       </View>
 
       {/* 新增：公司信息卡片 */}
@@ -90,7 +101,7 @@ const Annual10KDetail: React.FC<Annual10KDetailProps> = ({ filing }) => {
         accessionNumber={filing.accession_number}
       />
 
-      {/* AI分析内容 */}
+      {/* AI分析内容（分页） */}
       {renderUnifiedAnalysis()}
 
       {/* Footer with SEC Link */}
@@ -130,13 +141,13 @@ const styles = StyleSheet.create({
     fontWeight: typography.fontWeight.bold,
     color: colors.white,
     marginBottom: spacing.xs,
-    fontFamily: 'Times New Roman, serif',
+    fontFamily: typography.fontFamily.serif,
   },
   headerSubtitle: {
     fontSize: typography.fontSize.sm,
     color: colors.white + '90',
     textAlign: 'center',
-    fontFamily: 'Times New Roman, serif',
+    fontFamily: typography.fontFamily.serif,
   },
   periodBadge: {
     flexDirection: 'row',
@@ -152,33 +163,36 @@ const styles = StyleSheet.create({
     fontSize: typography.fontSize.sm,
     fontWeight: typography.fontWeight.medium,
     marginLeft: spacing.xs,
-    fontFamily: 'Times New Roman, serif',
+    fontFamily: typography.fontFamily.serif,
+  },
+  filedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.white + '20',
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
+    borderRadius: borderRadius.xl,
+    marginTop: spacing.xs,
+  },
+  filedText: {
+    color: colors.white,
+    fontSize: typography.fontSize.sm,
+    fontWeight: typography.fontWeight.medium,
+    marginLeft: spacing.xs,
+    fontFamily: typography.fontFamily.serif,
   },
 
-  // Unified Analysis Section - 唯一的内容区域
+  // Unified Analysis Section - 唯一的内容区域（现在包含分页）
   unifiedSection: {
-    backgroundColor: colors.white,
-    marginHorizontal: spacing.md,
-    marginTop: spacing.md,
+    backgroundColor: colors.background,
     marginBottom: spacing.md,
-    padding: spacing.lg,
-    borderRadius: borderRadius.md,
-    ...Platform.select({
-      ios: {
-        shadowColor: colors.text,
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
-      },
-      android: {
-        elevation: 2,
-      },
-    }),
   },
   sectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: spacing.lg,
+    marginHorizontal: spacing.md,
+    marginTop: spacing.md,
+    marginBottom: spacing.sm,
     paddingBottom: spacing.md,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
@@ -189,7 +203,7 @@ const styles = StyleSheet.create({
     color: colors.text,
     marginLeft: spacing.sm,
     flex: 1,
-    fontFamily: 'Times New Roman, serif',
+    fontFamily: typography.fontFamily.serif,
   },
   unifiedBadge: {
     flexDirection: 'row',
@@ -204,20 +218,7 @@ const styles = StyleSheet.create({
     color: colors.primary,
     marginLeft: spacing.xs,
     fontWeight: typography.fontWeight.medium,
-    fontFamily: 'Times New Roman, serif',
-  },
-  unifiedContent: {
-    paddingTop: spacing.sm,
-  },
-  analysisText: {
-    // Container for parsed unified analysis
-    // 实际样式在 textHelpers.ts 中定义
-  },
-  legacyText: {
-    fontSize: typography.fontSize.md,
-    color: colors.text,
-    lineHeight: 24,
-    fontFamily: 'Times New Roman, serif',
+    fontFamily: typography.fontFamily.serif,
   },
 
   // Footer
@@ -237,7 +238,7 @@ const styles = StyleSheet.create({
     fontSize: typography.fontSize.md,
     fontWeight: typography.fontWeight.medium,
     marginLeft: spacing.sm,
-    fontFamily: 'Times New Roman, serif',
+    fontFamily: typography.fontFamily.serif,
   },
 });
 

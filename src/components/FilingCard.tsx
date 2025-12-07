@@ -4,6 +4,9 @@
 // ENHANCED: Show specific datetime format instead of relative time
 // 🔥 FIXED: Move stats display to top-right to avoid overlap with bearish button
 // 🔥 FIXED: Left align voting module in footer
+// 🎯 FIXED: Remove numberOfLines limit on title to allow full display
+// 🛠️ FIXED: TypeScript type errors for optional properties
+// 🎨 MODIFIED: Reduced marginHorizontal from spacing.md (16px) to spacing.xs (8px) for wider cards
 
 import React from 'react';
 import {
@@ -222,12 +225,12 @@ export default function FilingCard({
 
           {/* Main Content */}
           <View style={styles.content}>
-            {/* Summary with event type */}
+            {/* Summary with event type - 🎯 FIXED: Removed numberOfLines limit */}
             <View style={styles.summarySection}>
               {eventType && filing.form_type === '8-K' && (
                 <Text style={styles.eventLabel}>{eventType}: </Text>
               )}
-              <Text style={styles.summaryText} numberOfLines={3}>
+              <Text style={styles.summaryText}>
                 {summaryText}
               </Text>
             </View>
@@ -247,88 +250,40 @@ export default function FilingCard({
                   </View>
                 ))}
                 {filing.tags && filing.tags.length > 3 && (
-                  <Text style={styles.moreKeywordsText}>+{filing.tags.length - 3}</Text>
+                  <Text style={styles.moreKeywordsText}>
+                    +{filing.tags.length - 3} more
+                  </Text>
                 )}
               </View>
             )}
-
-            {/* Key Info Row - 使用宽松存在的字段 */}
-            {(filing.form_type === '10-Q' && filing.expectations_comparison) ||
-             (filing.form_type === '10-K' && filing.fiscal_year) ||
-             (filing.form_type === '8-K' && filing.items && filing.items.length > 0) ||
-             filing.financial_highlights ||
-             filing.guidance_update ||
-             filing.future_outlook ||
-             (filing.risk_factors && filing.risk_factors.length > 0) ? (
-              <View style={styles.metricsRow}>
-              {/* 财务类型特定信息 */}
-              {filing.form_type === '10-Q' && filing.expectations_comparison && (
-                <View style={styles.metricItem}>
-                  <Icon name="assessment" size={12} color={colors.primary} />
-                  <Text style={styles.metricLabel} numberOfLines={1}>Beat/Miss</Text>
-                </View>
-              )}
-              
-              {filing.form_type === '10-K' && filing.fiscal_year && (
-                <View style={styles.metricItem}>
-                  <Icon name="event" size={12} color={colors.gray600} />
-                  <Text style={styles.metricLabel} numberOfLines={1}>FY {filing.fiscal_year}</Text>
-                </View>
-              )}
-              
-              {filing.form_type === '8-K' && filing.items && filing.items.length > 0 && (
-                <View style={styles.metricItem}>
-                  <Icon name="announcement" size={12} color={colors.warning} />
-                  <Text style={styles.metricLabel} numberOfLines={1}>{filing.items[0]}</Text>
-                </View>
-              )}
-              
-              {filing.financial_highlights && (
-                <View style={styles.metricItem}>
-                  <Icon name="attach-money" size={12} color={colors.success} />
-                  <Text style={styles.metricLabel} numberOfLines={1}>Financials</Text>
-                </View>
-              )}
-              
-              {(filing.guidance_update || filing.future_outlook) && (
-                <View style={styles.metricItem}>
-                  <Icon name="trending-up" size={12} color={colors.primary} />
-                  <Text style={styles.metricLabel} numberOfLines={1}>Guidance</Text>
-                </View>
-              )}
-              
-              {filing.risk_factors && filing.risk_factors.length > 0 && (
-                <View style={styles.metricItem}>
-                  <Icon name="warning" size={12} color={colors.error} />
-                  <Text style={styles.metricLabel} numberOfLines={1}>Risks</Text>
-                </View>
-              )}
-            </View>
-            ) : null}
           </View>
 
-          {/* Compact Footer - 🔥 FIXED: Left align voting module */}
+          {/* Footer with voting & stats - 🔥 FIXED: Stats in top-right corner */}
           <View style={styles.footer}>
-            {/* 🔥 FIXED: Stats Display positioned in footer top-right */}
+            {/* 🔥 FIXED: Stats display moved to absolute positioning in top-right */}
             <View style={styles.footerStatsContainer}>
-              <StatsDisplay
-                commentCount={filing.comment_count || 0}
+              <StatsDisplay 
                 viewCount={filing.view_count || 0}
-                onCommentPress={() => onPress(filing)}
-                isProUser={isProUser}
+                commentCount={filing.comment_count || 0}
                 mode="compact"
               />
             </View>
             
-            {/* 🔥 FIXED: Voting module now left-aligned */}
-            <VotingModule
-              filingId={filing.id}
-              initialVoteCounts={filing.vote_counts}
-              initialUserVote={filing.user_vote}
-              mode="compact"
-              style={styles.votingModule}
-            />
+            {/* 🔥 FIXED: Voting module is now left-aligned */}
+            <View style={styles.votingModule}>
+              <VotingModule
+                filingId={filing.id}
+                formType={filing.form_type}
+                initialUserVote={filing.user_vote || null}
+                initialVoteCounts={{
+                  bullish: filing.vote_counts?.bullish || 0,
+                  neutral: filing.vote_counts?.neutral || 0,
+                  bearish: filing.vote_counts?.bearish || 0,
+                }}
+              />
+            </View>
           </View>
+
         </View>
       </TouchableOpacity>
     </Animated.View>
@@ -336,20 +291,21 @@ export default function FilingCard({
 }
 
 const styles = StyleSheet.create({
+  // 🎨 MODIFIED: Reduced horizontal margin from spacing.md (16px) to spacing.xs (8px)
   container: {
+    marginHorizontal: spacing.xs,  // Changed from spacing.md to spacing.xs (16px → 8px)
     marginBottom: spacing.sm,
-    marginHorizontal: spacing.xs,
   },
   card: {
     backgroundColor: colors.white,
     borderRadius: borderRadius.lg,
-    borderWidth: 1,
-    borderColor: colors.gray100,
-    ...shadows.sm,
     overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: colors.gray200,
+    ...shadows.md,
   },
   
-  // 🔥 NEW: Footer stats container positioned in top-right of footer
+  // Footer stats positioning - 🔥 FIXED: Now positioned at top-right of footer
   footerStatsContainer: {
     position: 'absolute',
     top: spacing.xs, // 🔥 FIXED: Position inside footer, not above it
@@ -521,11 +477,14 @@ const styles = StyleSheet.create({
     fontWeight: typography.fontWeight.semibold,
     color: colors.primary,
   },
+  // 🎯 MODIFIED: summaryText now supports multi-line display (removed numberOfLines)
   summaryText: {
     fontSize: typography.fontSize.base,
     color: colors.gray800,
     lineHeight: typography.fontSize.base * 1.5,
-    fontFamily: 'Times New Roman, serif',
+    fontFamily: typography.fontFamily.serif,
+    // numberOfLines property removed to allow full text display
+    // Card height will now adapt to content length
   },
   
   // ENHANCED: Keywords Row - 更低调紧凑的样式

@@ -1,7 +1,8 @@
 // src/store/slices/filingsSlice.ts
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
-import { Filing, VoteType } from '../../types';
+import { Filing, VoteType, FilingTypeFilter } from '../../types';
 import { getFilings, voteOnFiling } from '../../api/filings';
+import { storage } from '../../utils/storage';
 
 interface FilingsState {
   filings: Filing[];
@@ -11,6 +12,7 @@ interface FilingsState {
   error: string | null;
   currentPage: number;
   lastRefreshTime: number | null; // 追踪最后刷新时间
+  filingTypeFilter: FilingTypeFilter; // 当前选中的筛选类型
 }
 
 const initialState: FilingsState = {
@@ -21,13 +23,14 @@ const initialState: FilingsState = {
   error: null,
   currentPage: 1,
   lastRefreshTime: null,
+  filingTypeFilter: 'all',
 };
 
 // Fetch filings
 export const fetchFilings = createAsyncThunk(
   'filings/fetchFilings',
-  async ({ page, isRefresh }: { page: number; isRefresh: boolean }) => {
-    const response = await getFilings(page);
+  async ({ page, isRefresh, formType }: { page: number; isRefresh: boolean; formType?: string }) => {
+    const response = await getFilings(page, formType);  // 🔥 修复：只传 page 和 formType
     return { 
       filings: response.data, 
       isRefresh, 
@@ -58,6 +61,16 @@ const filingsSlice = createSlice({
       state.currentPage = 1;
       state.hasMore = true;
       state.lastRefreshTime = null;
+    },
+    // 设置筛选类型
+    setFilingTypeFilter: (state, action: PayloadAction<FilingTypeFilter>) => {
+      state.filingTypeFilter = action.payload;
+      // 🔥 禁用自动保存 - 每次启动都默认显示全部
+      // storage.set('filingTypeFilter', action.payload);
+    },
+    // 从本地存储加载筛选类型
+    loadFilingTypeFilter: (state, action: PayloadAction<FilingTypeFilter>) => {
+      state.filingTypeFilter = action.payload;
     },
     // 更新单个 filing 的投票数据（用于所有页面）
     updateFilingVote: (state, action: PayloadAction<{
@@ -176,7 +189,9 @@ export const {
   clearFilings, 
   updateFilingVote, 
   upsertFiling,
-  checkRefreshNeeded 
+  checkRefreshNeeded,
+  setFilingTypeFilter,
+  loadFilingTypeFilter,
 } = filingsSlice.actions;
 
 export default filingsSlice.reducer;

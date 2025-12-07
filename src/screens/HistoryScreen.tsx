@@ -142,7 +142,7 @@ export default function HistoryScreen() {
   // Render loading state
   if (isLoading) {
     return (
-      <SafeAreaView style={styles.container}>
+      <SafeAreaView style={styles.container} edges={['bottom', 'left', 'right']}>
         <View style={styles.header}>
           <View>
             <Text style={styles.headerTitle}>History</Text>
@@ -161,7 +161,7 @@ export default function HistoryScreen() {
   const sections = Object.entries(groupedHistory);
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['bottom', 'left', 'right']}>
       {/* Header */}
       <View style={styles.header}>
         <View>
@@ -238,9 +238,13 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     padding: spacing.lg,
-    backgroundColor: colors.white,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    backgroundColor: colors.beige,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 3,
+    zIndex: 10,
   },
   headerTitle: {
     fontSize: typography.fontSize.xl,

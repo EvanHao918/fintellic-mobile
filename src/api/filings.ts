@@ -148,7 +148,8 @@ const cleanCommentData = (comment: any): Comment => {
 // ENHANCED: Handle detected_at timestamps in response with better logging
 export const getFilings = async (
   page: number = 1, 
-  ticker?: string
+  formType?: string,  // 🔥 formType 移到第二位
+  ticker?: string     // 🔥 ticker 移到第三位
 ): Promise<{ data: Filing[]; total: number; page: number; pages: number }> => {
   try {
     const skip = (page - 1) * 20;
@@ -156,6 +157,11 @@ export const getFilings = async (
     
     if (ticker) {
       params.ticker = ticker;
+    }
+    
+    // 🔥 添加 form_type 参数
+    if (formType && formType !== 'all') {
+      params.form_type = formType;
     }
     
     console.log('Fetching filings with params:', params);
@@ -166,23 +172,47 @@ export const getFilings = async (
       hasData: !!response?.data,
       hasItems: !!response?.items,
       isArray: Array.isArray(response),
+      responseKeys: response ? Object.keys(response) : 'none',
       firstItemFields: response?.data?.[0] ? Object.keys(response.data[0]) : 'none'
     });
     
     let items: any[] = [];
     let total = 0;
     
+    // ENHANCED: More robust response parsing to handle various API response formats
     if (response && typeof response === 'object') {
+      // Try response.data first (most common)
       if (Array.isArray(response.data)) {
         items = response.data;
         total = response.total || items.length;
-      } else if (Array.isArray(response.items)) {
+        console.log('✅ Parsed from response.data:', items.length, 'items');
+      } 
+      // Try response.items (alternative format)
+      else if (Array.isArray(response.items)) {
         items = response.items;
         total = response.total || items.length;
-      } else if (Array.isArray(response)) {
+        console.log('✅ Parsed from response.items:', items.length, 'items');
+      } 
+      // Try direct array response
+      else if (Array.isArray(response)) {
         items = response;
         total = items.length;
+        console.log('✅ Parsed from direct array:', items.length, 'items');
       }
+      // If still empty, log the actual response structure for debugging
+      else {
+        console.error('❌ Unexpected API response format:', {
+          type: typeof response,
+          keys: Object.keys(response),
+          hasData: 'data' in response,
+          hasItems: 'items' in response,
+          dataType: typeof response.data,
+          itemsType: typeof response.items,
+          sample: JSON.stringify(response).substring(0, 300)
+        });
+      }
+    } else {
+      console.error('❌ Invalid response type:', typeof response);
     }
     
     const cleanedFilings = items.map(cleanFilingData);

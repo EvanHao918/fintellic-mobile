@@ -1,12 +1,36 @@
 // src/theme/index.ts
 import { Theme } from 'react-native-elements';
 
-// Color palette - Hermes Theme (Dark Gold/Orange)
+// Color palette - Hermes Theme (Dark Gold/Orange) + FinTech Professional
 export const colors = {
   // Primary colors - Hermes Orange/Dark Gold
   primary: '#D97706',       // Dark amber/orange (Hermes primary)
   primaryDark: '#B45309',   // Darker amber
   primaryLight: '#F59E0B',  // Lighter amber
+  
+  // FinTech Professional colors - NEW
+  fintechDeepBlue: '#0F172A',     // Deep navy blue (main background)
+  fintechMidBlue: '#1E293B',      // Mid navy (card background)
+  fintechDarkGray: '#334155',     // Dark gray (secondary background)
+  fintechGold: '#F59E0B',         // Gold accent (matches primary)
+  fintechGoldLight: '#FBBF24',    // Light gold
+  fintechGoldDark: '#D97706',     // Dark gold
+  
+  // Glass morphism colors - NEW
+  glassWhite: 'rgba(255, 255, 255, 0.1)',
+  glassWhiteBorder: 'rgba(255, 255, 255, 0.2)',
+  glassBlur: 'rgba(255, 255, 255, 0.05)',
+  
+  // Gradient colors - NEW
+  gradientStart: '#0F172A',       // Deep blue
+  gradientMid: '#1E3A5F',         // Mid blue
+  gradientEnd: '#1E293B',         // Navy
+  gradientGoldStart: '#F59E0B',   // Gold start
+  gradientGoldEnd: '#D97706',     // Gold end
+  
+  // Slogan gradient colors - NEW
+  sloganGradientStart: '#D97706', // Dark amber (primary)
+  sloganGradientEnd: '#F59E0B',   // Light amber (primaryLight)
   
   // Accent colors - Complementary dark gold
   accent: '#92400E',        // Dark bronze
@@ -17,6 +41,21 @@ export const colors = {
   secondaryDark: '#F1F5F9', // Light gray
   secondaryLight: '#FFFFFF', // Pure white
   
+  // NEW - Beige/Warm neutrals
+  beige: '#F5F5DC',         // Beige (HomePage background)
+  beigeLight: '#FAFAF5',    // Lighter beige
+  beigeDark: '#E8E8D0',     // Darker beige
+  
+  // NEW - Brown tones for navigation
+  brown: '#8B4513',         // Saddle brown (Navigation link active)
+  brownLight: '#A0522D',    // Sienna brown (Navigation link inactive)
+  brownDark: '#654321',     // Dark brown (备用)
+  
+  // NEW - Header colors
+  headerGreen: '#10B981',      // Emerald green (Header background)
+  headerGreenLight: '#6EE7B7', // 更浅的翠绿 - 用于渐变起点
+  headerGreenDark: '#047857',  // 更深的翠绿 - 用于渐变终点
+  
   // Status colors - Clear but not harsh
   success: '#10B981',       // Emerald
   warning: '#F59E0B',       // Amber (matches primary light)
@@ -24,12 +63,12 @@ export const colors = {
   errorLight: '#FEE2E2',    // Light red background
   info: '#3B82F6',          // Blue
   
-  // Earnings calendar time colors - 新增蓝绿色调
-  earningsBMO: '#2563EB',   // 明亮的蓝色 (Before Market Open)
-  earningsAMC: '#10B981',   // 翡翠绿色 (After Market Close)
+  // Earnings calendar time colors
+  earningsBMO: '#2563EB',   // Blue (Before Market Open)
+  earningsAMC: '#10B981',   // Green (After Market Close)
   
   // Filing type colors - Distinguished but harmonious
-  filing10K: '#2563EB',     // Blue (annual) - 保持原始蓝色
+  filing10K: '#2563EB',     // Blue (annual)
   filing10Q: '#10B981',     // Emerald (quarterly)
   filing8K: '#DC2626',      // Warm red (current)
   filingS1: '#7C3AED',      // Purple (IPO)
@@ -63,6 +102,10 @@ export const colors = {
   divider: 'rgba(0, 0, 0, 0.06)',
   overlay: 'rgba(0, 0, 0, 0.5)',
   
+  // FinTech text colors - NEW
+  textLight: '#E2E8F0',     // Light gray for dark backgrounds
+  textMuted: '#94A3B8',     // Muted gray for dark backgrounds
+  
   // Action colors - Using Hermes theme
   actionPrimary: '#D97706',
   actionSecondary: '#6B7280',
@@ -78,6 +121,10 @@ export const typography = {
     medium: 'System',
     semibold: 'System',
     bold: 'System',
+    // 衬线字体 - iOS 系统内置 Times New Roman
+    serif: 'TimesNewRomanPSMT',
+    serifBold: 'TimesNewRomanPS-BoldMT',
+    serifItalic: 'TimesNewRomanPS-ItalicMT',
   },
   
   // Font sizes - Comfortable scale
@@ -90,6 +137,7 @@ export const typography = {
     xl: 24,
     xxl: 30,
     xxxl: 36,
+    xxxxl: 42,  // NEW - for hero text
   },
   
   // Font weights
@@ -98,6 +146,7 @@ export const typography = {
     medium: '500' as '500',
     semibold: '600' as '600',
     bold: '700' as '700',
+    extrabold: '800' as '800',  // NEW
   },
   
   // Line heights
@@ -118,6 +167,7 @@ export const spacing = {
   xl: 32,
   xxl: 48,
   xxxl: 64,
+  xxxxl: 80,  // NEW
 };
 
 // Border radius - Soft but not playful
@@ -128,10 +178,11 @@ export const borderRadius = {
   lg: 12,
   xl: 16,
   xxl: 20,
+  xxxl: 24,  // NEW
   full: 9999,
 };
 
-// Shadows - Subtle depth
+// Shadows - Subtle depth + NEW enhanced shadows
 export const shadows = {
   none: {
     shadowColor: 'transparent',
@@ -168,6 +219,22 @@ export const shadows = {
     shadowRadius: 20,
     elevation: 16,
   },
+  // NEW - Gold glow effect
+  goldGlow: {
+    shadowColor: '#F59E0B',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  // NEW - Subtle inner shadow effect (via border)
+  innerGlow: {
+    shadowColor: '#FFFFFF',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 0,
+  },
 };
 
 // Animation durations
@@ -175,6 +242,7 @@ export const animation = {
   fast: 200,
   normal: 300,
   slow: 500,
+  verySlow: 800,  // NEW
 };
 
 // Filing type configurations
@@ -330,12 +398,28 @@ export const commonStyles = {
     padding: spacing.md,
   },
   
+  // NEW - FinTech Login Styles
+  fintechContainer: {
+    flex: 1,
+    backgroundColor: colors.fintechDeepBlue,
+  },
+  
   // Cards
   card: {
     backgroundColor: colors.white,
     borderRadius: borderRadius.lg,
     padding: spacing.md,
     ...shadows.md,
+  },
+  
+  // NEW - Glass card for login
+  glassCard: {
+    backgroundColor: colors.glassWhite,
+    borderRadius: borderRadius.xl,
+    borderWidth: 1,
+    borderColor: colors.glassWhiteBorder,
+    padding: spacing.lg,
+    ...shadows.lg,
   },
   
   // Buttons
@@ -350,6 +434,14 @@ export const commonStyles = {
     fontSize: typography.fontSize.base,
     fontWeight: typography.fontWeight.semibold,
     textAlign: 'center' as 'center',
+  },
+  
+  // NEW - Gold gradient button
+  goldGradientButton: {
+    borderRadius: borderRadius.lg,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.lg,
+    ...shadows.goldGlow,
   },
   
   secondaryButton: {
@@ -390,6 +482,28 @@ export const commonStyles = {
     color: colors.textSecondary,
   },
   
+  // NEW - FinTech text styles
+  fintechTitle: {
+    fontSize: typography.fontSize.xxxxl,
+    fontWeight: typography.fontWeight.extrabold,
+    color: colors.white,
+    letterSpacing: -0.5,
+  },
+  fintechSubtitle: {
+    fontSize: typography.fontSize.md,
+    fontWeight: typography.fontWeight.medium,
+    color: colors.textMuted,
+  },
+  
+  // NEW - Slogan text styles
+  sloganText: {
+    fontSize: typography.fontSize.sm,
+    fontWeight: typography.fontWeight.semibold,
+    letterSpacing: 0.3,
+    lineHeight: typography.fontSize.sm * 1.6,
+    textAlign: 'center' as 'center',
+  },
+  
   // Form styles
   inputContainer: {
     marginBottom: spacing.md,
@@ -399,6 +513,18 @@ export const commonStyles = {
     fontWeight: typography.fontWeight.medium,
     color: colors.text,
     marginBottom: spacing.xs,
+  },
+  
+  // NEW - Glass input style
+  glassInput: {
+    backgroundColor: colors.glassWhite,
+    borderRadius: borderRadius.lg,
+    borderWidth: 1,
+    borderColor: colors.glassWhiteBorder,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    color: colors.white,
+    fontSize: typography.fontSize.base,
   },
   
   // Layout helpers
@@ -427,7 +553,7 @@ export const commonStyles = {
     color: colors.white,
   },
   
-  // Index tags - 新增的样式
+  // Index tags
   indexTag: {
     paddingHorizontal: 6,
     paddingVertical: 2,

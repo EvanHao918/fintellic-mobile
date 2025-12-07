@@ -13,7 +13,7 @@ import { Icon } from 'react-native-elements';
 import { Calendar, DateData } from 'react-native-calendars';
 import { useSelector } from 'react-redux';
 import { RootState } from '../store';
-import { colors, typography, spacing, borderRadius } from '../theme';
+import { colors, typography, spacing, borderRadius, shadows } from '../theme';
 import apiClient from '../api/client';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -51,14 +51,14 @@ export default function CalendarScreen() {
     loadWatchlist();
   }, []);
 
-  // Load earnings data when watchlist is loaded
+  // Load earnings data when watchlist is loaded (only once on mount)
   useEffect(() => {
     if (watchlist.length >= 0) { // Load even if watchlist is empty
       fetchEarningsCalendar();
     }
   }, [watchlist]);
 
-  // Update marked dates when selected date changes - FIX for blue highlight
+  // Update marked dates when selected date changes
   useEffect(() => {
     if (earningsData.length > 0) {
       const marked: any = {};
@@ -74,7 +74,7 @@ export default function CalendarScreen() {
           dotColor: hasWatchlistCompany ? colors.primary : colors.textSecondary,
           customStyles: {
             container: {
-              backgroundColor: hasWatchlistCompany ? colors.primaryLight : colors.gray100,
+              backgroundColor: hasWatchlistCompany ? colors.primaryLight + '15' : colors.gray100,
             },
             text: {
               color: hasWatchlistCompany ? colors.primary : colors.text,
@@ -101,7 +101,7 @@ export default function CalendarScreen() {
     try {
       // First try to get from API if user is logged in
       if (user) {
-        const watchlistData = await apiClient.get<any[]>('/watchlist');
+        const watchlistData = await apiClient.get<any[]>('/watchlist/');
         if (watchlistData && Array.isArray(watchlistData)) {
           const tickers = watchlistData.map((item: any) => 
             typeof item === 'string' ? item : item.ticker
@@ -130,24 +130,37 @@ export default function CalendarScreen() {
     try {
       setIsLoading(true);
       
-      // Get current month - Fix timezone issue by using local date
+      // Get current month
       const now = new Date();
-      const year = now.getFullYear();
-      const month = now.getMonth() + 1;
+      const currentYear = now.getFullYear();
+      const currentMonth = now.getMonth() + 1;
       
-      // Fetch monthly calendar - API client now returns data directly
-      const calendarData = await apiClient.get<EarningsCalendarResponse>('/earnings/calendar/monthly', {
-        params: { year, month }
-      });
+      // Calculate next month
+      const nextMonth = currentMonth === 12 ? 1 : currentMonth + 1;
+      const nextYear = currentMonth === 12 ? currentYear + 1 : currentYear;
       
-      // Check if response has the expected structure
-      if (calendarData && calendarData.earnings_days) {
-        const earnings = calendarData.earnings_days;
-        setEarningsData(earnings);
+      // Fetch current month and next month in parallel
+      const [currentMonthData, nextMonthData] = await Promise.all([
+        apiClient.get<EarningsCalendarResponse>('/earnings/calendar/monthly', {
+          params: { year: currentYear, month: currentMonth }
+        }),
+        apiClient.get<EarningsCalendarResponse>('/earnings/calendar/monthly', {
+          params: { year: nextYear, month: nextMonth }
+        })
+      ]);
+      
+      // Merge earnings_days from both months
+      const allEarnings: EarningsDay[] = [
+        ...(currentMonthData?.earnings_days || []),
+        ...(nextMonthData?.earnings_days || [])
+      ];
+      
+      if (allEarnings.length > 0) {
+        setEarningsData(allEarnings);
         
         // Mark dates on calendar
         const marked: any = {};
-        earnings.forEach((day: EarningsDay) => {
+        allEarnings.forEach((day: EarningsDay) => {
           const hasWatchlistCompany = day.companies.some(c => 
             watchlist.includes(c.ticker)
           );
@@ -157,7 +170,7 @@ export default function CalendarScreen() {
             dotColor: hasWatchlistCompany ? colors.primary : colors.textSecondary,
             customStyles: {
               container: {
-                backgroundColor: hasWatchlistCompany ? colors.primaryLight : colors.gray100,
+                backgroundColor: hasWatchlistCompany ? colors.primaryLight + '15' : colors.gray100,
               },
               text: {
                 color: hasWatchlistCompany ? colors.primary : colors.text,
@@ -196,18 +209,12 @@ export default function CalendarScreen() {
     setSelectedDate(day.dateString);
   };
 
-  // Fixed function to handle timezone issues
   const getSelectedDateEarnings = () => {
-    // Simply match the date string directly
     return earningsData.find(day => day.date === selectedDate);
   };
 
-  // Fixed date display function to avoid timezone issues
   const formatSelectedDate = (dateString: string) => {
-    // Parse the date components to avoid timezone conversion
     const [year, month, day] = dateString.split('-').map(num => parseInt(num));
-    
-    // Create date using local timezone
     const date = new Date(year, month - 1, day);
     
     return date.toLocaleDateString('en-US', {
@@ -254,14 +261,13 @@ export default function CalendarScreen() {
   };
 
   const getTimeStyle = (time: string) => {
-    // 转换为大写以处理大小写问题
     const upperTime = time?.toUpperCase() || '';
     
     switch (upperTime) {
       case 'BMO':
-        return { backgroundColor: '#2563EB' };  // 明亮的蓝色
+        return { backgroundColor: '#2563EB' };
       case 'AMC':
-        return { backgroundColor: '#10B981' };  // 翡翠绿
+        return { backgroundColor: '#10B981' };
       case 'TBD':
         return { backgroundColor: colors.gray500 };
       default:
@@ -271,7 +277,7 @@ export default function CalendarScreen() {
 
   if (isLoading) {
     return (
-      <SafeAreaView style={styles.container}>
+      <SafeAreaView style={styles.container} edges={['bottom', 'left', 'right']}>
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={colors.primary} />
           <Text style={styles.loadingText}>Loading earnings calendar...</Text>
@@ -283,7 +289,7 @@ export default function CalendarScreen() {
   const selectedEarnings = getSelectedDateEarnings();
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['bottom', 'left', 'right']}>
       <ScrollView
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
@@ -295,36 +301,53 @@ export default function CalendarScreen() {
           <Text style={styles.headerSubtitle}>
             Track upcoming earnings announcements
           </Text>
+          <Text style={styles.headerDisclaimer}>
+            (Data from FMP. Dates are estimates and subject to change.)
+          </Text>
         </View>
 
-        {/* Calendar */}
-        <Calendar
-          current={selectedDate}
-          onDayPress={onDayPress}
-          markedDates={markedDates}
-          theme={{
-            backgroundColor: colors.white,
-            calendarBackground: colors.white,
-            textSectionTitleColor: colors.textSecondary,
-            selectedDayBackgroundColor: colors.primary,
-            selectedDayTextColor: colors.white,
-            todayTextColor: colors.primary,
-            dayTextColor: colors.text,
-            textDisabledColor: colors.gray300,
-            dotColor: colors.primary,
-            selectedDotColor: colors.white,
-            arrowColor: colors.primary,
-            monthTextColor: colors.text,
-            textDayFontFamily: typography.fontFamily.regular,
-            textMonthFontFamily: typography.fontFamily.semibold,
-            textDayHeaderFontFamily: typography.fontFamily.medium,
-            textDayFontSize: 14,
-            textMonthFontSize: 16,
-            textDayHeaderFontSize: 12,
-          }}
-        />
+        {/* Calendar Container with Border */}
+        <View style={styles.calendarWrapper}>
+          <Calendar
+            current={selectedDate}
+            onDayPress={onDayPress}
+            markedDates={markedDates}
+            markingType={'custom'}
+            theme={{
+              backgroundColor: colors.white,
+              calendarBackground: colors.white,
+              textSectionTitleColor: colors.textSecondary,
+              selectedDayBackgroundColor: colors.primary,
+              selectedDayTextColor: colors.white,
+              todayTextColor: colors.primary,
+              dayTextColor: colors.text,
+              textDisabledColor: colors.gray300,
+              dotColor: colors.primary,
+              selectedDotColor: colors.white,
+              arrowColor: colors.primary,
+              monthTextColor: colors.text,
+              textDayFontFamily: typography.fontFamily.regular,
+              textMonthFontFamily: typography.fontFamily.semibold,
+              textDayHeaderFontFamily: typography.fontFamily.medium,
+              textDayFontSize: 14,
+              textMonthFontSize: 16,
+              textDayHeaderFontSize: 12,
+            }}
+            style={styles.calendar}
+          />
+          {/* Overlay grid lines */}
+          <View style={styles.gridOverlay} pointerEvents="none">
+            {[...Array(6)].map((_, rowIndex) => (
+              <View key={`row-${rowIndex}`} style={styles.gridRow}>
+                {[...Array(7)].map((_, colIndex) => (
+                  <View key={`cell-${rowIndex}-${colIndex}`} style={styles.gridCell} />
+                ))}
+              </View>
+            ))}
+          </View>
+        </View>
 
-        {/* Selected Date Earnings - Fixed date display */}
+        {/* Selected Date Earnings */}
         <View style={styles.selectedDateContainer}>
           <Text style={styles.selectedDateTitle}>
             {formatSelectedDate(selectedDate)}
@@ -355,7 +378,7 @@ export default function CalendarScreen() {
           )}
         </View>
 
-        {/* Legend - 更新图例颜色 */}
+        {/* Legend */}
         <View style={styles.legend}>
           <Text style={styles.legendTitle}>Time Legend</Text>
           <View style={styles.legendItems}>
@@ -381,7 +404,7 @@ export default function CalendarScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: colors.beige, // 🎨 Changed to beige background
   },
   loadingContainer: {
     flex: 1,
@@ -394,14 +417,21 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
   },
   header: {
-    padding: spacing.lg,
-    backgroundColor: colors.white,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.lg,
+    paddingBottom: spacing.sm,
+    backgroundColor: colors.beige,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 3,
+    zIndex: 10,
   },
   headerTitle: {
     fontSize: typography.fontSize.xl,
     fontFamily: typography.fontFamily.bold,
+    fontStyle: 'italic',
     color: colors.text,
   },
   headerSubtitle: {
@@ -409,10 +439,55 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     marginTop: spacing.xs,
   },
+  headerDisclaimer: {
+    fontSize: typography.fontSize.xs,
+    color: colors.textSecondary,
+    marginTop: spacing.xs,
+    fontStyle: 'italic',
+  },
+  // 🎨 NEW: Calendar wrapper with border and shadow
+  calendarWrapper: {
+    marginHorizontal: spacing.md,
+    marginTop: spacing.sm,
+    backgroundColor: colors.white,
+    borderRadius: borderRadius.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    overflow: 'hidden',
+    ...shadows.md,
+    position: 'relative',
+  },
+  // 🎨 NEW: Calendar styling
+  calendar: {
+    borderRadius: borderRadius.lg,
+    paddingBottom: spacing.sm,
+  },
+  // 🎨 NEW: Grid overlay
+  gridOverlay: {
+    position: 'absolute',
+    top: 110, // Adjust based on header height
+    left: 0,
+    right: 0,
+    bottom: 0,
+  },
+  gridRow: {
+    flexDirection: 'row',
+    height: 48, // Approximate height of each week row
+  },
+  gridCell: {
+    flex: 1,
+    borderWidth: 0.3,
+    borderColor: colors.gray200,
+  },
   selectedDateContainer: {
     padding: spacing.lg,
     backgroundColor: colors.white,
-    marginTop: spacing.sm,
+    marginTop: spacing.md,
+    marginHorizontal: spacing.md,
+    borderRadius: borderRadius.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    ...shadows.sm,
   },
   selectedDateTitle: {
     fontSize: typography.fontSize.lg,
@@ -436,6 +511,8 @@ const styles = StyleSheet.create({
     backgroundColor: colors.backgroundSecondary,
     borderRadius: borderRadius.md,
     marginBottom: spacing.sm,
+    borderWidth: 1,
+    borderColor: colors.gray200,
   },
   earningItemLeft: {
     flex: 1,
@@ -487,7 +564,13 @@ const styles = StyleSheet.create({
   legend: {
     padding: spacing.lg,
     backgroundColor: colors.white,
-    marginTop: spacing.sm,
+    marginTop: spacing.md,
+    marginHorizontal: spacing.md,
+    marginBottom: spacing.lg,
+    borderRadius: borderRadius.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    ...shadows.sm,
   },
   legendTitle: {
     fontSize: typography.fontSize.md,

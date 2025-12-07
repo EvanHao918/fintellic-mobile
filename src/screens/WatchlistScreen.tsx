@@ -186,7 +186,7 @@ export default function WatchlistScreen() {
 
   if (isLoading) {
     return (
-      <SafeAreaView style={styles.container}>
+      <SafeAreaView style={styles.container} edges={['bottom', 'left', 'right']}>
         <View style={styles.center}>
           <ActivityIndicator size="large" color="#3B82F6" />
           <Text style={styles.loadingText}>Loading...</Text>
@@ -196,7 +196,7 @@ export default function WatchlistScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['bottom', 'left', 'right']}>
       <View style={styles.headerContainer}>
         <View>
           <Text style={styles.title}>Watchlist</Text>
@@ -291,14 +291,26 @@ const styles = StyleSheet.create({
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   
   // Header
-  headerContainer: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, backgroundColor: '#FFF' },
+  headerContainer: { 
+    flexDirection: 'row', 
+    justifyContent: 'space-between', 
+    alignItems: 'center', 
+    padding: 20, 
+    backgroundColor: '#F5F0E8',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 3,
+    zIndex: 10,
+  },
   title: { fontSize: 28, fontWeight: '700', color: '#111827' },
   subtitle: { fontSize: 14, color: '#6B7280', marginTop: 2 },
   searchButton: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#EFF6FF', alignItems: 'center', justifyContent: 'center' },
   searchButtonActive: { backgroundColor: '#3B82F6' },
   
   // Search
-  searchContainer: { backgroundColor: '#FFF', paddingBottom: 16 },
+  searchContainer: { backgroundColor: '#F5F0E8', paddingBottom: 16 },
   searchInput: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F8FAFC', borderRadius: 12, paddingHorizontal: 16, marginHorizontal: 20, marginTop: 16, height: 48 },
   input: { flex: 1, marginLeft: 12, fontSize: 16, color: '#111827' },
   searchLoading: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 20 },

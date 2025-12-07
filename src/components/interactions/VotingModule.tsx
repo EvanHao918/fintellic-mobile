@@ -13,8 +13,101 @@ import { VoteType } from '../../types';
 import { useFilingVote } from '../../hooks/useFilingVote';
 import { RootState } from '../../store';
 
+// 问题文本部分（支持加粗）
+interface QuestionPart {
+  text: string;
+  bold?: boolean;
+}
+
+// 投票选项配置接口
+interface VotingOption {
+  type: 'bullish' | 'neutral' | 'bearish';
+  label: string;
+  emoji: string;
+}
+
+// 投票配置接口
+interface VotingConfig {
+  question: QuestionPart[];  // 支持富文本
+  options: VotingOption[];
+}
+
+// 根据文件类型获取定制化配置
+const getVotingConfig = (formType: string): VotingConfig => {
+  switch (formType) {
+    case '10-Q':
+      return {
+        question: [
+          { text: 'Market reaction', bold: true },
+          { text: ' to this quarter?' }
+        ],
+        options: [
+          { type: 'bullish', label: 'Bullish', emoji: '🚀' },
+          { type: 'neutral', label: 'Neutral', emoji: '🤷' },
+          { type: 'bearish', label: 'Bearish', emoji: '📉' }
+        ]
+      };
+    case '10-K':
+      return {
+        question: [
+          { text: 'Will this annual drive ' },
+          { text: 'momentum', bold: true },
+          { text: '?' }
+        ],
+        options: [
+          { type: 'bullish', label: 'Yes', emoji: '🚀' },
+          { type: 'neutral', label: 'Maybe', emoji: '🤷' },
+          { type: 'bearish', label: 'No', emoji: '📉' }
+        ]
+      };
+    case '8-K':
+      return {
+        question: [
+          { text: 'Will this ' },
+          { text: 'event', bold: true },
+          { text: ' move the ' },
+          { text: 'stock', bold: true },
+          { text: '?' }
+        ],
+        options: [
+          { type: 'bullish', label: 'Bullish', emoji: '🚀' },
+          { type: 'neutral', label: 'Neutral', emoji: '🤷' },
+          { type: 'bearish', label: 'Bearish', emoji: '📉' }
+        ]
+      };
+    case 'S-1':
+      return {
+        question: [
+          { text: 'Will this be ' },
+          { text: 'Next ' },
+          { text: 'unicorn', bold: true },
+          { text: '?' }
+        ],
+        options: [
+          { type: 'bullish', label: 'Bullish', emoji: '🚀' },
+          { type: 'neutral', label: 'Neutral', emoji: '🤷' },
+          { type: 'bearish', label: 'Bearish', emoji: '📉' }
+        ]
+      };
+    default:
+      return {
+        question: [
+          { text: 'How will the ' },
+          { text: 'market react', bold: true },
+          { text: ' to this filing?' }
+        ],
+        options: [
+          { type: 'bullish', label: 'Bullish', emoji: '🚀' },
+          { type: 'neutral', label: 'Neutral', emoji: '🤷' },
+          { type: 'bearish', label: 'Bearish', emoji: '📉' }
+        ]
+      };
+  }
+};
+
 interface VotingModuleProps {
   filingId: number;
+  formType: string;  // 新增：文件类型
   initialVoteCounts?: {
     bullish: number;
     neutral: number;
@@ -28,6 +121,7 @@ interface VotingModuleProps {
 
 export const VotingModule: React.FC<VotingModuleProps> = ({
   filingId,
+  formType,
   initialVoteCounts = { bullish: 0, neutral: 0, bearish: 0 },
   initialUserVote = null,
   mode = 'compact',
@@ -86,37 +180,32 @@ export const VotingModule: React.FC<VotingModuleProps> = ({
     return Math.round((count / totalVotes) * 100);
   };
 
-  // 🔥 修复：更新投票选项配置 - 新的颜文字和文案
-  const voteOptions = [
-    {
-      type: 'bullish' as const,
-      emoji: '📈',
-      label: 'Bullish',
-      color: colors.bullish,
-      count: voteCounts.bullish,
-    },
-    {
-      type: 'neutral' as const,
-      emoji: '😐',
-      label: 'Neutral',
-      color: colors.neutral,
-      count: voteCounts.neutral,
-    },
-    {
-      type: 'bearish' as const,
-      emoji: '📉',
-      label: 'Bearish',
-      color: colors.bearish,
-      count: voteCounts.bearish,
-    },
-  ];
+  // 获取定制化配置
+  const votingConfig = getVotingConfig(formType);
+
+  // 构建投票选项（结合配置和数据）
+  const voteOptions = votingConfig.options.map(option => ({
+    type: option.type,
+    emoji: option.emoji,
+    label: option.label,
+    color: option.type === 'bullish' ? colors.bullish : 
+           option.type === 'neutral' ? colors.neutral : colors.bearish,
+    count: voteCounts[option.type],
+  }));
 
   return (
     <View style={[styles.container, mode === 'full' && styles.containerFull, style]}>
-      {/* 🔥 修复：更新提示文字 */}
+      {/* 使用定制化问题文本（支持富文本） */}
       <View style={styles.promptContainer}>
         <Text style={[styles.promptText, mode === 'full' && styles.promptTextFull]}>
-          How will the <Text style={styles.promptTextBold}>market react</Text> to this filing?
+          {votingConfig.question.map((part, index) => (
+            <Text 
+              key={index} 
+              style={part.bold ? styles.promptTextBold : undefined}
+            >
+              {part.text}
+            </Text>
+          ))}
         </Text>
       </View>
       
@@ -188,19 +277,19 @@ const styles = StyleSheet.create({
     marginBottom: spacing.xs,
   },
   promptText: {
-    fontSize: typography.fontSize.xs,
+    fontSize: 14,  // 🔥 增大到 18px
     color: colors.textSecondary,
-    lineHeight: typography.fontSize.xs * 1.3,
+    lineHeight: 18 * 1.4,
   },
   promptTextFull: {
-    fontSize: typography.fontSize.sm,
-    lineHeight: typography.fontSize.sm * 1.4,
+    fontSize: 18,  // 🔥 full 模式也用 18px
+    lineHeight: 18 * 1.4,
     textAlign: 'center',
     marginBottom: spacing.xs,
   },
   promptTextBold: {
-    fontWeight: typography.fontWeight.bold,
-    color: colors.text,
+    fontWeight: '700',  // 🔥 加粗字重
+    color: colors.text,  // 🔥 加粗部分用主文字颜色
   },
   totalVotes: {
     fontSize: typography.fontSize.xs,

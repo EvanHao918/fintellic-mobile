@@ -34,8 +34,10 @@ import {
 import { NotificationSettings, NotificationHistory } from '../types/notification';
 import { colors, typography, spacing, borderRadius } from '../theme';
 import { formatDateTime, formatDistanceToNow } from '../utils/dateHelpers';
+import { watchlistAPI } from '../api/watchlist';
+// 🔥 FIX: Import NotificationService to register device token
+import notificationService from '../services/NotificationService';
 
-// Define navigation type
 type DrawerParamList = {
   Home: undefined;
   Calendar: undefined;
@@ -53,7 +55,6 @@ export default function NotificationScreen({}: NotificationScreenProps) {
   const navigation = useNavigation<NavigationProps>();
   const dispatch = useDispatch<AppDispatch>();
   
-  // Redux state selectors
   const settings = useSelector(selectNotificationSettings);
   const history = useSelector(selectNotificationHistory);
   const loading = useSelector(selectNotificationLoading);
@@ -61,16 +62,14 @@ export default function NotificationScreen({}: NotificationScreenProps) {
   const pushTokenInfo = useSelector(selectPushTokenInfo);
   const notificationSummary = useSelector(selectNotificationSummary);
   
-  // Local state for UI interactions
   const [watchlistCount, setWatchlistCount] = useState(0);
+  const [watchlistLoading, setWatchlistLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
-  // Load initial data
   useEffect(() => {
     loadData();
   }, []);
 
-  // Clear errors when component unmounts
   useEffect(() => {
     return () => {
       dispatch(clearErrors());
@@ -79,24 +78,28 @@ export default function NotificationScreen({}: NotificationScreenProps) {
 
   const loadData = async () => {
     try {
-      // Dispatch Redux actions to load data
       await Promise.all([
         dispatch(fetchNotificationSettings()),
         dispatch(fetchNotificationHistory({ limit: 50, offset: 0 }))
       ]);
       
-      // Load watchlist count separately (not in Redux yet)
-      try {
-        const response = await fetch('/api/v1/watchlist/count');
-        const data = await response.json();
-        setWatchlistCount(data.count || 0);
-      } catch (error) {
-        console.error('Error loading watchlist count:', error);
-        setWatchlistCount(0);
-      }
+      await loadWatchlistCount();
     } catch (error) {
       console.error('Error loading notification data:', error);
       Alert.alert('Error', 'Failed to load notification settings');
+    }
+  };
+
+  const loadWatchlistCount = async () => {
+    try {
+      setWatchlistLoading(true);
+      const response = await watchlistAPI.getCount();
+      setWatchlistCount(response.count);
+    } catch (error) {
+      console.error('Error loading watchlist count:', error);
+      setWatchlistCount(0);
+    } finally {
+      setWatchlistLoading(false);
     }
   };
 
@@ -106,29 +109,43 @@ export default function NotificationScreen({}: NotificationScreenProps) {
     setRefreshing(false);
   };
 
+  // 🔥 FIX: Updated updateSetting to register device token when enabling notifications
   const updateSetting = async (key: keyof NotificationSettings, value: boolean) => {
     try {
+      // If enabling push notifications, register device token first
+      if (key === 'notification_enabled' && value === true) {
+        console.log('📱 Enabling push notifications - registering device token...');
+        const success = await notificationService.enablePushNotifications();
+        if (!success) {
+          Alert.alert(
+            'Permission Required',
+            'Please allow notifications in your device settings to receive alerts.',
+            [
+              { text: 'Cancel', style: 'cancel' },
+              { text: 'Open Settings', onPress: () => Linking.openSettings() }
+            ]
+          );
+          return; // Don't update setting if token registration failed
+        }
+        console.log('✅ Device token registered successfully');
+      }
+      
+      // If disabling push notifications, unregister device token
+      if (key === 'notification_enabled' && value === false) {
+        console.log('📱 Disabling push notifications - unregistering device token...');
+        await notificationService.disablePushNotifications();
+        console.log('✅ Device token unregistered');
+      }
+      
+      // Update the setting on backend
       await dispatch(updateNotificationSettings({ [key]: value }));
+      
+      if (key === 'watchlist_only') {
+        await loadWatchlistCount();
+      }
     } catch (error) {
       console.error('Error updating settings:', error);
       Alert.alert('Error', 'Failed to update notification settings');
-    }
-  };
-
-  const handleSendTestNotification = async () => {
-    try {
-      await dispatch(sendTestNotification({
-        title: 'HermeSpeed Test',
-        body: `This is a test notification sent at ${new Date().toLocaleTimeString()}`
-      }));
-      
-      Alert.alert('Success', 'Test notification sent successfully');
-      
-      // Refresh history to show the test notification
-      await dispatch(fetchNotificationHistory({ limit: 50, offset: 0 }));
-    } catch (error) {
-      console.error('Error sending test notification:', error);
-      Alert.alert('Error', 'Failed to send test notification. Please check your notification permissions.');
     }
   };
 
@@ -176,7 +193,7 @@ export default function NotificationScreen({}: NotificationScreenProps) {
   );
 
   const renderHistoryItem = ({ item }: { item: NotificationHistory }) => {
-    const timeToDisplay = item.sent_at;
+    const timeToDisplay = item.sent_at || item.created_at;
     const relativeTime = formatDistanceToNow(timeToDisplay, 'medium');
     const fullDateTime = formatDateTime(timeToDisplay, false);
     
@@ -222,10 +239,9 @@ export default function NotificationScreen({}: NotificationScreenProps) {
     );
   };
 
-  // Show loading state
   if (loading.settings) {
     return (
-      <SafeAreaView style={styles.container}>
+      <SafeAreaView style={styles.container} edges={['bottom', 'left', 'right']}>
         <View style={styles.center}>
           <ActivityIndicator size="large" color={colors.primary} />
           <Text style={styles.loadingText}>Loading notification settings...</Text>
@@ -234,10 +250,9 @@ export default function NotificationScreen({}: NotificationScreenProps) {
     );
   }
 
-  // Show error state
   if (errors.settings) {
     return (
-      <SafeAreaView style={styles.container}>
+      <SafeAreaView style={styles.container} edges={['bottom', 'left', 'right']}>
         <View style={styles.center}>
           <Icon name="error" size={48} color={colors.error} />
           <Text style={styles.errorText}>Failed to load notification settings</Text>
@@ -251,7 +266,7 @@ export default function NotificationScreen({}: NotificationScreenProps) {
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['bottom', 'left', 'right']}>
       <ScrollView
         style={styles.scrollView}
         refreshControl={
@@ -262,29 +277,6 @@ export default function NotificationScreen({}: NotificationScreenProps) {
           />
         }
       >
-        {/* Push Token Status Indicator */}
-        <View style={styles.statusCard}>
-          <View style={styles.statusHeader}>
-            <Icon 
-              name={pushTokenInfo.hasPermission && pushTokenInfo.token ? 'check-circle' : 'warning'} 
-              size={20} 
-              color={pushTokenInfo.hasPermission && pushTokenInfo.token ? colors.success : colors.warning} 
-            />
-            <Text style={styles.statusTitle}>
-              {pushTokenInfo.hasPermission && pushTokenInfo.token ? 'Notifications Active' : 'Setup Required'}
-            </Text>
-          </View>
-          <Text style={styles.statusDescription}>
-            {notificationSummary}
-          </Text>
-          {pushTokenInfo.token && (
-            <Text style={styles.tokenInfo}>
-              Token: ...{pushTokenInfo.token.slice(-8)} 
-              {pushTokenInfo.synced ? ' (Synced)' : ' (Pending sync)'}
-            </Text>
-          )}
-        </View>
-
         {/* Main Settings Section */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>NOTIFICATION SETTINGS</Text>
@@ -314,22 +306,30 @@ export default function NotificationScreen({}: NotificationScreenProps) {
             <Icon name="bookmark" size={24} color={colors.primary} />
             <View style={styles.watchlistText}>
               <Text style={styles.watchlistTitle}>
-                Following {watchlistCount} companies
+                {watchlistLoading ? (
+                  <View style={styles.loadingRow}>
+                    <ActivityIndicator size="small" color={colors.primary} />
+                    <Text style={[styles.watchlistTitle, { marginLeft: 8 }]}>
+                      Loading watchlist...
+                    </Text>
+                  </View>
+                ) : (
+                  `Following ${watchlistCount} companies`
+                )}
               </Text>
               <Text style={styles.watchlistDescription}>
                 {settings.watchlist_only 
-                  ? 'You\'ll only receive notifications from these companies'
-                  : 'You\'ll receive notifications from all S&P 500 and NASDAQ companies'
-                }
+                  ? 'Only receiving notifications for these companies'
+                  : 'Receiving notifications for all companies'}
               </Text>
             </View>
           </View>
-          <TouchableOpacity
+          <TouchableOpacity 
             style={styles.manageButton}
             onPress={() => navigation.navigate('Watchlist')}
           >
-            <Text style={styles.manageButtonText}>Manage</Text>
-            <Icon name="chevron-right" size={16} color={colors.primary} />
+            <Text style={styles.manageButtonText}>Manage Watchlist</Text>
+            <Icon name="chevron-right" size={18} color={colors.primary} />
           </TouchableOpacity>
         </View>
 
@@ -345,7 +345,6 @@ export default function NotificationScreen({}: NotificationScreenProps) {
             !settings.notification_enabled,
             'description'
           )}
-
           {renderSettingItem(
             'Quarterly Reports (10-Q)',
             'Quarterly financial updates',
@@ -354,7 +353,6 @@ export default function NotificationScreen({}: NotificationScreenProps) {
             !settings.notification_enabled,
             'event-note'
           )}
-
           {renderSettingItem(
             'Current Reports (8-K)',
             'Major events and announcements',
@@ -363,7 +361,6 @@ export default function NotificationScreen({}: NotificationScreenProps) {
             !settings.notification_enabled,
             'warning'
           )}
-
           {renderSettingItem(
             'IPO Filings (S-1)',
             'Initial public offering registrations',
@@ -372,63 +369,6 @@ export default function NotificationScreen({}: NotificationScreenProps) {
             !settings.notification_enabled,
             'launch'
           )}
-        </View>
-
-        {/* Additional Settings Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>OTHER NOTIFICATIONS</Text>
-          
-          {renderSettingItem(
-            'Daily Reset Reminder',
-            'Remind when your daily view limit resets (Free users)',
-            settings.daily_reset_reminder,
-            () => updateSetting('daily_reset_reminder', !settings.daily_reset_reminder),
-            !settings.notification_enabled,
-            'refresh'
-          )}
-
-          {renderSettingItem(
-            'Subscription Alerts',
-            'Important updates about your subscription',
-            settings.subscription_alerts,
-            () => updateSetting('subscription_alerts', !settings.subscription_alerts),
-            !settings.notification_enabled,
-            'card-membership'
-          )}
-
-          {renderSettingItem(
-            'Market Summary',
-            'Weekly summary of market activity',
-            settings.market_summary,
-            () => updateSetting('market_summary', !settings.market_summary),
-            !settings.notification_enabled,
-            'trending-up'
-          )}
-        </View>
-
-        {/* Test and Status Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>TEST & STATUS</Text>
-          
-          <TouchableOpacity 
-            style={[styles.testButton, loading.sendingTest && styles.testButtonDisabled]}
-            onPress={handleSendTestNotification}
-            disabled={loading.sendingTest || !settings.notification_enabled}
-          >
-            {loading.sendingTest ? (
-              <ActivityIndicator size="small" color={colors.white} />
-            ) : (
-              <Icon name="send" size={20} color={colors.white} />
-            )}
-            <Text style={styles.testButtonText}>
-              {loading.sendingTest ? 'Sending...' : 'Send Test Notification'}
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.settingsButton} onPress={openNotificationSettings}>
-            <Icon name="settings" size={20} color={colors.primary} />
-            <Text style={styles.settingsButtonText}>Device Notification Settings</Text>
-          </TouchableOpacity>
         </View>
 
         {/* Notification History Section */}
@@ -447,45 +387,37 @@ export default function NotificationScreen({}: NotificationScreenProps) {
             </View>
           )}
           
-          {history.length === 0 ? (
+          {history.length > 0 ? (
+            <View style={styles.historyList}>
+              {history.slice(0, 10).map((item, index) => (
+                <React.Fragment key={item.id || index}>
+                  {renderHistoryItem({ item })}
+                </React.Fragment>
+              ))}
+            </View>
+          ) : (
             <View style={styles.emptyHistory}>
-              <Icon name="notifications-none" size={48} color={colors.gray400} />
+              <Icon name="notifications-none" size={48} color={colors.gray300} />
               <Text style={styles.emptyHistoryText}>No notifications yet</Text>
               <Text style={styles.emptyHistoryDescription}>
                 You'll see your notification history here
               </Text>
             </View>
-          ) : (
-            <FlatList
-              data={history.slice(0, 10)} // Show last 10 notifications
-              renderItem={renderHistoryItem}
-              keyExtractor={(item) => item.id.toString()}
-              scrollEnabled={false}
-              style={styles.historyList}
-            />
           )}
         </View>
 
-        {/* Debug Information (only in development) */}
-        {__DEV__ && (
-          <View style={styles.debugSection}>
-            <Text style={styles.debugTitle}>DEBUG INFO</Text>
-            <Text style={styles.debugText}>
-              Permission: {pushTokenInfo.hasPermission ? 'Granted' : 'Denied'}
-            </Text>
-            <Text style={styles.debugText}>
-              Token: {pushTokenInfo.token ? 'Available' : 'Missing'}
-            </Text>
-            <Text style={styles.debugText}>
-              Synced: {pushTokenInfo.synced ? 'Yes' : 'No'}
-            </Text>
-            <Text style={styles.debugText}>
-              Platform: {Platform.OS}
-            </Text>
-          </View>
-        )}
+        {/* Device Settings Button */}
+        <TouchableOpacity 
+          style={styles.settingsButton}
+          onPress={openNotificationSettings}
+        >
+          <Icon name="settings" size={20} color={colors.primary} />
+          <Text style={styles.settingsButtonText}>Open Device Settings</Text>
+        </TouchableOpacity>
 
-        {/* Loading overlay for updates */}
+        <View style={{ height: spacing.xxl }} />
+
+        {/* Loading Overlay */}
         {loading.updating && (
           <View style={styles.savingOverlay}>
             <View style={styles.savingContainer}>
@@ -543,40 +475,6 @@ const styles = StyleSheet.create({
     fontSize: typography.fontSize.base,
     fontWeight: typography.fontWeight.semibold,
   },
-
-  // Status Card
-  statusCard: {
-    backgroundColor: colors.white,
-    marginHorizontal: spacing.md,
-    marginBottom: spacing.lg,
-    padding: spacing.md,
-    borderRadius: borderRadius.lg,
-    borderLeftWidth: 4,
-    borderLeftColor: colors.primary,
-  },
-  statusHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: spacing.xs,
-  },
-  statusTitle: {
-    fontSize: typography.fontSize.base,
-    fontWeight: typography.fontWeight.semibold,
-    color: colors.text,
-    marginLeft: spacing.sm,
-  },
-  statusDescription: {
-    fontSize: typography.fontSize.sm,
-    color: colors.textSecondary,
-    marginBottom: spacing.xs,
-  },
-  tokenInfo: {
-    fontSize: typography.fontSize.xs,
-    color: colors.gray400,
-    fontFamily: 'monospace',
-  },
-
-  // Sections
   section: {
     marginBottom: spacing.xl,
   },
@@ -588,8 +486,6 @@ const styles = StyleSheet.create({
     marginHorizontal: spacing.md,
     letterSpacing: 0.5,
   },
-
-  // Setting Rows
   settingRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -631,8 +527,6 @@ const styles = StyleSheet.create({
   disabledText: {
     color: colors.gray400,
   },
-
-  // Watchlist Card
   watchlistCard: {
     backgroundColor: colors.white,
     marginHorizontal: spacing.md,
@@ -661,6 +555,10 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     marginTop: 2,
   },
+  loadingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
   manageButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -673,29 +571,6 @@ const styles = StyleSheet.create({
     color: colors.primary,
     marginRight: spacing.xs,
   },
-
-  // Test Button
-  testButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.primary,
-    marginHorizontal: spacing.md,
-    paddingVertical: spacing.md,
-    borderRadius: borderRadius.md,
-    marginBottom: spacing.sm,
-  },
-  testButtonDisabled: {
-    opacity: 0.6,
-  },
-  testButtonText: {
-    color: colors.white,
-    fontSize: typography.fontSize.base,
-    fontWeight: typography.fontWeight.semibold,
-    marginLeft: spacing.sm,
-  },
-
-  // Settings Button
   settingsButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -713,8 +588,6 @@ const styles = StyleSheet.create({
     fontWeight: typography.fontWeight.medium,
     marginLeft: spacing.sm,
   },
-
-  // History
   historyHeader: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -769,8 +642,6 @@ const styles = StyleSheet.create({
   historyStatus: {
     marginLeft: spacing.sm,
   },
-
-  // Empty History
   emptyHistory: {
     backgroundColor: colors.white,
     marginHorizontal: spacing.md,
@@ -789,8 +660,6 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     marginTop: spacing.xs,
   },
-
-  // Error Banner
   errorBanner: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -806,29 +675,6 @@ const styles = StyleSheet.create({
     color: colors.warning,
     marginLeft: spacing.sm,
   },
-
-  // Debug Section
-  debugSection: {
-    backgroundColor: colors.gray100,
-    marginHorizontal: spacing.md,
-    marginBottom: spacing.lg,
-    padding: spacing.md,
-    borderRadius: borderRadius.md,
-  },
-  debugTitle: {
-    fontSize: typography.fontSize.sm,
-    fontWeight: typography.fontWeight.bold,
-    color: colors.textSecondary,
-    marginBottom: spacing.sm,
-  },
-  debugText: {
-    fontSize: typography.fontSize.xs,
-    color: colors.textSecondary,
-    fontFamily: 'monospace',
-    marginBottom: 2,
-  },
-
-  // Saving Overlay
   savingOverlay: {
     position: 'absolute',
     top: 0,

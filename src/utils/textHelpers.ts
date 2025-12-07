@@ -1,506 +1,405 @@
 // src/utils/textHelpers.ts
-import React from 'react';
-import { Text, View, StyleSheet, TextStyle, ViewStyle } from 'react-native';
-import Icon from 'react-native-vector-icons/MaterialIcons';
-import { colors, typography, spacing, borderRadius } from '../theme';
+/**
+ * Minimalist Text Processing for AI-Generated Filing Analysis
+ * 
+ * SUPPORTED MARKUP (aligned with ai_processor.py v3.0):
+ * 
+ * STRUCTURAL MARKUP:
+ * - ### SECTION X: → Level 1 heading (largest, uppercase)
+ * - ## Subheader → Level 2 heading (medium, bold)
+ * - --- → Horizontal separator line
+ * 
+ * INLINE EMPHASIS (three types):
+ * - **text** → Yellow highlight (numbers, metrics)
+ * - __text__ → Bold text (key concepts)
+ * - *text* → Italic text (cautionary terms)
+ * 
+ * DESIGN PHILOSOPHY:
+ * - Clean visual hierarchy for retail investors
+ * - Simple & Fast: Minimal regex operations
+ * - Professional appearance without emoji clutter
+ * 
+ * Version: 4.0 - Unified markup system with three inline emphasis types
+ * Last updated: 2025-11-19
+ */
 
-// Text processing utilities for cleaning API responses
+import React from 'react';
+import { Text, View, StyleSheet } from 'react-native';
+import { colors, typography, spacing } from '../theme';
+
+// ==================== UTILITY FUNCTIONS ====================
+
+/**
+ * Clean AI-generated summary text
+ */
 export const cleanAISummary = (text: string | undefined): string => {
   if (!text) return '';
   
-  // Remove FEED_SUMMARY: prefix
-  let cleaned = text.replace(/^FEED_SUMMARY:\s*/i, '');
+  let cleaned = text
+    .replace(/^FEED_SUMMARY:\s*/i, '')
+    .replace(/^FULL_SUMMARY:\s*/i, '')
+    .replace(/\n\nFULL_SUMMARY:\n/g, '\n\n');
   
-  // Remove FULL_SUMMARY: prefix if exists
-  cleaned = cleaned.replace(/^FULL_SUMMARY:\s*/i, '');
-  
-  // Remove any \n\nFULL_SUMMARY:\n patterns
-  cleaned = cleaned.replace(/\n\nFULL_SUMMARY:\n/g, '\n\n');
-  
-  // Trim whitespace
   return cleaned.trim();
 };
 
-// Clean tags that might have technical markers
+/**
+ * Clean tag arrays
+ */
 export const cleanTags = (tags: string[] | undefined): string[] => {
   if (!tags || !Array.isArray(tags)) return [];
   
-  return tags.map(tag => {
-    // Remove # symbols if they exist
-    let cleanTag = tag.replace(/^#/, '');
-    // Remove any numbers in brackets like [1], [2]
-    cleanTag = cleanTag.replace(/\[\d+\]/g, '');
-    // Trim whitespace
-    return cleanTag.trim();
-  }).filter(tag => tag.length > 0);
+  return tags
+    .map(tag => tag.replace(/^#/, '').replace(/\[\d+\]/g, '').trim())
+    .filter(tag => tag.length > 0);
 };
 
-// Format large numbers for display
+/**
+ * Format large numbers with B/M/K suffixes
+ */
 export const formatNumber = (num: number | undefined, decimals: number = 0): string => {
   if (num === undefined || num === null) return 'N/A';
   
-  if (num >= 1000000000) {
-    return `$${(num / 1000000000).toFixed(decimals)}B`;
-  } else if (num >= 1000000) {
-    return `$${(num / 1000000).toFixed(decimals)}M`;
-  } else if (num >= 1000) {
-    return `$${(num / 1000).toFixed(decimals)}K`;
-  }
+  if (num >= 1000000000) return `$${(num / 1000000000).toFixed(decimals)}B`;
+  if (num >= 1000000) return `$${(num / 1000000).toFixed(decimals)}M`;
+  if (num >= 1000) return `$${(num / 1000).toFixed(decimals)}K`;
   
   return `$${num.toFixed(decimals)}`;
 };
 
-// Format percentage values
+/**
+ * Format percentage values
+ */
 export const formatPercentage = (value: number | undefined, decimals: number = 1): string => {
   if (value === undefined || value === null) return 'N/A';
   return `${value.toFixed(decimals)}%`;
 };
 
-// Clean any technical markers from text
-export const cleanText = (text: string | undefined): string => {
-  if (!text) return '';
-  
-  // Remove common technical markers
-  let cleaned = text;
-  
-  // Remove markdown-style headers
-  cleaned = cleaned.replace(/^#+\s+/gm, '');
-  
-  // Remove excessive whitespace
-  cleaned = cleaned.replace(/\s+/g, ' ');
-  
-  // Remove leading/trailing whitespace
-  return cleaned.trim();
+/**
+ * Remove source citations from text
+ */
+export const removeCitations = (text: string): string => {
+  return text
+    .replace(/\[DOC:[^\]]+\]/g, '')
+    .replace(/\[FMP\]/g, '')
+    .replace(/\[CALC:[^\]]+\]/g, '')
+    .replace(/\[\d+\]/g, '')
+    .replace(/\[NO_DATA\]/g, '')
+    .replace(/\[CAUTION\]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
 };
 
-// ==================== ENHANCED: Smart Markup Parsing ====================
+// ==================== SMART TEXT PAGINATION ====================
 
-interface ParsedSegment {
-  type: 'plain' | 'number' | 'concept' | 'positive' | 'negative' | 'insight' | 'heading1' | 'heading2' | 'heading3' | 'heading4' | 'italic' | 'boldItalic';
-  content: string;
-  raw?: string;
-  level?: number;
-}
-
-// Parse content into segments with heading support
-const parseContentSegments = (content: string): ParsedSegment[] => {
-  const segments: ParsedSegment[] = [];
+/**
+ * Intelligently paginate long analysis text
+ */
+export const smartPaginateText = (
+  text: string,
+  charsPerPage: number = 2000
+): string[] => {
+  if (!text || text.trim().length === 0) return [''];
   
-  // Check if this is a heading line
-  const headingMatch = content.match(/^(#{1,4})\s+(.+)$/);
-  if (headingMatch) {
-    const level = headingMatch[1].length;
-    const headingContent = headingMatch[2];
-    
-    // Parse the heading content for inline markup
-    const headingSegments = parseInlineMarkup(headingContent);
-    
-    // Return heading segments with appropriate type
-    return headingSegments.map(segment => {
-      if (segment.type === 'plain') {
-        return {
-          ...segment,
-          type: `heading${level}` as ParsedSegment['type'],
-          level
-        };
-      }
-      return segment;
-    });
+  if (text.length < charsPerPage * 0.75) {
+    console.log(`[Pagination] Content too short (${text.length} chars), skipping pagination`);
+    return [text];
   }
   
-  // If not a heading, parse normally
-  return parseInlineMarkup(content);
+  const paragraphs = text.split('\n\n').filter(p => p.trim().length > 0);
+  
+  if (paragraphs.length === 0) return [text];
+  
+  const pages: string[] = [];
+  let currentPage = '';
+  
+  for (let i = 0; i < paragraphs.length; i++) {
+    const para = paragraphs[i];
+    const nextLength = currentPage.length + (currentPage ? 2 : 0) + para.length;
+    
+    const isSectionBreak = /^---+/.test(para.trim());
+    const isMajorHeading = /^### SECTION \d+:/i.test(para.trim());
+    
+    if (nextLength > charsPerPage && currentPage) {
+      if (isSectionBreak || isMajorHeading) {
+        pages.push(currentPage.trim());
+        currentPage = para;
+        console.log(`  [Pagination] Split before section at ${nextLength} chars`);
+      } else if (nextLength > charsPerPage * 1.5) {
+        pages.push(currentPage.trim());
+        currentPage = para;
+        console.log(`  [Pagination] Force split at ${nextLength} chars (too long)`);
+      } else {
+        currentPage += '\n\n' + para;
+      }
+    } else {
+      currentPage += (currentPage ? '\n\n' : '') + para;
+    }
+  }
+  
+  if (currentPage.trim()) {
+    pages.push(currentPage.trim());
+  }
+  
+  if (pages.length === 0) {
+    return [text];
+  }
+  
+  console.log(`✅ [Pagination] Split ${text.length} chars into ${pages.length} pages:`);
+  pages.forEach((page, idx) => {
+    const wordCount = page.split(/\s+/).length;
+    console.log(`   Page ${idx + 1}: ${page.length} chars, ~${wordCount} words`);
+  });
+  
+  return pages;
 };
 
-// Parse inline markup within text
-const parseInlineMarkup = (content: string): ParsedSegment[] => {
-  const segments: ParsedSegment[] = [];
+// ==================== THREE-LEVEL HEADING SYSTEM ====================
+
+/**
+ * Detect line type based on markup
+ */
+type LineType = 
+  | 'section-title'      // ### SECTION X:
+  | 'subheader'          // ## Header text
+  | 'separator'          // ---
+  | 'paragraph';         // Regular text
+
+interface ParsedLine {
+  type: LineType;
+  content: string;
+  title?: string;
+}
+
+/**
+ * Parse a line and detect its type
+ */
+const parseLineType = (line: string): ParsedLine => {
+  const trimmed = line.trim();
   
-  // Enhanced regex pattern including italic patterns
-  // Order matters: check triple asterisks/underscores first, then double, then single
-  const markupPattern = /(\*\*\*[^*]+\*\*\*|___[^_]+___|__[^_]+__|_[^_]+_|\*\*[^*]+\*\*|\*[^*\s][^*]*[^*\s]\*|\*[^*\s]\*|\+\[[^\]]+\]|-\[[^\]]+\]|\[![^\]]+\])/g;
+  // Level 1: Section title (### SECTION X:)
+  if (/^###\s+/.test(trimmed)) {
+    let content = trimmed.replace(/^###\s+/, '');
+    content = content.replace(/\*\*/g, '');  // Remove any ** markers
+    
+    return {
+      type: 'section-title',
+      content: content.trim()
+    };
+  }
+  
+  // Level 2: Subheader (## Header text)
+  if (/^##\s+/.test(trimmed)) {
+    let content = trimmed.replace(/^##\s+/, '');
+    content = content.replace(/\*\*/g, '');  // Remove any ** markers
+    
+    return {
+      type: 'subheader',
+      content: content.trim(),
+      title: content.trim()
+    };
+  }
+  
+  // Separator
+  if (/^---+$/.test(trimmed)) {
+    return {
+      type: 'separator',
+      content: ''
+    };
+  }
+  
+  // Default: paragraph
+  return {
+    type: 'paragraph',
+    content: line
+  };
+};
+
+/**
+ * Parse inline markup in paragraph text
+ * Priority order: __bold__ > *italic* > **highlight**
+ */
+interface InlineSegment {
+  type: 'plain' | 'highlight' | 'bold' | 'italic';
+  content: string;
+}
+
+const parseInlineMarkup = (text: string): InlineSegment[] => {
+  const segments: InlineSegment[] = [];
+  
+  // Combined pattern to match all three types in priority order
+  // Priority: __bold__ > *italic* > **highlight**
+  const pattern = /__([^_]+)__|(?<!\*)\*(?!\*)([^*]+?)(?<!\*)\*(?!\*)|(\*\*)([^*]+?)\*\*/g;
   
   let lastIndex = 0;
   let match;
   
-  while ((match = markupPattern.exec(content)) !== null) {
-    // Add plain text before markup
+  while ((match = pattern.exec(text)) !== null) {
+    // Plain text before any markup
     if (match.index > lastIndex) {
-      const plainText = content.substring(lastIndex, match.index);
+      const plainText = text.substring(lastIndex, match.index);
       if (plainText) {
         segments.push({ type: 'plain', content: plainText });
       }
     }
     
-    const markup = match[0];
-    
-    // Identify markup type and extract content
-    if ((markup.startsWith('***') && markup.endsWith('***')) || 
-        (markup.startsWith('___') && markup.endsWith('___'))) {
-      // Bold + Italic
+    // Determine which type matched
+    if (match[1] !== undefined) {
+      // __bold__
       segments.push({
-        type: 'boldItalic',
-        content: markup.slice(3, -3),
-        raw: markup
+        type: 'bold',
+        content: match[1]
       });
-    } else if (markup.startsWith('**') && markup.endsWith('**')) {
-      // Important concept (bold)
-      segments.push({
-        type: 'concept',
-        content: markup.slice(2, -2),
-        raw: markup
-      });
-    } else if ((markup.startsWith('__') && markup.endsWith('__')) ||
-               (markup.startsWith('_') && markup.endsWith('_') && !markup.startsWith('__'))) {
-      // Italic (underscores)
-      const startChars = markup.startsWith('__') ? 2 : 1;
+    } else if (match[2] !== undefined) {
+      // *italic*
       segments.push({
         type: 'italic',
-        content: markup.slice(startChars, -startChars),
-        raw: markup
+        content: match[2]
       });
-    } else if (markup.startsWith('*') && markup.endsWith('*') && !markup.startsWith('**')) {
-      // Check if this is italic or number
-      const innerContent = markup.slice(1, -1);
-      // If it contains numbers or financial symbols, treat as number
-      if (/[\d$%,.]/.test(innerContent)) {
-        segments.push({
-          type: 'number',
-          content: innerContent,
-          raw: markup
-        });
-      } else {
-        // Otherwise treat as italic
-        segments.push({
-          type: 'italic',
-          content: innerContent,
-          raw: markup
-        });
-      }
-    } else if (markup.startsWith('+[') && markup.endsWith(']')) {
-      // Positive trend
+    } else if (match[4] !== undefined) {
+      // **highlight**
       segments.push({
-        type: 'positive',
-        content: markup.slice(2, -1),
-        raw: markup
-      });
-    } else if (markup.startsWith('-[') && markup.endsWith(']')) {
-      // Negative trend
-      segments.push({
-        type: 'negative',
-        content: markup.slice(2, -1),
-        raw: markup
-      });
-    } else if (markup.startsWith('[!') && markup.endsWith(']')) {
-      // Critical insight
-      segments.push({
-        type: 'insight',
-        content: markup.slice(2, -1),
-        raw: markup
+        type: 'highlight',
+        content: match[4]
       });
     }
     
     lastIndex = match.index + match[0].length;
   }
   
-  // Add remaining text
-  if (lastIndex < content.length) {
-    const remainingText = content.substring(lastIndex);
-    if (remainingText) {
-      segments.push({ type: 'plain', content: remainingText });
+  // Remaining text
+  if (lastIndex < text.length) {
+    const remaining = text.substring(lastIndex);
+    if (remaining) {
+      segments.push({ type: 'plain', content: remaining });
     }
   }
   
   return segments;
 };
 
-// Render a single segment
-const renderSegment = (segment: ParsedSegment, index: number): React.ReactElement => {
-  const key = `segment-${index}`;
+// ==================== RENDERING FUNCTIONS ====================
+
+/**
+ * Render a single line based on its type
+ */
+const renderLine = (parsed: ParsedLine, index: number): React.ReactElement => {
+  const key = `line-${index}`;
   
-  switch (segment.type) {
-    case 'number':
-      return React.createElement(Text, {
-        key,
-        style: styles.keyNumber
-      }, segment.content);
-      
-    case 'concept':
-      return React.createElement(Text, {
-        key,
-        style: styles.keyConcept
-      }, segment.content);
-      
-    case 'italic':
-      return React.createElement(Text, {
-        key,
-        style: styles.italicText
-      }, segment.content);
-      
-    case 'boldItalic':
-      return React.createElement(Text, {
-        key,
-        style: styles.boldItalicText
-      }, segment.content);
-      
-    case 'positive':
-      return React.createElement(Text, {
-        key,
-        style: styles.positiveTrend
-      }, `↑ ${segment.content}`);
-      
-    case 'negative':
-      return React.createElement(Text, {
-        key,
-        style: styles.negativeTrend
-      }, `↓ ${segment.content}`);
-      
-    case 'heading1':
-      return React.createElement(Text, {
-        key,
-        style: styles.heading1
-      }, segment.content);
-      
-    case 'heading2':
-      return React.createElement(Text, {
-        key,
-        style: styles.heading2
-      }, segment.content);
-      
-    case 'heading3':
-      return React.createElement(Text, {
-        key,
-        style: styles.heading3
-      }, segment.content);
-      
-    case 'heading4':
-      return React.createElement(Text, {
-        key,
-        style: styles.heading4
-      }, segment.content);
-      
-    case 'insight':
-      // Insights are handled separately as block elements
-      return React.createElement(Text, { key }, ''); // Empty placeholder
-      
+  switch (parsed.type) {
+    case 'section-title':
+      return React.createElement(
+        Text,
+        { key, style: styles.sectionTitle },
+        parsed.content
+      );
+    
+    case 'subheader':
+      return React.createElement(
+        Text,
+        { key, style: styles.subheaderText },
+        parsed.title
+      );
+    
+    case 'separator':
+      return React.createElement(View, { key, style: styles.separator });
+    
+    case 'paragraph':
     default:
-      return React.createElement(Text, {
-        key,
-        style: styles.plainText
-      }, segment.content);
+      return renderParagraph(parsed.content, key);
   }
 };
 
-// Parse unified analysis with smart markup - MAIN FUNCTION (ENHANCED)
-export const parseUnifiedAnalysis = (content: string | undefined): React.ReactElement[] => {
-  if (!content) return [React.createElement(Text, { key: 'empty' }, '')];
+/**
+ * Render a paragraph with inline markup
+ */
+const renderParagraph = (text: string, key: string): React.ReactElement => {
+  const segments = parseInlineMarkup(text);
   
-  const elements: React.ReactElement[] = [];
-  
-  try {
-    // Split content into lines first to properly handle headings
-    const lines = content.split(/\n/);
-    let currentParagraph: string[] = [];
+  const renderedSegments = segments.map((segment, idx) => {
+    const segKey = `${key}-seg-${idx}`;
     
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i];
-      const trimmedLine = line.trim();
-      
-      // Check if this is a heading
-      if (trimmedLine.match(/^#{1,4}\s+/)) {
-        // Process any accumulated paragraph first
-        if (currentParagraph.length > 0) {
-          const paragraphText = currentParagraph.join('\n').trim();
-          if (paragraphText) {
-            processParagraph(paragraphText, elements, `para-${i}`);
-          }
-          currentParagraph = [];
-        }
-        
-        // Process the heading
-        const segments = parseContentSegments(trimmedLine);
-        const headingElements: React.ReactElement[] = [];
-        
-        segments.forEach((segment, sIndex) => {
-          if (segment.type !== 'insight') {
-            headingElements.push(renderSegment(segment, sIndex));
-          }
-        });
-        
-        if (headingElements.length > 0) {
-          // Get the appropriate heading style based on level
-          const headingLevel = trimmedLine.match(/^(#{1,4})/)?.[1].length || 1;
-          const headingStyle = getHeadingStyle(headingLevel);
-          
-          elements.push(
-            React.createElement(Text, {
-              key: `heading-${i}`,
-              style: headingStyle
-            }, headingElements)
-          );
-        }
-      } else if (trimmedLine === '') {
-        // Empty line - process accumulated paragraph
-        if (currentParagraph.length > 0) {
-          const paragraphText = currentParagraph.join('\n').trim();
-          if (paragraphText) {
-            processParagraph(paragraphText, elements, `para-${i}`);
-          }
-          currentParagraph = [];
-        }
-      } else {
-        // Regular line - add to current paragraph
-        currentParagraph.push(line);
-      }
-    }
-    
-    // Process any remaining paragraph
-    if (currentParagraph.length > 0) {
-      const paragraphText = currentParagraph.join('\n').trim();
-      if (paragraphText) {
-        processParagraph(paragraphText, elements, `para-final`);
-      }
-    }
-    
-    // If no elements were created, add the raw text
-    if (elements.length === 0 && content.trim()) {
-      elements.push(
-        React.createElement(Text, {
-          key: 'fallback',
-          style: styles.paragraph
-        }, content)
+    if (segment.type === 'highlight') {
+      return React.createElement(
+        Text,
+        { key: segKey, style: styles.highlight },
+        segment.content
+      );
+    } else if (segment.type === 'bold') {
+      return React.createElement(
+        Text,
+        { key: segKey, style: styles.boldText },
+        segment.content
+      );
+    } else if (segment.type === 'italic') {
+      return React.createElement(
+        Text,
+        { key: segKey, style: styles.italicText },
+        segment.content
+      );
+    } else {
+      return React.createElement(
+        Text,
+        { key: segKey, style: styles.plainText },
+        segment.content
       );
     }
+  });
+  
+  return React.createElement(
+    Text,
+    { key, style: styles.paragraph },
+    ...renderedSegments
+  );
+};
+
+/**
+ * Main rendering function: parse and render enhanced text
+ */
+export const renderEnhancedText = (
+  text: string,
+  containerStyle?: any
+): React.ReactElement[] => {
+  if (!text) return [];
+  
+  // Split by lines (preserve single newlines for bullets)
+  const lines = text.split('\n');
+  const elements: React.ReactElement[] = [];
+  
+  lines.forEach((line, index) => {
+    if (line.trim().length === 0) return; // Skip empty lines
     
-  } catch (error) {
-    console.error('Error parsing unified analysis:', error);
-    // Fallback to simple text display
-    return [
-      React.createElement(Text, {
-        key: 'error-fallback',
-        style: styles.paragraph
-      }, content)
-    ];
-  }
+    const parsed = parseLineType(line);
+    const element = renderLine(parsed, index);
+    elements.push(element);
+  });
   
   return elements;
 };
 
-// Helper function to process a paragraph
-const processParagraph = (paragraph: string, elements: React.ReactElement[], keyPrefix: string) => {
-  // Check if this paragraph contains an insight box
-  const insightMatch = paragraph.match(/\[!([^\]]+)\]/);
-  
-  if (insightMatch) {
-    // Create insight box element
-    elements.push(
-      React.createElement(View, {
-        key: `${keyPrefix}-insight-box`,
-        style: styles.insightBox
-      }, [
-        React.createElement(View, {
-          key: 'icon-container',
-          style: styles.insightIconContainer
-        }, React.createElement(Icon, {
-          name: 'lightbulb',
-          size: 24,
-          color: colors.primary
-        })),
-        React.createElement(Text, {
-          key: 'text',
-          style: styles.insightText
-        }, insightMatch[1])
-      ])
-    );
-    
-    // Process any remaining content
-    const beforeInsight = paragraph.substring(0, insightMatch.index);
-    const afterInsight = paragraph.substring(insightMatch.index! + insightMatch[0].length);
-    
-    if (beforeInsight.trim()) {
-      const segments = parseContentSegments(beforeInsight);
-      const beforeElements: React.ReactElement[] = [];
-      
-      segments.forEach((segment, sIndex) => {
-        if (segment.type !== 'insight') {
-          beforeElements.push(renderSegment(segment, sIndex));
-        }
-      });
-      
-      if (beforeElements.length > 0) {
-        elements.push(
-          React.createElement(Text, {
-            key: `${keyPrefix}-before`,
-            style: styles.paragraph
-          }, beforeElements)
-        );
-      }
-    }
-    
-    if (afterInsight.trim()) {
-      const segments = parseContentSegments(afterInsight);
-      const afterElements: React.ReactElement[] = [];
-      
-      segments.forEach((segment, sIndex) => {
-        if (segment.type !== 'insight') {
-          afterElements.push(renderSegment(segment, sIndex));
-        }
-      });
-      
-      if (afterElements.length > 0) {
-        elements.push(
-          React.createElement(Text, {
-            key: `${keyPrefix}-after`,
-            style: styles.paragraph
-          }, afterElements)
-        );
-      }
-    }
-  } else {
-    // Normal paragraph without insight box
-    const segments = parseContentSegments(paragraph);
-    const paragraphElements: React.ReactElement[] = [];
-    
-    segments.forEach((segment, sIndex) => {
-      if (segment.type !== 'insight') {
-        paragraphElements.push(renderSegment(segment, sIndex));
-      }
-    });
-    
-    if (paragraphElements.length > 0) {
-      elements.push(
-        React.createElement(Text, {
-          key: keyPrefix,
-          style: styles.paragraph
-        }, paragraphElements)
-      );
-    }
-  }
+/**
+ * Render a single paragraph (legacy compatibility)
+ */
+export const renderEnhancedParagraph = (
+  content: string,
+  paragraphStyle?: any
+): React.ReactElement => {
+  return renderParagraph(content, 'para-0');
 };
 
-// Helper function to get heading style based on level
-const getHeadingStyle = (level: number): TextStyle => {
-  switch (level) {
-    case 1:
-      return styles.heading1;
-    case 2:
-      return styles.heading2;
-    case 3:
-      return styles.heading3;
-    case 4:
-      return styles.heading4;
-    default:
-      return styles.heading2;
-  }
+/**
+ * Parse unified analysis (legacy compatibility)
+ */
+export const parseUnifiedAnalysis = (text: string): React.ReactElement[] => {
+  return renderEnhancedText(text);
 };
 
-// Check if filing has unified analysis
+// ==================== LEGACY COMPATIBILITY ====================
+
 export const hasUnifiedAnalysis = (filing: any): boolean => {
-  // 更灵活的判断：只要有 unified_analysis 就使用它
   return !!filing?.unified_analysis && !!filing?.analysis_version;
 };
 
-// Get display summary (prefer unified over legacy)
 export const getDisplaySummary = (filing: any): string => {
   if (filing?.unified_feed_summary) {
     return filing.unified_feed_summary;
@@ -508,7 +407,6 @@ export const getDisplaySummary = (filing: any): string => {
   return filing?.one_liner || filing?.ai_summary || '';
 };
 
-// Get full analysis content (prefer unified over legacy)
 export const getDisplayAnalysis = (filing: any): string => {
   if (hasUnifiedAnalysis(filing)) {
     return filing.unified_analysis;
@@ -516,154 +414,98 @@ export const getDisplayAnalysis = (filing: any): string => {
   return filing?.ai_summary || '';
 };
 
-// Styles for markup elements
+// ==================== STYLES ====================
+
 const styles = StyleSheet.create({
+  // Level 1: Section Title (largest, no bold, uppercase)
+  sectionTitle: {
+    fontSize: 22,
+    fontWeight: '400',  // Normal weight
+    color: '#1a1a1a',
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+    marginTop: 32,
+    marginBottom: 16,
+    fontFamily: typography.fontFamily.serif,
+  },
+  
+  // Level 2: Subheader (medium, bold, no emoji)
+  subheaderText: {
+    fontSize: 18,
+    fontWeight: '700',  // Bold
+    color: '#1a1a1a',
+    marginTop: 24,
+    marginBottom: 12,
+    lineHeight: 26,
+    fontFamily: typography.fontFamily.serif,
+  },
+  
+  // Separator (horizontal line)
+  separator: {
+    height: 1,
+    backgroundColor: '#ddd',
+    marginVertical: 24,
+  },
+  
   // Paragraph container
   paragraph: {
     fontSize: typography.fontSize.base,
     color: colors.text,
     lineHeight: 26,
     marginBottom: spacing.md,
-    fontFamily: 'Times New Roman, serif',
+    fontFamily: typography.fontFamily.serif,
   },
   
-  // Heading styles
-  heading1: {
-    fontSize: 24,
-    fontWeight: 'bold' as any,
-    color: colors.text,
-    marginTop: spacing.lg,
-    marginBottom: spacing.md,
-    lineHeight: 32,
-    fontFamily: 'Times New Roman, serif',
-  },
-  
-  heading2: {
-    fontSize: 20,
-    fontWeight: 'bold' as any,
-    color: colors.text,
-    marginTop: spacing.lg,
-    marginBottom: spacing.md,
-    lineHeight: 28,
-    fontFamily: 'Times New Roman, serif',
-  },
-  
-  heading3: {
-    fontSize: 18,
-    fontWeight: 'bold' as any,
-    color: colors.text,
-    marginTop: spacing.md,
-    marginBottom: spacing.sm,
-    lineHeight: 26,
-    fontFamily: 'Times New Roman, serif',
-  },
-  
-  heading4: {
-    fontSize: 16,
-    fontWeight: 'bold' as any,
-    color: colors.text,
-    marginTop: spacing.md,
-    marginBottom: spacing.sm,
-    lineHeight: 24,
-    fontFamily: 'Times New Roman, serif',
-  },
-  
-  // Base text styles
+  // Plain text (default)
   plainText: {
     fontSize: typography.fontSize.base,
     color: colors.text,
     lineHeight: 26,
-    fontFamily: 'Times New Roman, serif',
+    fontFamily: typography.fontFamily.serif,
   },
   
-  // Key numbers: *37%* or *$5.2B*
-  keyNumber: {
-    color: colors.primary,
-    fontWeight: typography.fontWeight.bold as any,
-    fontSize: typography.fontSize.lg,
-    fontFamily: 'Times New Roman, serif',
-  },
-  
-  // Important concepts: **transformation**
-  keyConcept: {
-    backgroundColor: '#FEF3C7', // Warm yellow background
-    paddingHorizontal: 6,
+  // Inline emphasis: Yellow highlight (numbers, metrics)
+  highlight: {
+    fontSize: typography.fontSize.base,
+    fontWeight: '400',  // Normal weight
+    backgroundColor: '#FEF3C7',
+    paddingHorizontal: 4,
     paddingVertical: 2,
-    borderRadius: 4,
-    fontWeight: typography.fontWeight.semibold as any,
+    borderRadius: 3,
     color: colors.text,
-    fontFamily: 'Times New Roman, serif',
+    fontFamily: typography.fontFamily.serif,
   },
   
-  // Positive trends: +[revenue up 15%]
-  positiveTrend: {
-    color: '#10B981', // Green
-    fontWeight: typography.fontWeight.semibold as any,
+  // Inline emphasis: Bold text (key concepts)
+  boldText: {
     fontSize: typography.fontSize.base,
-    fontFamily: 'Times New Roman, serif',
+    fontWeight: '700',  // Bold
+    color: '#1a1a1a',
+    fontFamily: typography.fontFamily.serif,
   },
   
-  // Negative trends: -[margins down 5%]
-  negativeTrend: {
-    color: '#EF4444', // Red
-    fontWeight: typography.fontWeight.semibold as any,
-    fontSize: typography.fontSize.base,
-    fontFamily: 'Times New Roman, serif',
-  },
-  
-  // Italic text: _text_ or *text* (non-numeric)
+  // Inline emphasis: Italic text (cautionary terms)
   italicText: {
-    fontSize: typography.fontSize.lg,  // 放大字体
-    color: colors.text,
-    fontWeight: typography.fontWeight.semibold as any,  // 加粗
-    fontStyle: 'italic' as any,
-    lineHeight: 28,
-    fontFamily: 'Times New Roman, serif',
-  },
-  
-  // Bold + Italic text: ***text*** or ___text___
-  boldItalicText: {
-    fontSize: typography.fontSize.lg,  // 放大字体
-    color: colors.text,
-    fontWeight: typography.fontWeight.bold as any,
-    fontStyle: 'italic' as any,
-    lineHeight: 28,
-    fontFamily: 'Times New Roman, serif',
-  },
-  
-  // Insight box container
-  insightBox: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    backgroundColor: '#EBF8FF', // Light blue background
-    padding: spacing.lg,
-    borderRadius: borderRadius.md,
-    marginVertical: spacing.md,
-    borderLeftWidth: 4,
-    borderLeftColor: colors.primary,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  
-  insightIconContainer: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: colors.primary + '20',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: spacing.md,
-  },
-  
-  insightText: {
-    flex: 1,
     fontSize: typography.fontSize.base,
-    color: colors.text,
-    lineHeight: 24,
-    fontWeight: typography.fontWeight.medium as any,
-    fontFamily: 'Times New Roman, serif',
+    fontStyle: 'italic',
+    color: '#666',
+    fontFamily: typography.fontFamily.serif,
   },
 });
+
+// ==================== EXPORTS ====================
+
+export default {
+  cleanAISummary,
+  cleanTags,
+  formatNumber,
+  formatPercentage,
+  removeCitations,
+  smartPaginateText,
+  renderEnhancedParagraph,
+  renderEnhancedText,
+  parseUnifiedAnalysis,
+  hasUnifiedAnalysis,
+  getDisplaySummary,
+  getDisplayAnalysis,
+};

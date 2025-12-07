@@ -1,12 +1,13 @@
 {
   "expo": {
-    "name": "fintellic-mobile",
-    "slug": "fintellic-mobile",
+    "name": "AllSight",
+    "slug": "hermespeed",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
+    "scheme": "hermespeed",
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
@@ -14,27 +15,59 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.fintellic.app",
+      "bundleIdentifier": "com.hermespeed.app",
       "config": {
         "usesNonExemptEncryption": false
       },
+      "googleServicesFile": "./GoogleService-Info.plist",
       "infoPlist": {
+        "UIBackgroundModes": [
+          "remote-notification"
+        ],
         "SKAdNetworkItems": [
           {
             "SKAdNetworkIdentifier": "cstr6suwn9.skadnetwork"
           }
         ]
-      }
+      },
+      "associatedDomains": [
+        "applinks:hermespeed.com",
+        "applinks:www.hermespeed.com"
+      ]
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "package": "com.fintellic.app",
+      "package": "com.hermespeed.app",
       "edgeToEdgeEnabled": true,
+      "googleServicesFile": "./google-services.json",
       "permissions": [
-        "com.android.vending.BILLING"
+        "com.android.vending.BILLING",
+        "android.permission.RECEIVE_BOOT_COMPLETED",
+        "android.permission.VIBRATE"
+      ],
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            {
+              "scheme": "hermespeed",
+              "host": "reset-password"
+            },
+            {
+              "scheme": "https",
+              "host": "hermespeed.com",
+              "pathPrefix": "/reset-password"
+            }
+          ],
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
+        }
       ]
     },
     "web": {
@@ -43,18 +76,27 @@
     "plugins": [
       "expo-web-browser",
       [
-        "expo-build-properties",
+        "expo-notifications",
         {
-          "ios": {
-            "useFrameworks": "static"
-          }
+          "icon": "./assets/notification-icon.png",
+          "color": "#E88B00",
+          "androidMode": "default",
+          "androidCollapsedTitle": "AllSight"
         }
-      ]
+      ],
+      "react-native-iap"
     ],
     "extra": {
       "eas": {
-        "projectId": "your-project-id-here"
+        "projectId": "6da8adba-8c00-46c4-9c15-aa8cec613e2a"
       }
-    }
+    },
+    "notification": {
+      "icon": "./assets/notification-icon.png",
+      "color": "#E88B00",
+      "androidMode": "default",
+      "androidCollapsedTitle": "AllSight"
+    },
+    "owner": "evanhao918"
   }
 }

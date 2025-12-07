@@ -49,7 +49,7 @@ export default function CompanyFilingsScreen() {
       }
       setError(null);
 
-      const response = await getFilings(isRefresh ? 1 : page, ticker);
+      const response = await getFilings(isRefresh ? 1 : page, undefined, ticker);  // 🔥 修复：ticker 是第三个参数
       
       if (isRefresh) {
         setFilings(response.data);

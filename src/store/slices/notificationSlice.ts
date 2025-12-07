@@ -1,9 +1,11 @@
 // src/store/slices/notificationSlice.ts
 // Redux slice for notification state management
-// Integrates with existing HermeSpeed Redux architecture
+// ENHANCED: Added watchlist integration and improved state management
+// SIMPLIFIED: Matching optimized notification system
 
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
 import { notificationAPI } from '../../api/notifications';
+import { watchlistAPI } from '../../api/watchlist';
 import { 
   NotificationSettings, 
   NotificationHistory, 
@@ -11,6 +13,13 @@ import {
   NotificationSettingsUpdate,
   DEFAULT_NOTIFICATION_SETTINGS 
 } from '../../types/notification';
+
+// ENHANCED: Add watchlist-related types
+interface WatchlistInfo {
+  count: number;
+  limit: number | null;
+  is_pro: boolean;
+}
 
 // Async thunks for API calls
 export const fetchNotificationSettings = createAsyncThunk(
@@ -69,16 +78,32 @@ export const sendTestNotification = createAsyncThunk(
   }
 );
 
-// State interface
+// ENHANCED: Add watchlist thunks
+export const fetchWatchlistInfo = createAsyncThunk(
+  'notification/fetchWatchlistInfo',
+  async (_, { rejectWithValue }) => {
+    try {
+      return await watchlistAPI.getCount();
+    } catch (error: any) {
+      return rejectWithValue(error.message || 'Failed to fetch watchlist info');
+    }
+  }
+);
+
+// State interface - ENHANCED: Added watchlist integration
 interface NotificationState {
   settings: NotificationSettings;
   history: NotificationHistory[];
   stats: NotificationStats | null;
   
+  // ENHANCED: Watchlist integration
+  watchlistInfo: WatchlistInfo | null;
+  
   // Loading states
   settingsLoading: boolean;
   historyLoading: boolean;
   statsLoading: boolean;
+  watchlistLoading: boolean;
   updating: boolean;
   sendingTest: boolean;
   
@@ -86,6 +111,7 @@ interface NotificationState {
   settingsError: string | null;
   historyError: string | null;
   statsError: string | null;
+  watchlistError: string | null;
   updateError: string | null;
   testError: string | null;
   
@@ -98,16 +124,18 @@ interface NotificationState {
   hasPermission: boolean;
 }
 
-// Initial state
+// Initial state - ENHANCED: Added watchlist fields
 const initialState: NotificationState = {
   settings: DEFAULT_NOTIFICATION_SETTINGS,
   history: [],
   stats: null,
+  watchlistInfo: null,
   
   // Loading states
   settingsLoading: false,
   historyLoading: false,
   statsLoading: false,
+  watchlistLoading: false,
   updating: false,
   sendingTest: false,
   
@@ -115,6 +143,7 @@ const initialState: NotificationState = {
   settingsError: null,
   historyError: null,
   statsError: null,
+  watchlistError: null,
   updateError: null,
   testError: null,
   
@@ -149,6 +178,7 @@ const notificationSlice = createSlice({
       state.settingsError = null;
       state.historyError = null;
       state.statsError = null;
+      state.watchlistError = null;
       state.updateError = null;
       state.testError = null;
     },
@@ -159,13 +189,6 @@ const notificationSlice = createSlice({
       // Keep only the latest 50 notifications
       if (state.history.length > 50) {
         state.history = state.history.slice(0, 50);
-      }
-    },
-    
-    markNotificationAsRead: (state, action: PayloadAction<number>) => {
-      const notification = state.history.find(n => n.id === action.payload);
-      if (notification) {
-        notification.read_at = new Date().toISOString();
       }
     },
     
@@ -180,6 +203,19 @@ const notificationSlice = createSlice({
     
     toggleWatchlistOnly: (state) => {
       state.settings.watchlist_only = !state.settings.watchlist_only;
+    },
+
+    // ENHANCED: Watchlist actions
+    setWatchlistCount: (state, action: PayloadAction<number>) => {
+      if (state.watchlistInfo) {
+        state.watchlistInfo.count = action.payload;
+      } else {
+        state.watchlistInfo = {
+          count: action.payload,
+          limit: null,
+          is_pro: false
+        };
+      }
     },
   },
   
@@ -253,11 +289,34 @@ const notificationSlice = createSlice({
       })
       .addCase(sendTestNotification.fulfilled, (state, action) => {
         state.sendingTest = false;
-        // Optionally add a success message to history
+        // Test completed successfully
       })
       .addCase(sendTestNotification.rejected, (state, action) => {
         state.sendingTest = false;
         state.testError = action.payload as string;
+      });
+
+    // ENHANCED: Watchlist info
+    builder
+      .addCase(fetchWatchlistInfo.pending, (state) => {
+        state.watchlistLoading = true;
+        state.watchlistError = null;
+      })
+      .addCase(fetchWatchlistInfo.fulfilled, (state, action) => {
+        state.watchlistLoading = false;
+        state.watchlistInfo = action.payload;
+      })
+      .addCase(fetchWatchlistInfo.rejected, (state, action) => {
+        state.watchlistLoading = false;
+        state.watchlistError = action.payload as string;
+        // On error, keep existing count or default to 0
+        if (!state.watchlistInfo) {
+          state.watchlistInfo = {
+            count: 0,
+            limit: null,
+            is_pro: false
+          };
+        }
       });
   },
 });
@@ -269,13 +328,13 @@ export const {
   setHasPermission,
   clearErrors,
   addNotificationToHistory,
-  markNotificationAsRead,
   updateLastRefresh,
   toggleNotificationEnabled,
   toggleWatchlistOnly,
+  setWatchlistCount,
 } = notificationSlice.actions;
 
-// Selectors
+// Selectors - ENHANCED: Added watchlist selectors
 export const selectNotificationSettings = (state: { notification: NotificationState }) => 
   state.notification.settings;
 
@@ -285,10 +344,17 @@ export const selectNotificationHistory = (state: { notification: NotificationSta
 export const selectNotificationStats = (state: { notification: NotificationState }) => 
   state.notification.stats;
 
+export const selectWatchlistInfo = (state: { notification: NotificationState }) => 
+  state.notification.watchlistInfo;
+
+export const selectWatchlistCount = (state: { notification: NotificationState }) => 
+  state.notification.watchlistInfo?.count || 0;
+
 export const selectNotificationLoading = (state: { notification: NotificationState }) => ({
   settings: state.notification.settingsLoading,
   history: state.notification.historyLoading,
   stats: state.notification.statsLoading,
+  watchlist: state.notification.watchlistLoading,
   updating: state.notification.updating,
   sendingTest: state.notification.sendingTest,
 });
@@ -297,6 +363,7 @@ export const selectNotificationErrors = (state: { notification: NotificationStat
   settings: state.notification.settingsError,
   history: state.notification.historyError,
   stats: state.notification.statsError,
+  watchlist: state.notification.watchlistError,
   update: state.notification.updateError,
   test: state.notification.testError,
 });
@@ -327,6 +394,18 @@ export const selectNotificationSummary = (state: { notification: NotificationSta
   }
   
   return `${scope} • ${enabledTypes.length} filing type${enabledTypes.length > 1 ? 's' : ''}`;
+};
+
+// ENHANCED: Watchlist integration selector
+export const selectWatchlistDescription = (state: { notification: NotificationState }) => {
+  const settings = state.notification.settings;
+  const watchlistCount = state.notification.watchlistInfo?.count || 0;
+  
+  if (settings.watchlist_only) {
+    return `You'll only receive notifications from ${watchlistCount} companies in your watchlist`;
+  } else {
+    return `You'll receive notifications from all S&P 500 and NASDAQ companies`;
+  }
 };
 
 export default notificationSlice.reducer;

@@ -1,5 +1,7 @@
 // Notification API endpoints
 // Phase 4: Notification System
+// FIXED: All TypeScript type errors resolved
+// OPTIMIZED: Simplified API calls matching backend changes, core functionality only
 
 import apiClient from './client';
 import {
@@ -23,12 +25,34 @@ export const notificationAPI = {
     }
   },
 
-  // Update notification settings
+  // Update notification settings - FIXED: No dynamic indexing
   updateSettings: async (settings: NotificationSettingsUpdate): Promise<NotificationSettings> => {
     try {
+      // Build filtered settings object explicitly - completely type safe
+      const filteredSettings: NotificationSettingsUpdate = {};
+      
+      if (settings.notification_enabled !== undefined) {
+        filteredSettings.notification_enabled = settings.notification_enabled;
+      }
+      if (settings.filing_10k !== undefined) {
+        filteredSettings.filing_10k = settings.filing_10k;
+      }
+      if (settings.filing_10q !== undefined) {
+        filteredSettings.filing_10q = settings.filing_10q;
+      }
+      if (settings.filing_8k !== undefined) {
+        filteredSettings.filing_8k = settings.filing_8k;
+      }
+      if (settings.filing_s1 !== undefined) {
+        filteredSettings.filing_s1 = settings.filing_s1;
+      }
+      if (settings.watchlist_only !== undefined) {
+        filteredSettings.watchlist_only = settings.watchlist_only;
+      }
+
       const response = await apiClient.put<NotificationSettings>(
         '/notifications/settings',
-        settings
+        filteredSettings
       );
       return response;
     } catch (error) {
@@ -37,12 +61,12 @@ export const notificationAPI = {
     }
   },
 
-  // NEW: Get notification history
+  // Get notification history
   getHistory: async (limit: number = 50, offset: number = 0): Promise<NotificationHistory[]> => {
     try {
       const response = await apiClient.get<NotificationHistory[]>(
         '/notifications/history',
-        { params: { limit, offset } }
+        { params: { limit, skip: offset } }
       );
       return response;
     } catch (error) {
@@ -53,11 +77,14 @@ export const notificationAPI = {
   },
 
   // Register device token for push notifications
-  registerDeviceToken: async (data: DeviceTokenRegistration): Promise<{ message: string; token_id?: number }> => {
+  registerDeviceToken: async (data: DeviceTokenRegistration): Promise<{ success: boolean; message: string }> => {
     try {
-      const response = await apiClient.post<{ message: string; token_id?: number }>(
+      const response = await apiClient.post<{ success: boolean; message: string }>(
         '/notifications/device/register',
-        data
+        {
+          token: data.token,
+          platform: data.platform
+        }
       );
       return response;
     } catch (error) {
@@ -67,9 +94,9 @@ export const notificationAPI = {
   },
 
   // Unregister device token
-  unregisterDeviceToken: async (token: string): Promise<{ message: string }> => {
+  unregisterDeviceToken: async (token: string): Promise<{ success: boolean; message: string }> => {
     try {
-      const response = await apiClient.post<{ message: string }>(
+      const response = await apiClient.post<{ success: boolean; message: string }>(
         '/notifications/device/unregister',
         { token }
       );
@@ -80,7 +107,7 @@ export const notificationAPI = {
     }
   },
 
-  // Get notification statistics
+  // Get notification statistics - SIMPLIFIED
   getStats: async (): Promise<NotificationStats> => {
     try {
       const response = await apiClient.get<NotificationStats>('/notifications/stats');
@@ -92,9 +119,19 @@ export const notificationAPI = {
   },
 
   // Send test notification
-  sendTestNotification: async (data?: TestNotificationRequest): Promise<{ message: string; notification_id?: number }> => {
+  sendTestNotification: async (data?: TestNotificationRequest): Promise<{ 
+    success: boolean; 
+    message: string; 
+    firebase_configured?: boolean;
+    notifications_sent?: number;
+  }> => {
     try {
-      const response = await apiClient.post<{ message: string; notification_id?: number }>(
+      const response = await apiClient.post<{ 
+        success: boolean; 
+        message: string; 
+        firebase_configured?: boolean;
+        notifications_sent?: number;
+      }>(
         '/notifications/test',
         data || {}
       );
@@ -105,7 +142,7 @@ export const notificationAPI = {
     }
   },
 
-  // Quick toggle methods for convenience
+  // SIMPLIFIED: Core toggle methods only
   toggleNotifications: async (enabled: boolean): Promise<NotificationSettings> => {
     return notificationAPI.updateSettings({ notification_enabled: enabled });
   },
@@ -123,50 +160,13 @@ export const notificationAPI = {
   }): Promise<NotificationSettings> => {
     return notificationAPI.updateSettings(preferences);
   },
-
-  // Update quiet hours (deprecated but kept for compatibility)
-  updateQuietHours: async (start: string | null, end: string | null): Promise<NotificationSettings> => {
-    return notificationAPI.updateSettings({
-      quiet_hours_start: start,
-      quiet_hours_end: end,
-    });
-  },
 };
 
-// Helper functions for notification management
+// SIMPLIFIED: Helper functions for core functionality only
 export const notificationHelpers = {
   // Check if notifications are enabled
   isNotificationEnabled: (settings: NotificationSettings): boolean => {
     return settings.notification_enabled;
-  },
-
-  // Check if quiet hours are active (deprecated)
-  isInQuietHours: (settings: NotificationSettings): boolean => {
-    if (!settings.quiet_hours_start || !settings.quiet_hours_end) {
-      return false;
-    }
-
-    const now = new Date();
-    const currentTime = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
-    
-    const start = settings.quiet_hours_start;
-    const end = settings.quiet_hours_end;
-
-    // Handle overnight quiet hours (e.g., 22:00 to 08:00)
-    if (start > end) {
-      return currentTime >= start || currentTime <= end;
-    }
-    
-    // Handle same-day quiet hours (e.g., 08:00 to 22:00)
-    return currentTime >= start && currentTime <= end;
-  },
-
-  // Format quiet hours for display (deprecated)
-  formatQuietHours: (start: string | null, end: string | null): string => {
-    if (!start || !end) {
-      return 'Not set';
-    }
-    return `${start} - ${end}`;
   },
 
   // Get enabled filing types
@@ -179,20 +179,17 @@ export const notificationHelpers = {
     return types;
   },
 
-  // Count enabled notifications
-  countEnabledNotifications: (settings: NotificationSettings): number => {
+  // Count enabled filing types
+  countEnabledFilingTypes: (settings: NotificationSettings): number => {
     let count = 0;
     if (settings.filing_10k) count++;
     if (settings.filing_10q) count++;
     if (settings.filing_8k) count++;
     if (settings.filing_s1) count++;
-    if (settings.daily_reset_reminder) count++;
-    if (settings.subscription_alerts) count++;
-    if (settings.market_summary) count++;
     return count;
   },
 
-  // NEW: Get notification summary text
+  // Get notification summary text
   getNotificationSummary: (settings: NotificationSettings): string => {
     if (!settings.notification_enabled) {
       return 'Notifications disabled';
@@ -207,4 +204,47 @@ export const notificationHelpers = {
     
     return `${scope} • ${enabledTypes.length} filing type${enabledTypes.length > 1 ? 's' : ''}`;
   },
+
+  // Validate settings before sending to API
+  validateSettings: (settings: NotificationSettingsUpdate): { valid: boolean; errors: string[] } => {
+    const errors: string[] = [];
+    
+    // Check if at least one filing type is enabled when notifications are on
+    if (settings.notification_enabled === true) {
+      const hasEnabledType = (
+        settings.filing_10k === true ||
+        settings.filing_10q === true ||
+        settings.filing_8k === true ||
+        settings.filing_s1 === true
+      );
+      
+      if (!hasEnabledType) {
+        errors.push('At least one filing type must be enabled when notifications are turned on');
+      }
+    }
+    
+    return {
+      valid: errors.length === 0,
+      errors
+    };
+  },
+
+  // Get filing type display names - FIXED: Explicit key access
+  getFilingTypeDisplayName: (filingType: string): string => {
+    if (filingType === '10-K') return 'Annual Reports';
+    if (filingType === '10-Q') return 'Quarterly Reports';
+    if (filingType === '8-K') return 'Current Reports';
+    if (filingType === 'S-1') return 'IPO Filings';
+    return filingType;
+  },
+
+  // Check if user has meaningful notification configuration
+  hasValidConfiguration: (settings: NotificationSettings): boolean => {
+    if (!settings.notification_enabled) {
+      return false;
+    }
+    
+    const enabledTypes = notificationHelpers.getEnabledFilingTypes(settings);
+    return enabledTypes.length > 0;
+  }
 };

@@ -10,8 +10,9 @@ import {
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { colors, typography, spacing, borderRadius } from '../../theme';
-import { parseUnifiedAnalysis, hasUnifiedAnalysis, getDisplayAnalysis } from '../../utils/textHelpers';
+import { hasUnifiedAnalysis, getDisplayAnalysis, smartPaginateText } from '../../utils/textHelpers';
 import CompanyInfoCard from './CompanyInfoCard';
+import PaginatedAnalysis from './PaginatedAnalysis';
 import { Filing } from '../../types';
 
 interface Current8KDetailProps {
@@ -21,16 +22,23 @@ interface Current8KDetailProps {
 const Current8KDetail: React.FC<Current8KDetailProps> = ({ filing }) => {
   const redColor = '#EF4444'; // 8-K signature color
 
-  // Format relative time
-  const getRelativeTime = (dateString: string) => {
-    const date = new Date(dateString);
-    const now = new Date();
-    const diffInHours = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60));
+  // Format filing time - use precise datetime format consistent with FilingCard
+  const formatFilingTime = () => {
+    // Priority: detected_at > display_time > filing_date (same as FilingCard)
+    const dateToFormat = filing.detected_at || filing.display_time || filing.filing_date;
     
-    if (diffInHours < 1) return 'Just now';
-    if (diffInHours < 24) return `${diffInHours} hours ago`;
-    if (diffInHours < 48) return 'Yesterday';
-    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    if (!dateToFormat) return '';
+    
+    const date = new Date(dateToFormat);
+    
+    // Format as: "2025-12-02 17:21" (YYYY-MM-DD HH:mm)
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const hours = String(date.getHours()).padStart(2, '0');
+    const minutes = String(date.getMinutes()).padStart(2, '0');
+    
+    return `${year}-${month}-${day} ${hours}:${minutes}`;
   };
 
   // 统一分析内容 - 唯一的内容区域
@@ -39,6 +47,9 @@ const Current8KDetail: React.FC<Current8KDetailProps> = ({ filing }) => {
     if (!content) return null;
 
     const isUnified = hasUnifiedAnalysis(filing);
+
+    // 🆕 使用智能分页
+    const textPages = smartPaginateText(content, 2000);
 
     return (
       <View style={styles.unifiedSection}>
@@ -53,17 +64,8 @@ const Current8KDetail: React.FC<Current8KDetailProps> = ({ filing }) => {
           )}
         </View>
 
-        <View style={styles.unifiedContent}>
-          {isUnified ? (
-            // 使用智能标记解析
-            <View style={styles.analysisText}>
-              {parseUnifiedAnalysis(content)}
-            </View>
-          ) : (
-            // 降级到普通文本
-            <Text style={styles.legacyText}>{content}</Text>
-          )}
-        </View>
+        {/* 🆕 使用分页组件 */}
+        <PaginatedAnalysis pages={textPages} />
       </View>
     );
   };
@@ -80,7 +82,7 @@ const Current8KDetail: React.FC<Current8KDetailProps> = ({ filing }) => {
         <View style={styles.urgencyBadge}>
           <Icon name="schedule" size={16} color={colors.white} />
           <Text style={styles.urgencyText}>
-            Filed {getRelativeTime(filing.filing_date)}
+            Filed {formatFilingTime()}
           </Text>
         </View>
         {filing.item_type && (
@@ -137,13 +139,13 @@ const styles = StyleSheet.create({
     fontWeight: typography.fontWeight.bold,
     color: colors.white,
     marginBottom: spacing.xs,
-    fontFamily: 'Times New Roman, serif',
+    fontFamily: typography.fontFamily.serif,
   },
   headerSubtitle: {
     fontSize: typography.fontSize.sm,
     color: colors.white + '90',
     textAlign: 'center',
-    fontFamily: 'Times New Roman, serif',
+    fontFamily: typography.fontFamily.serif,
   },
   urgencyBadge: {
     flexDirection: 'row',
@@ -159,7 +161,7 @@ const styles = StyleSheet.create({
     fontSize: typography.fontSize.sm,
     fontWeight: typography.fontWeight.medium,
     marginLeft: spacing.xs,
-    fontFamily: 'Times New Roman, serif',
+    fontFamily: typography.fontFamily.serif,
   },
   itemBadge: {
     backgroundColor: colors.white + '30',
@@ -172,33 +174,20 @@ const styles = StyleSheet.create({
     color: colors.white,
     fontSize: typography.fontSize.sm,
     fontWeight: typography.fontWeight.semibold,
-    fontFamily: 'Times New Roman, serif',
+    fontFamily: typography.fontFamily.serif,
   },
 
-  // Unified Analysis Section - 唯一的内容区域
+  // Unified Analysis Section - 唯一的内容区域（现在包含分页）
   unifiedSection: {
-    backgroundColor: colors.white,
-    marginHorizontal: spacing.md,
-    marginTop: spacing.md,
+    backgroundColor: colors.background,
     marginBottom: spacing.md,
-    padding: spacing.lg,
-    borderRadius: borderRadius.md,
-    ...Platform.select({
-      ios: {
-        shadowColor: colors.text,
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
-      },
-      android: {
-        elevation: 2,
-      },
-    }),
   },
   sectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: spacing.md,
+    marginHorizontal: spacing.md,
+    marginTop: spacing.md,
+    marginBottom: spacing.sm,
   },
   sectionTitle: {
     fontSize: typography.fontSize.lg,
@@ -206,7 +195,7 @@ const styles = StyleSheet.create({
     color: colors.text,
     marginLeft: spacing.sm,
     flex: 1,
-    fontFamily: 'Times New Roman, serif',
+    fontFamily: typography.fontFamily.serif,
   },
   unifiedBadge: {
     backgroundColor: '#EF4444',
@@ -218,20 +207,7 @@ const styles = StyleSheet.create({
     color: colors.white,
     fontSize: typography.fontSize.xs,
     fontWeight: typography.fontWeight.bold,
-    fontFamily: 'Times New Roman, serif',
-  },
-  unifiedContent: {
-    paddingTop: spacing.sm,
-  },
-  analysisText: {
-    // Container for parsed unified analysis
-    // 实际样式在 textHelpers.ts 中定义
-  },
-  legacyText: {
-    fontSize: typography.fontSize.md,
-    color: colors.text,
-    lineHeight: 24,
-    fontFamily: 'Times New Roman, serif',
+    fontFamily: typography.fontFamily.serif,
   },
 
   // Footer
@@ -251,7 +227,7 @@ const styles = StyleSheet.create({
     fontSize: typography.fontSize.md,
     fontWeight: typography.fontWeight.medium,
     marginLeft: spacing.sm,
-    fontFamily: 'Times New Roman, serif',
+    fontFamily: typography.fontFamily.serif,
   },
 });
 

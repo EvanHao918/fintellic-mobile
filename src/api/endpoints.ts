@@ -10,7 +10,6 @@ import {
 import {
   SubscriptionInfo,
   PricingInfo,
-  EarlyBirdStatus,
 } from '../types/subscription';
 
 // Auth endpoints
@@ -25,7 +24,7 @@ export const authAPI = {
         'Content-Type': 'application/x-www-form-urlencoded',
       },
     });
-    return response; // Already returns .data due to ApiClient changes
+    return response;
   },
 
   register: async (data: { email: string; password: string; full_name: string }) => {
@@ -33,7 +32,6 @@ export const authAPI = {
     return response;
   },
 
-  // FIXED: Changed from '/auth/me' to '/users/me'
   getCurrentUser: async () => {
     const response = await apiClient.get<User>('/users/me');
     return response;
@@ -44,15 +42,22 @@ export const authAPI = {
     return response;
   },
 
-  // Add upgrade endpoint to auth API for convenience
   upgradeToProMock: async (plan: string) => {
     const response = await apiClient.post('/users/me/upgrade-mock', { plan });
     return response;
   },
-  
-  // 新增：获取早鸟状态（无需认证）
-  getEarlyBirdStatus: async () => {
-    const response = await apiClient.get<EarlyBirdStatus>('/auth/early-bird-status');
+
+  // Password Reset APIs
+  requestPasswordReset: async (email: string) => {
+    const response = await apiClient.post('/auth/password/reset-request', { email });
+    return response;
+  },
+
+  confirmPasswordReset: async (token: string, newPassword: string) => {
+    const response = await apiClient.post('/auth/password/reset-confirm', { 
+      token, 
+      new_password: newPassword 
+    });
     return response;
   },
 };
@@ -109,7 +114,7 @@ export const companiesAPI = {
   },
 };
 
-// User endpoints - 更新订阅相关
+// User endpoints
 export const userAPI = {
   getCurrentUser: async () => {
     const response = await apiClient.get<User>('/users/me');
@@ -126,7 +131,6 @@ export const userAPI = {
     return response;
   },
 
-  // 订阅相关端点
   getSubscription: async () => {
     const response = await apiClient.get<SubscriptionInfo>('/users/me/subscription');
     return response;
@@ -138,8 +142,11 @@ export const userAPI = {
   },
 };
 
-// 新增：订阅专用端点（导出以便其他地方使用）
+// 订阅专用端点
 export { subscriptionAPI } from '../api/subscription';
 
-// 🆕 Phase 4: 导出通知API
+// 导出通知API
 export { notificationAPI, notificationHelpers } from './notifications';
+
+// 导出watchlist API
+export { watchlistAPI, watchlistHelpers } from './watchlist';

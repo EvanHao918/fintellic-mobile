@@ -1,28 +1,18 @@
 /**
- * In-App Purchase Service
- * 处理Apple IAP和Google Play Billing
- * 适配 react-native-iap v12.16.4
+ * In-App Purchase Service - Production-Ready with Enhanced Error Handling
+ * Optimized error handling, timeout management, and user experience
  */
 
-import {
-  Platform,
-  EmitterSubscription,
-  Alert,
-} from 'react-native';
+import { Platform, EmitterSubscription, Alert } from 'react-native';
 import RNIap, {
   Product,
-  ProductPurchase,
   PurchaseError,
-  SubscriptionPurchase,
   finishTransaction,
-  getProducts,
   getSubscriptions,
   initConnection,
   endConnection,
   requestSubscription,
   getAvailablePurchases,
-  clearTransactionIOS,
-  validateReceiptIos,
   acknowledgePurchaseAndroid,
   flushFailedPurchasesCachedAsPendingAndroid,
   purchaseUpdatedListener,
@@ -30,341 +20,320 @@ import RNIap, {
   Purchase,
   Subscription,
 } from 'react-native-iap';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { SubscriptionType } from '../types/subscription';
+import { SubscriptionType, ALLSIGHT_PRODUCT_CONFIG } from '../types/subscription';
 import apiClient from '../api/client';
-
-// 产品ID配置（需要与App Store Connect和Google Play Console一致）
-const PRODUCT_IDS = {
-  ios: {
-    [SubscriptionType.MONTHLY]: 'com.fintellic.app.monthly',
-    [SubscriptionType.YEARLY]: 'com.fintellic.app.yearly',
-  },
-  android: {
-    [SubscriptionType.MONTHLY]: 'monthly_subscription',
-    [SubscriptionType.YEARLY]: 'yearly_subscription',
-  },
-};
-
-// 缓存键
-const CACHE_KEYS = {
-  PENDING_PURCHASE: '@iap_pending_purchase',
-  RECEIPT_DATA: '@iap_receipt_data',
-};
 
 class IAPService {
   private purchaseUpdateSubscription: EmitterSubscription | null = null;
   private purchaseErrorSubscription: EmitterSubscription | null = null;
   private products: (Product | Subscription)[] = [];
   private isInitialized: boolean = false;
+  private initializationPromise: Promise<boolean> | null = null;
+  
+  // 购买成功回调 - 用于刷新用户信息
+  private onPurchaseSuccessCallback: (() => void) | null = null;
+  
+  // Error tracking and retry logic
+  private readonly MAX_RETRY_ATTEMPTS = 3;
+  private readonly RETRY_DELAY_MS = 2000;
+  private readonly CONNECTION_TIMEOUT_MS = 15000;
+  private readonly VERIFICATION_TIMEOUT_MS = 30000;
 
   /**
-   * 初始化IAP连接
+   * 设置购买成功回调
+   */
+  setOnPurchaseSuccess(callback: () => void): void {
+    this.onPurchaseSuccessCallback = callback;
+  }
+
+  /**
+   * 初始化IAP - 增强错误处理和超时控制
    */
   async initialize(): Promise<boolean> {
     try {
-      if (this.isInitialized) {
-        console.log('IAP already initialized');
-        return true;
-      }
+      // 防止重复初始化
+      if (this.isInitialized) return true;
+      if (this.initializationPromise) return await this.initializationPromise;
 
-      // 初始化连接
-      const result = await initConnection();
-      console.log('IAP connection initialized:', result);
-
-      // Android特定：清理失败的购买
-      if (Platform.OS === 'android') {
-        await flushFailedPurchasesCachedAsPendingAndroid();
-      }
-
-      // 设置监听器
-      this.setupListeners();
-
-      // 加载产品
-      await this.loadProducts();
-
-      this.isInitialized = true;
-      return true;
+      this.initializationPromise = this._performInitialization();
+      const result = await this.initializationPromise;
+      this.initializationPromise = null;
+      
+      return result;
     } catch (error) {
-      console.error('Failed to initialize IAP:', error);
+      console.error('IAP initialization failed:', error);
+      this.initializationPromise = null;
       return false;
     }
   }
 
   /**
-   * 清理IAP连接
+   * 执行初始化过程
+   */
+  private async _performInitialization(): Promise<boolean> {
+    try {
+      // 设置连接超时
+      const connectionPromise = initConnection();
+      const timeoutPromise = new Promise<never>((_, reject) => 
+        setTimeout(() => reject(new Error('Connection timeout')), this.CONNECTION_TIMEOUT_MS)
+      );
+      
+      await Promise.race([connectionPromise, timeoutPromise]);
+      
+      // Android特定清理
+      if (Platform.OS === 'android') {
+        try {
+          await flushFailedPurchasesCachedAsPendingAndroid();
+        } catch (error) {
+          console.warn('Failed to flush cached purchases:', error);
+          // 不阻止初始化流程
+        }
+      }
+
+      this.setupListeners();
+      await this.loadProducts();
+      
+      this.isInitialized = true;
+      console.log('IAP service initialized successfully');
+      return true;
+    } catch (error) {
+      console.error('IAP initialization failed:', error);
+      this.cleanup();
+      throw error;
+    }
+  }
+
+  /**
+   * 清理资源
    */
   async cleanup(): Promise<void> {
     try {
-      // 移除监听器
-      if (this.purchaseUpdateSubscription) {
-        this.purchaseUpdateSubscription.remove();
-        this.purchaseUpdateSubscription = null;
+      this.purchaseUpdateSubscription?.remove();
+      this.purchaseErrorSubscription?.remove();
+      
+      if (this.isInitialized) {
+        await endConnection();
       }
-      if (this.purchaseErrorSubscription) {
-        this.purchaseErrorSubscription.remove();
-        this.purchaseErrorSubscription = null;
-      }
-
-      // 结束连接
-      await endConnection();
+      
       this.isInitialized = false;
-      console.log('IAP connection cleaned up');
+      this.initializationPromise = null;
+      this.products = [];
+      
+      console.log('IAP service cleaned up');
     } catch (error) {
-      console.error('Error cleaning up IAP:', error);
+      console.warn('Error during IAP cleanup:', error);
     }
   }
 
   /**
-   * 设置购买监听器
+   * 设置监听器
    */
   private setupListeners(): void {
-    // 购买更新监听器
-    this.purchaseUpdateSubscription = purchaseUpdatedListener(
-      async (purchase: Purchase) => {
-        console.log('Purchase updated:', purchase);
-        await this.handlePurchaseUpdate(purchase);
-      }
-    );
-
-    // 购买错误监听器
-    this.purchaseErrorSubscription = purchaseErrorListener(
-      (error: PurchaseError) => {
-        console.error('Purchase error:', error);
-        this.handlePurchaseError(error);
-      }
-    );
-  }
-
-  /**
-   * 加载产品信息
-   */
-  async loadProducts(): Promise<(Product | Subscription)[]> {
     try {
-      const productIds = Platform.select({
-        ios: Object.values(PRODUCT_IDS.ios),
-        android: Object.values(PRODUCT_IDS.android),
-      }) || [];
-
-      console.log('Loading products:', productIds);
-
-      // 获取订阅产品
-      const products = await getSubscriptions({ skus: productIds });
-      this.products = products;
-
-      console.log('Products loaded:', products);
-      return products;
+      this.purchaseUpdateSubscription = purchaseUpdatedListener(
+        (purchase: Purchase) => this.handlePurchaseUpdate(purchase)
+      );
+      
+      this.purchaseErrorSubscription = purchaseErrorListener(
+        (error: PurchaseError) => this.handlePurchaseError(error)
+      );
+      
+      console.log('IAP listeners set up successfully');
     } catch (error) {
-      console.error('Failed to load products:', error);
-      return [];
+      console.error('Failed to setup IAP listeners:', error);
+      throw error;
     }
   }
 
   /**
-   * 获取产品信息
+   * 加载产品 - 增强错误处理和重试机制
    */
-  getProduct(subscriptionType: SubscriptionType): Product | Subscription | undefined {
-    const productId = this.getProductId(subscriptionType);
-    return this.products.find(p => p.productId === productId);
+  async loadProducts(retryCount: number = 0): Promise<void> {
+    try {
+      // 只支持 iOS，使用 discounted 产品
+      const productIds: string[] = Platform.OS === 'ios' 
+        ? [ALLSIGHT_PRODUCT_CONFIG.ios.discounted]
+        : [];
+
+      if (productIds.length === 0) {
+        throw new Error('No product IDs configured for this platform');
+      }
+
+      this.products = await getSubscriptions({ skus: productIds });
+      
+      if (this.products.length === 0) {
+        throw new Error('No products available from store');
+      }
+      
+      console.log(`Products loaded successfully: ${this.products.length} products`);
+    } catch (error) {
+      console.error(`Failed to load products (attempt ${retryCount + 1}):`, error);
+      
+      // 重试逻辑
+      if (retryCount < this.MAX_RETRY_ATTEMPTS) {
+        console.log(`Retrying product load in ${this.RETRY_DELAY_MS}ms...`);
+        await new Promise<void>(resolve => setTimeout(resolve, this.RETRY_DELAY_MS));
+        return this.loadProducts(retryCount + 1);
+      }
+      
+      // 最终失败
+      throw new Error(`Failed to load products after ${this.MAX_RETRY_ATTEMPTS} attempts`);
+    }
   }
 
   /**
-   * 获取产品ID
+   * 获取产品ID - 只支持 iOS discounted 产品
    */
-  private getProductId(subscriptionType: SubscriptionType): string {
-    const ids = Platform.select({
-      ios: PRODUCT_IDS.ios,
-      android: PRODUCT_IDS.android,
-    });
-    return ids?.[subscriptionType] || '';
+  private getProductId(type: SubscriptionType): string {
+    if (Platform.OS !== 'ios') {
+      throw new Error(`Platform ${Platform.OS} not supported`);
+    }
+    
+    // 目前只有 monthly 订阅，使用 discounted 价格
+    return ALLSIGHT_PRODUCT_CONFIG.ios.discounted;
   }
 
   /**
-   * 购买订阅
+   * 购买订阅 - 增强错误处理和用户体验
    */
-  async purchaseSubscription(
-    subscriptionType: SubscriptionType,
-    userId: string
-  ): Promise<boolean> {
+  async purchaseSubscription(type: SubscriptionType, userId: string): Promise<boolean> {
     try {
       // 确保已初始化
       if (!this.isInitialized) {
-        await this.initialize();
-      }
-
-      const productId = this.getProductId(subscriptionType);
-      if (!productId) {
-        throw new Error('Invalid product ID');
-      }
-
-      // 获取产品信息
-      const product = this.getProduct(subscriptionType);
-      if (!product) {
-        throw new Error('Product not found');
-      }
-
-      console.log('Purchasing subscription:', productId);
-
-      // 保存待处理的购买信息
-      await AsyncStorage.setItem(
-        CACHE_KEYS.PENDING_PURCHASE,
-        JSON.stringify({
-          productId,
-          subscriptionType,
-          userId,
-          timestamp: Date.now(),
-        })
-      );
-
-      // 发起购买
-      if (Platform.OS === 'ios') {
-        // iOS购买
-        await requestSubscription({
-          sku: productId,
-          andDangerouslyFinishTransactionAutomaticallyIOS: false,
-        });
-      } else {
-        // Android购买 - v12版本的新API
-        const subscription = product as Subscription;
-        if ('subscriptionOfferDetails' in subscription && subscription.subscriptionOfferDetails?.length) {
-          await requestSubscription({
-            sku: productId,
-            subscriptionOffers: subscription.subscriptionOfferDetails.map(offer => ({
-              sku: productId,
-              offerToken: offer.offerToken,
-            })),
-          });
-        } else {
-          // 旧版本兼容
-          await requestSubscription({
-            sku: productId,
-          });
+        const initialized = await this.initialize();
+        if (!initialized) {
+          throw new Error('Failed to initialize IAP service');
         }
+      }
+
+      const productId = this.getProductId(type);
+      const product = this.products.find(p => p.productId === productId);
+      
+      if (!product) {
+        throw new Error(`Product not available: ${productId}`);
+      }
+
+      console.log(`Starting purchase for product: ${productId}`);
+
+      if (Platform.OS === 'ios') {
+        await this.purchaseIOS(productId);
+      } else {
+        await this.purchaseAndroid(product, productId);
       }
 
       return true;
     } catch (error: any) {
       console.error('Purchase failed:', error);
       
-      // 用户取消
-      if (error.code === 'E_USER_CANCELLED') {
-        console.log('User cancelled purchase');
+      // 用户取消不算错误
+      if (this.isUserCancellation(error)) {
+        console.log('Purchase cancelled by user');
         return false;
       }
-
+      
+      // 显示用户友好的错误信息
+      this.showPurchaseError(error);
       throw error;
     }
   }
 
   /**
-   * 处理购买更新
+   * iOS购买流程
+   */
+  private async purchaseIOS(productId: string): Promise<void> {
+    await requestSubscription({
+      sku: productId,
+      andDangerouslyFinishTransactionAutomaticallyIOS: false,
+    });
+  }
+
+  /**
+   * Android购买流程 - 增强兼容性
+   */
+  private async purchaseAndroid(product: any, productId: string): Promise<void> {
+    try {
+      // 尝试新版本Android API
+      if (product.subscriptionOfferDetails && Array.isArray(product.subscriptionOfferDetails) && product.subscriptionOfferDetails.length > 0) {
+        const offers = product.subscriptionOfferDetails.map((offer: any) => ({
+          sku: productId,
+          offerToken: offer.offerToken,
+        }));
+        
+        await requestSubscription({
+          sku: productId,
+          subscriptionOffers: offers,
+        });
+      } else {
+        // 回退到旧版本API
+        console.log('Using legacy Android purchase API');
+        await requestSubscription({ sku: productId });
+      }
+    } catch (error) {
+      console.error('Android purchase error:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 处理购买更新 - 增强验证和错误处理
    */
   private async handlePurchaseUpdate(purchase: Purchase): Promise<void> {
     try {
-      console.log('Processing purchase:', purchase);
-
-      // 获取待处理的购买信息
-      const pendingPurchaseStr = await AsyncStorage.getItem(CACHE_KEYS.PENDING_PURCHASE);
-      const pendingPurchase = pendingPurchaseStr ? JSON.parse(pendingPurchaseStr) : null;
-
-      // 验证购买
-      const isValid = await this.verifyPurchase(purchase, pendingPurchase);
+      console.log(`Processing purchase update for product: ${purchase.productId}`);
+      
+      // 设置验证超时
+      const verificationPromise = this.verifyPurchase(purchase);
+      const timeoutPromise = new Promise<boolean>((_, reject) => 
+        setTimeout(() => reject(new Error('Verification timeout')), this.VERIFICATION_TIMEOUT_MS)
+      );
+      
+      const isValid = await Promise.race([verificationPromise, timeoutPromise]);
       
       if (isValid) {
-        // 完成交易
         await this.finishPurchase(purchase);
+        this.showPurchaseSuccess();
         
-        // 清理待处理的购买
-        await AsyncStorage.removeItem(CACHE_KEYS.PENDING_PURCHASE);
-        
-        Alert.alert(
-          'Success!',
-          'Your subscription has been activated.',
-          [{ text: 'OK' }]
-        );
+        // 购买成功后调用回调刷新用户信息
+        if (this.onPurchaseSuccessCallback) {
+          this.onPurchaseSuccessCallback();
+        }
       } else {
-        Alert.alert(
-          'Verification Failed',
-          'Unable to verify your purchase. Please contact support.',
-          [{ text: 'OK' }]
-        );
+        this.showVerificationFailure();
       }
     } catch (error) {
-      console.error('Error handling purchase update:', error);
-      Alert.alert(
-        'Error',
-        'An error occurred processing your purchase. Please contact support.',
-        [{ text: 'OK' }]
-      );
+      console.error('Purchase update error:', error);
+      this.showPurchaseError(error);
     }
   }
 
   /**
-   * 验证购买
+   * 验证购买 - 增强错误处理和重试机制
    */
-  private async verifyPurchase(
-    purchase: Purchase,
-    pendingPurchase: any
-  ): Promise<boolean> {
+  private async verifyPurchase(purchase: Purchase, retryCount: number = 0): Promise<boolean> {
     try {
-      if (Platform.OS === 'ios') {
-        // iOS验证
-        return await this.verifyIosPurchase(purchase);
-      } else {
-        // Android验证
-        return await this.verifyAndroidPurchase(purchase);
-      }
-    } catch (error) {
-      console.error('Purchase verification failed:', error);
-      return false;
-    }
-  }
-
-  /**
-   * 验证iOS购买
-   */
-  private async verifyIosPurchase(purchase: Purchase): Promise<boolean> {
-    try {
-      // 验证收据 - v12版本的新API
-      const receiptBody = await validateReceiptIos({
-        receiptBody: {
-          'receipt-data': purchase.transactionReceipt!,
-          password: '', // 如果有shared secret，在这里提供
-        },
-        isTest: __DEV__, // 开发环境使用沙盒
-      });
-
-      console.log('iOS receipt validation result:', receiptBody);
-
-      // 发送到后端验证
-      const response = await apiClient.post('/subscriptions/verify/apple', {
+      const endpoint = Platform.OS === 'ios' ? '/subscriptions/verify/apple' : '/subscriptions/verify/google';
+      const data = Platform.OS === 'ios' ? {
         receipt_data: purchase.transactionReceipt,
         product_id: purchase.productId,
         transaction_id: purchase.transactionId,
-      });
-
-      return response.success === true;
-    } catch (error) {
-      console.error('iOS verification failed:', error);
-      return false;
-    }
-  }
-
-  /**
-   * 验证Android购买
-   */
-  private async verifyAndroidPurchase(purchase: Purchase): Promise<boolean> {
-    try {
-      // 发送到后端验证
-      const response = await apiClient.post('/subscriptions/verify/google', {
+      } : {
         purchase_token: purchase.purchaseToken,
         product_id: purchase.productId,
         order_id: purchase.transactionId,
-      });
+      };
 
+      const response = await apiClient.post(endpoint, data);
       return response.success === true;
     } catch (error) {
-      console.error('Android verification failed:', error);
+      console.error(`Verification failed (attempt ${retryCount + 1}):`, error);
+      
+      // 网络错误重试
+      if (this.isNetworkError(error) && retryCount < this.MAX_RETRY_ATTEMPTS) {
+        console.log(`Retrying verification in ${this.RETRY_DELAY_MS}ms...`);
+        await new Promise<void>(resolve => setTimeout(resolve, this.RETRY_DELAY_MS));
+        return this.verifyPurchase(purchase, retryCount + 1);
+      }
+      
       return false;
     }
   }
@@ -375,19 +344,15 @@ class IAPService {
   private async finishPurchase(purchase: Purchase): Promise<void> {
     try {
       if (Platform.OS === 'ios') {
-        // iOS完成交易
         await finishTransaction({ purchase, isConsumable: false });
-      } else {
-        // Android确认购买 - 使用正确的参数格式
-        if (purchase.purchaseToken) {
-          await acknowledgePurchaseAndroid({
-            token: purchase.purchaseToken,
-          });
-        }
+      } else if (purchase.purchaseToken) {
+        await acknowledgePurchaseAndroid({ token: purchase.purchaseToken });
       }
-      console.log('Purchase finished successfully');
+      
+      console.log(`Purchase finished for product: ${purchase.productId}`);
     } catch (error) {
       console.error('Error finishing purchase:', error);
+      // 不抛出错误，因为购买已经成功验证
     }
   }
 
@@ -395,119 +360,223 @@ class IAPService {
    * 处理购买错误
    */
   private handlePurchaseError(error: PurchaseError): void {
-    console.error('Purchase error:', error);
-
-    let message = 'An error occurred during purchase.';
+    console.error('Purchase error received:', error);
     
-    if (error.code === 'E_USER_CANCELLED') {
-      // 用户取消，不显示错误
+    // 用户取消不显示错误
+    if (this.isUserCancellation(error)) {
       return;
-    } else if (error.code === 'E_ITEM_UNAVAILABLE') {
-      message = 'This subscription is not available.';
-    } else if (error.code === 'E_NETWORK_ERROR') {
-      message = 'Network error. Please check your connection.';
-    } else if (error.code === 'E_SERVICE_ERROR') {
-      message = 'Store service error. Please try again later.';
     }
-
-    Alert.alert('Purchase Error', message, [{ text: 'OK' }]);
+    
+    this.showPurchaseError(error);
   }
 
   /**
-   * 恢复购买
+   * 恢复购买 - 增强错误处理
    */
   async restorePurchases(): Promise<boolean> {
     try {
-      console.log('Restoring purchases...');
-      
-      const purchases = await getAvailablePurchases();
-      console.log('Available purchases:', purchases);
+      if (!this.isInitialized) {
+        await this.initialize();
+      }
 
+      const purchases = await getAvailablePurchases();
+      
       if (purchases.length === 0) {
-        Alert.alert(
-          'No Purchases',
-          'No previous purchases found.',
-          [{ text: 'OK' }]
-        );
+        Alert.alert('No Purchases', 'No previous purchases found to restore.');
         return false;
       }
 
-      // 验证并恢复每个购买
+      console.log(`Found ${purchases.length} purchases to restore`);
+      
+      let successCount = 0;
+      let failureCount = 0;
+
       for (const purchase of purchases) {
-        if (Platform.OS === 'ios') {
-          // iOS恢复
-          await apiClient.post('/subscriptions/restore/apple', {
-            receipt_data: purchase.transactionReceipt,
-          });
-        } else {
-          // Android恢复
-          await apiClient.post('/subscriptions/verify/google', {
-            purchase_token: purchase.purchaseToken,
-            product_id: purchase.productId,
-          });
+        try {
+          if (Platform.OS === 'ios') {
+            await apiClient.post('/subscriptions/restore/apple', {
+              receipt_data: purchase.transactionReceipt
+            });
+          } else {
+            await apiClient.post('/subscriptions/verify/google', {
+              purchase_token: purchase.purchaseToken,
+              product_id: purchase.productId
+            });
+          }
+          successCount++;
+        } catch (error) {
+          console.warn('Failed to restore purchase:', purchase.productId, error);
+          failureCount++;
         }
       }
 
-      Alert.alert(
-        'Success',
-        'Your purchases have been restored.',
-        [{ text: 'OK' }]
-      );
-      return true;
+      if (successCount > 0) {
+        Alert.alert('Restore Successful', `Restored ${successCount} purchase(s).`);
+        return true;
+      } else {
+        Alert.alert('Restore Failed', 'Unable to restore any purchases. Please try again or contact support.');
+        return false;
+      }
     } catch (error) {
-      console.error('Restore purchases failed:', error);
-      Alert.alert(
-        'Restore Failed',
-        'Unable to restore purchases. Please try again.',
-        [{ text: 'OK' }]
-      );
+      console.error('Restore purchases error:', error);
+      Alert.alert('Restore Failed', 'Unable to restore purchases. Please check your connection and try again.');
       return false;
     }
   }
 
   /**
-   * 获取产品价格字符串
+   * 获取产品价格 - 增强错误处理
    */
-  getProductPriceString(subscriptionType: SubscriptionType): string {
-    const product = this.getProduct(subscriptionType);
-    if (!product) {
-      // 返回默认价格
-      return subscriptionType === SubscriptionType.MONTHLY ? '$39' : '$280.80';
-    }
-    
-    // 处理不同平台的价格字段
-    if (Platform.OS === 'ios') {
-      // iOS使用localizedPrice
-      return (product as any).localizedPrice || '$39';
-    } else {
-      // Android使用oneTimePurchaseOfferDetails或subscriptionOfferDetails
-      const androidProduct = product as Subscription;
-      if ('subscriptionOfferDetails' in androidProduct && androidProduct.subscriptionOfferDetails?.length) {
-        const offer = androidProduct.subscriptionOfferDetails[0];
-        if ('pricingPhases' in offer && offer.pricingPhases?.pricingPhaseList?.length) {
-          return offer.pricingPhases.pricingPhaseList[0].formattedPrice || '$39';
-        }
+  getProductPriceString(type: SubscriptionType): string {
+    try {
+      const productId = this.getProductId(type);
+      const product = this.products.find(p => p.productId === productId);
+      
+      if (!product) {
+        return 'Product unavailable';
       }
-      // 旧版本Android API
-      return (androidProduct as any).localizedPrice || '$39';
+      
+      const productAny = product as any;
+      
+      if (Platform.OS === 'ios') {
+        return productAny.localizedPrice || 'Price unavailable';
+      } else {
+        // Android价格处理
+        if (productAny.subscriptionOfferDetails && 
+            Array.isArray(productAny.subscriptionOfferDetails) && 
+            productAny.subscriptionOfferDetails.length > 0) {
+          
+          const offer = productAny.subscriptionOfferDetails[0];
+          if (offer.pricingPhases && 
+              offer.pricingPhases.pricingPhaseList && 
+              Array.isArray(offer.pricingPhases.pricingPhaseList) && 
+              offer.pricingPhases.pricingPhaseList.length > 0) {
+            
+            return offer.pricingPhases.pricingPhaseList[0].formattedPrice || 'Price unavailable';
+          }
+        }
+        // 旧版本Android API兼容
+        return productAny.localizedPrice || 'Price unavailable';
+      }
+    } catch (error) {
+      console.error('Error getting product price:', error);
+      return 'Price unavailable';
     }
   }
 
   /**
-   * 检查是否有待处理的购买
+   * 检查就绪状态
    */
-  async checkPendingPurchases(): Promise<void> {
-    try {
-      if (Platform.OS === 'android') {
-        // Android检查待处理的购买
-        await flushFailedPurchasesCachedAsPendingAndroid();
-      }
-    } catch (error) {
-      console.error('Error checking pending purchases:', error);
-    }
+  isReady(): boolean {
+    return this.isInitialized && this.products.length > 0;
+  }
+
+  /**
+   * 获取所有产品
+   */
+  getAllProducts(): (Product | Subscription)[] {
+    return this.products;
+  }
+
+  // ==================== 错误处理辅助方法 ====================
+
+  /**
+   * 判断是否为用户取消错误
+   */
+  private isUserCancellation(error: any): boolean {
+    const cancelCodes = ['E_USER_CANCELLED', 'UserCancel'];
+    return cancelCodes.includes(error?.code) || cancelCodes.includes(error?.message);
+  }
+
+  /**
+   * 判断是否为网络错误
+   */
+  private isNetworkError(error: any): boolean {
+    const networkErrors = ['E_NETWORK_ERROR', 'NETWORK_ERROR', 'Network Error'];
+    return networkErrors.some(code => 
+      error?.code?.includes(code) || 
+      error?.message?.includes(code) ||
+      error?.message?.toLowerCase().includes('network')
+    );
+  }
+
+  /**
+   * 显示购买成功消息
+   */
+  private showPurchaseSuccess(): void {
+    Alert.alert(
+      'Purchase Successful!', 
+      'Your Pro subscription has been activated. Welcome to HermeSpeed Pro!',
+      [{ text: 'Get Started', style: 'default' }]
+    );
+  }
+
+  /**
+   * 显示验证失败消息
+   */
+  private showVerificationFailure(): void {
+    Alert.alert(
+      'Verification Failed', 
+      'We received your payment but could not verify it immediately. Your subscription will be activated shortly. If the issue persists, please contact support.',
+      [
+        { text: 'Contact Support', style: 'default' },
+        { text: 'OK', style: 'cancel' }
+      ]
+    );
+  }
+
+  /**
+   * 显示购买错误消息
+   */
+  private showPurchaseError(error: any): void {
+    const errorMessages: Record<string, string> = {
+      'E_ITEM_UNAVAILABLE': 'This subscription is currently unavailable. Please try again later.',
+      'E_NETWORK_ERROR': 'Network connection error. Please check your internet connection and try again.',
+      'E_SERVICE_ERROR': 'Store service is temporarily unavailable. Please try again in a few minutes.',
+      'E_ALREADY_OWNED': 'You already own this subscription. Try using "Restore Purchases" instead.',
+      'E_PAYMENT_NOT_ALLOWED': 'Payments are not allowed on this device. Please check your device settings.',
+      'E_BILLING_UNAVAILABLE': 'Billing service is unavailable. Please try again later.',
+      'E_DEVELOPER_ERROR': 'There was a configuration error. Please contact support.',
+    };
+
+    const errorCode = error?.code || 'UNKNOWN_ERROR';
+    const message = errorMessages[errorCode] || 
+                   error?.message || 
+                   'An unexpected error occurred during purchase. Please try again or contact support if the issue persists.';
+    
+    Alert.alert('Purchase Error', message, [
+      { text: 'Try Again', style: 'default' },
+      { text: 'Contact Support', style: 'default' },
+      { text: 'Cancel', style: 'cancel' }
+    ]);
+  }
+
+  // ==================== 调试和状态方法 ====================
+
+  /**
+   * 获取服务状态
+   */
+  getServiceStatus(): object {
+    return {
+      isInitialized: this.isInitialized,
+      productCount: this.products.length,
+      platform: Platform.OS,
+      hasListeners: !!(this.purchaseUpdateSubscription && this.purchaseErrorSubscription),
+      products: this.products.map(p => ({
+        id: p.productId,
+        price: (p as any).localizedPrice || 'N/A'
+      }))
+    };
+  }
+
+  /**
+   * 强制重新初始化
+   */
+  async forceReinitialize(): Promise<boolean> {
+    await this.cleanup();
+    return await this.initialize();
   }
 }
 
-// 创建单例
 export const iapService = new IAPService();
 export default iapService;

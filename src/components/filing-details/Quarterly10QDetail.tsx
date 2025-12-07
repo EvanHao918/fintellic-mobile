@@ -10,8 +10,9 @@ import {
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { colors, typography, spacing, borderRadius } from '../../theme';
-import { parseUnifiedAnalysis, hasUnifiedAnalysis, getDisplayAnalysis } from '../../utils/textHelpers';
+import { hasUnifiedAnalysis, getDisplayAnalysis, smartPaginateText } from '../../utils/textHelpers';
 import CompanyInfoCard from './CompanyInfoCard';
+import PaginatedAnalysis from './PaginatedAnalysis';
 import { Filing } from '../../types';
 
 interface Quarterly10QDetailProps {
@@ -30,12 +31,34 @@ const Quarterly10QDetail: React.FC<Quarterly10QDetailProps> = ({ filing }) => {
     return `Q${quarter} ${date.getFullYear()}`;
   };
 
+  // Format filing time - use precise datetime format consistent with FilingCard
+  const formatFilingTime = () => {
+    // Priority: detected_at > display_time > filing_date (same as FilingCard)
+    const dateToFormat = filing.detected_at || filing.display_time || filing.filing_date;
+    
+    if (!dateToFormat) return '';
+    
+    const date = new Date(dateToFormat);
+    
+    // Format as: "2025-12-02 17:21" (YYYY-MM-DD HH:mm)
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const hours = String(date.getHours()).padStart(2, '0');
+    const minutes = String(date.getMinutes()).padStart(2, '0');
+    
+    return `${year}-${month}-${day} ${hours}:${minutes}`;
+  };
+
   // 统一分析内容 - 唯一的内容区域（包含所有信息：分析、预期对比、指引更新等）
   const renderUnifiedAnalysis = () => {
     const content = getDisplayAnalysis(filing);
     if (!content) return null;
 
     const isUnified = hasUnifiedAnalysis(filing);
+
+    // 🆕 使用智能分页
+    const textPages = smartPaginateText(content, 2000);
 
     return (
       <View style={styles.unifiedSection}>
@@ -50,17 +73,8 @@ const Quarterly10QDetail: React.FC<Quarterly10QDetailProps> = ({ filing }) => {
           )}
         </View>
 
-        <View style={styles.unifiedContent}>
-          {isUnified ? (
-            // 使用智能标记解析 - 所有内容都在这里
-            <View style={styles.analysisText}>
-              {parseUnifiedAnalysis(content)}
-            </View>
-          ) : (
-            // 降级到普通文本 - 为了向后兼容
-            <Text style={styles.legacyText}>{content}</Text>
-          )}
-        </View>
+        {/* 🆕 使用分页组件 */}
+        <PaginatedAnalysis pages={textPages} />
       </View>
     );
   };
@@ -76,6 +90,10 @@ const Quarterly10QDetail: React.FC<Quarterly10QDetailProps> = ({ filing }) => {
           <View style={styles.headerTextContainer}>
             <Text style={styles.headerTitle}>Quarterly Report</Text>
             <Text style={styles.headerSubtitle}>{getQuarter()} Financial Results</Text>
+            <View style={styles.filedTimeContainer}>
+              <Icon name="schedule" size={14} color={colors.white + '80'} />
+              <Text style={styles.filedTimeText}>Filed {formatFilingTime()}</Text>
+            </View>
           </View>
         </View>
       </View>
@@ -140,13 +158,24 @@ const styles = StyleSheet.create({
     fontWeight: typography.fontWeight.bold,
     color: colors.white,
     letterSpacing: 0.3,
-    fontFamily: 'Times New Roman, serif',
+    fontFamily: typography.fontFamily.serif,
   },
   headerSubtitle: {
     fontSize: typography.fontSize.sm,
     color: colors.white + '90',
     marginTop: 2,
-    fontFamily: 'Times New Roman, serif',
+    fontFamily: typography.fontFamily.serif,
+  },
+  filedTimeContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: spacing.xs,
+  },
+  filedTimeText: {
+    fontSize: typography.fontSize.sm,
+    color: colors.white + '80',
+    marginLeft: spacing.xs,
+    fontFamily: typography.fontFamily.serif,
   },
   
   // Content Container
@@ -154,34 +183,17 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.md,
   },
 
-  // Unified Analysis Section - 唯一的内容区域
+  // Unified Analysis Section - 唯一的内容区域（现在包含分页）
   unifiedSection: {
-    backgroundColor: colors.white,
-    marginHorizontal: spacing.md,
-    marginTop: spacing.md,
+    backgroundColor: colors.background,
     marginBottom: spacing.md,
-    paddingTop: spacing.lg,
-    paddingHorizontal: spacing.lg,
-    paddingBottom: spacing.lg + spacing.xs,
-    borderRadius: borderRadius.lg,
-    borderWidth: 1,
-    borderColor: colors.gray100,
-    ...Platform.select({
-      ios: {
-        shadowColor: colors.black,
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.03,
-        shadowRadius: 2,
-      },
-      android: {
-        elevation: 1,
-      },
-    }),
   },
   sectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: spacing.lg,
+    marginHorizontal: spacing.md,
+    marginTop: spacing.md,
+    marginBottom: spacing.sm,
     paddingBottom: spacing.md,
     borderBottomWidth: 2,
     borderBottomColor: colors.gray900,
@@ -193,7 +205,7 @@ const styles = StyleSheet.create({
     marginLeft: spacing.sm,
     flex: 1,
     letterSpacing: -0.5,
-    fontFamily: 'Times New Roman, serif',
+    fontFamily: typography.fontFamily.serif,
   },
   unifiedBadge: {
     flexDirection: 'row',
@@ -209,20 +221,7 @@ const styles = StyleSheet.create({
     marginLeft: spacing.xxs,
     fontWeight: typography.fontWeight.medium,
     letterSpacing: 0.5,
-    fontFamily: 'Times New Roman, serif',
-  },
-  unifiedContent: {
-    paddingTop: spacing.sm,
-  },
-  analysisText: {
-    // Container for parsed unified analysis
-    // 实际样式在 textHelpers.ts 中定义
-  },
-  legacyText: {
-    fontSize: typography.fontSize.md,
-    color: colors.text,
-    lineHeight: 24,
-    fontFamily: 'Times New Roman, serif',
+    fontFamily: typography.fontFamily.serif,
   },
 
   // Footer
@@ -250,7 +249,7 @@ const styles = StyleSheet.create({
     fontWeight: typography.fontWeight.semibold,
     marginRight: spacing.sm,
     letterSpacing: 0.3,
-    fontFamily: 'Times New Roman, serif',
+    fontFamily: typography.fontFamily.serif,
   },
 });
 

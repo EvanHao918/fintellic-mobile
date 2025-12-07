@@ -7,7 +7,6 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Platform,
-  Dimensions,
   Alert,
   Linking,
 } from 'react-native';
@@ -20,28 +19,17 @@ import { refreshUserInfo } from '../store/slices/authSlice';
 import { 
   fetchPricingInfo,
   fetchCurrentSubscription,
-  fetchEarlyBirdStatus,
-  mockUpgradeToPro,
-  cancelSubscription,
 } from '../store/slices/subscriptionSlice';
 import { colors, typography, spacing, borderRadius, shadows } from '../theme';
-import { subscriptionHelpers } from '../api/subscription';
 import { SubscriptionType } from '../types/subscription';
-import { isProUser as checkIsProUser, isEarlyBirdUser } from '../types';
-import apiClient from '../api/client';
+import { iapService } from '../services/IAPService';
 
-const { height: screenHeight, width: screenWidth } = Dimensions.get('window');
-
-type PlanType = 'monthly' | 'yearly';
-
-// 🔥 Web兼容的Alert函数
 const showAlert = (title: string, message: string, buttons?: any[]) => {
   if (Platform.OS === 'web') {
-    // 在Web环境使用confirm/alert
     if (buttons && buttons.length > 1) {
-      const result = window.confirm(`${title}\n\n${message}`);
-      const confirmButton = buttons.find(b => b.text !== 'Cancel' && b.text !== 'Keep Subscription');
-      const cancelButton = buttons.find(b => b.text === 'Cancel' || b.text === 'Keep Subscription');
+      const result = (globalThis as any).confirm(`${title}\n\n${message}`);
+      const confirmButton = buttons.find(b => b.text !== 'Cancel');
+      const cancelButton = buttons.find(b => b.text === 'Cancel');
       
       if (result && confirmButton?.onPress) {
         confirmButton.onPress();
@@ -49,7 +37,7 @@ const showAlert = (title: string, message: string, buttons?: any[]) => {
         cancelButton.onPress();
       }
     } else {
-      window.alert(`${title}\n\n${message}`);
+      (globalThis as any).alert(`${title}\n\n${message}`);
     }
   } else {
     Alert.alert(title, message, buttons);
@@ -60,1175 +48,753 @@ export default function SubscriptionScreen() {
   const navigation = useNavigation();
   const dispatch = useDispatch<AppDispatch>();
   
-  // Redux state
   const user = useSelector((state: RootState) => state.auth.user);
   const { 
     pricingInfo,
     currentSubscription,
-    earlyBirdStatus,
-    isLoading: subscriptionLoading,
+    isLoading,
   } = useSelector((state: RootState) => state.subscription);
   
-  // Local state
-  const [selectedPlan, setSelectedPlan] = useState<PlanType>('monthly');
   const [isUpgrading, setIsUpgrading] = useState(false);
-  const [isCancelling, setIsCancelling] = useState(false);
-  const [statusMessage, setStatusMessage] = useState<string>(''); // 🔥 状态消息
   
-  // Derived state - 使用已验证的逻辑
-  const isProUser = checkIsProUser(user) || user?.tier === 'PRO' || user?.tier === 'pro';
-  
-  const isEarlyBird = Boolean(
-    user?.is_early_bird === true || 
-    user?.pricing_tier === 'EARLY_BIRD' ||
-    (user?.user_sequence_number && user.user_sequence_number <= 10000) ||
-    pricingInfo?.is_early_bird === true
-  );
-  
-  const monthlyPrice = isEarlyBird ? 39 : 49;
-  const yearlyPrice = isEarlyBird ? 280.80 : 352.80;
-  const yearlySavings = subscriptionHelpers.calculateYearlySavingsPercentage(monthlyPrice, yearlyPrice);
+  const isProUser = user?.tier === 'PRO' || currentSubscription?.is_active;
 
-  // 增强：平台功能列表
-  const platformFeatures = [
-    {
-      icon: 'speed',
-      title: 'Real-Time Monitoring Engine',
-      description: 'Advanced surveillance system tracking S&P 500 & NASDAQ 100 filings with unmatched capture velocity',
-      highlight: 'Under 60 seconds from filing to analysis',
-    },
-    {
-      icon: 'auto-awesome',
-      title: 'Institutional-Grade AI',
-      description: 'Finance-specialized neural networks trained on millions of reports, delivering objective market intelligence',
-      highlight: 'Zero emotional bias, pure data-driven insights',
-    },
-    {
-      icon: 'summarize',
-      title: 'Intelligent Compression',
-      description: 'Transform 300-page documents into 5-minute structured insights without losing critical information',
-      highlight: 'Smart extraction with source document linking',
-    },
-    {
-      icon: 'link',
-      title: 'Direct Source Access',
-      description: 'Every analysis maintains direct links to original SEC filings for seamless deep-dive verification',
-      highlight: 'One-click access to primary documents',
-    },
-    {
-      icon: 'notifications-active',
-      title: 'Instant Push Notifications',
-      description: 'Real-time alerts for your watchlist companies, delivered faster than traditional news outlets',
-      highlight: 'Be first, not last',
-    },
-    {
-      icon: 'calendar-today',
-      title: 'Earnings Calendar Intelligence',
-      description: 'Track upcoming releases with BMO/AMC timing precision for strategic positioning',
-      highlight: 'Never miss a critical filing',
-    },
-    {
-      icon: 'trending-up',
-      title: 'Community Sentiment Analysis',
-      description: 'Real-time market sentiment tracking from verified investors and professionals',
-      highlight: 'Understand market psychology instantly',
-    },
-    {
-      icon: 'bookmark',
-      title: 'IPO Discovery System',
-      description: 'S-1 filing monitoring to identify emerging opportunities before mainstream coverage',
-      highlight: 'Find tomorrow\'s leaders today',
-    },
-  ];
-
-  // Load subscription data on mount
+  // 设置购买成功回调 - 在验证完成后刷新用户信息
   useEffect(() => {
-    console.log('🔍 SubscriptionScreen Debug Info:', {
-      user: {
-        id: user?.id,
-        tier: user?.tier,
-        is_early_bird: user?.is_early_bird,
-        pricing_tier: user?.pricing_tier,
-        user_sequence_number: user?.user_sequence_number,
-        is_subscription_active: user?.is_subscription_active,
-      },
-      isProUser,
-      isEarlyBird,
-      monthlyPrice,
-      yearlyPrice,
-      currentSubscription: currentSubscription ? {
-        is_active: currentSubscription.is_active,
-        subscription_type: currentSubscription.subscription_type,
-        pricing_tier: currentSubscription.pricing_tier,
-        current_price: currentSubscription.current_price,
-      } : null,
+    iapService.setOnPurchaseSuccess(async () => {
+      console.log('Purchase success callback - refreshing user info...');
+      try {
+        await dispatch(refreshUserInfo()).unwrap();
+        await dispatch(fetchCurrentSubscription()).unwrap();
+        console.log('User info refreshed after purchase');
+      } catch (error) {
+        console.error('Failed to refresh user info:', error);
+      }
     });
+  }, [dispatch]);
+  const isDiscounted = pricingInfo?.is_discounted || pricingInfo?.is_early_bird || false;
+  const currentPrice = isDiscounted ? 19.99 : 29.99;
+  const originalPrice = 29.99;
 
-    dispatch(fetchEarlyBirdStatus());
+  useEffect(() => {
     if (user) {
-      dispatch(fetchPricingInfo()).catch(console.error);
-      dispatch(fetchCurrentSubscription()).catch(console.error);
+      dispatch(fetchPricingInfo());
+      dispatch(fetchCurrentSubscription());
     }
   }, [dispatch, user]);
 
-  // 🔥 修复的升级处理函数 - 保持原有稳定逻辑
   const handleUpgrade = async () => {
-    console.log('🚀 handleUpgrade called', { isProUser, selectedPlan, isUpgrading });
-    setStatusMessage('Processing upgrade...');
-    
     if (isProUser) {
       showAlert('Already Pro', 'You already have an active Pro subscription.');
-      setStatusMessage('');
       return;
     }
 
-    if (isUpgrading) {
-      console.log('⚠️ Already upgrading, ignoring duplicate request');
-      return;
-    }
+    if (isUpgrading) return;
 
-    // 🔥 修复：将upgradeProcess定义在前面
-    const upgradeProcess = async () => {
-      console.log('💰 Starting mock upgrade process...');
+    const confirmUpgrade = async () => {
       setIsUpgrading(true);
-      setStatusMessage('Upgrading account...');
       
       try {
-        console.log('📡 Dispatching mockUpgradeToPro...');
-        const result = await dispatch(mockUpgradeToPro(selectedPlan)).unwrap();
-        console.log('✅ Mock upgrade successful:', result);
+        const initialized = await iapService.initialize();
+        if (!initialized) {
+          throw new Error('Unable to connect to App Store. Please try again.');
+        }
         
-        setStatusMessage('Refreshing user info...');
-        console.log('🔄 Refreshing user info...');
-        await dispatch(refreshUserInfo()).unwrap();
-        console.log('✅ User info refreshed');
-        
-        setStatusMessage('Success! You are now a Pro member!');
-        showAlert(
-          'Success!',
-          `You are now a Pro member! ${isEarlyBird ? 'Early bird price locked in forever!' : ''}`,
-          [
-            {
-              text: 'OK',
-              onPress: () => {
-                setStatusMessage('');
-                navigation.goBack();
-              },
-            },
-          ]
+        const success = await iapService.purchaseSubscription(
+          SubscriptionType.MONTHLY, 
+          user?.id?.toString() || ''
         );
+        
+        if (success) {
+          await dispatch(refreshUserInfo()).unwrap();
+          await dispatch(fetchCurrentSubscription()).unwrap();
+          
+          showAlert(
+            'Welcome to AllSight Pro!', 
+            'Your subscription is now active. Enjoy unlimited access to all SEC filings.', 
+            [{ text: 'Get Started', onPress: () => navigation.goBack() }]
+          );
+        }
       } catch (error: any) {
-        console.error('❌ Upgrade error:', error);
-        setStatusMessage('Upgrade failed!');
-        showAlert(
-          'Error', 
-          error?.message || error?.toString() || 'Failed to upgrade. Please try again.'
-        );
+        console.error('Purchase error:', error);
+        showAlert('Purchase Failed', error?.message || 'Unable to complete purchase. Please try again.');
       } finally {
         setIsUpgrading(false);
-        setTimeout(() => setStatusMessage(''), 3000);
       }
     };
 
-    const confirmUpgrade = () => {
-      upgradeProcess();
-    };
-
     showAlert(
-      'Confirm Upgrade',
-      `Upgrade to Pro (${selectedPlan === 'monthly' ? 'Monthly' : 'Annual'}) for ${
-        selectedPlan === 'monthly' 
-          ? subscriptionHelpers.formatPrice(monthlyPrice)
-          : subscriptionHelpers.formatPrice(yearlyPrice)
-      }?${isEarlyBird ? '\n\nYour early bird price will be locked forever!' : ''}`,
+      'Confirm Purchase',
+      `Subscribe to AllSight Pro for $${currentPrice.toFixed(2)}/month?\n\nThis will be charged to your Apple ID account.`,
       [
         { text: 'Cancel', style: 'cancel' },
-        { text: 'Upgrade', onPress: confirmUpgrade },
+        { text: 'Subscribe', onPress: confirmUpgrade },
       ]
     );
   };
 
-  // 🔥 增强的取消订阅函数 - 保持原有稳定逻辑
-  const handleCancelSubscription = async () => {
-    console.log('🚫 handleCancelSubscription called', { isProUser, isCancelling });
-    setStatusMessage('Processing cancellation...');
-    
-    if (!isProUser) {
-      showAlert('No Subscription', 'You do not have an active subscription to cancel.');
-      setStatusMessage('');
-      return;
-    }
-
-    if (isCancelling) {
-      console.log('⚠️ Already cancelling, ignoring duplicate request');
-      return;
-    }
-
-    const confirmCancel = async () => {
-      console.log('🚫 Starting subscription cancellation...');
-      setIsCancelling(true);
-      setStatusMessage('Cancelling subscription...');
-      
-      try {
-        console.log('📡 Dispatching cancelSubscription...');
-        const result = await dispatch(cancelSubscription({ 
-          reason: 'User requested cancellation',
-          cancel_immediately: false 
-        })).unwrap();
-        console.log('✅ Cancellation successful:', result);
-        
-        setStatusMessage('Refreshing data...');
-        console.log('🔄 Refreshing data...');
-        await dispatch(refreshUserInfo()).unwrap();
-        await dispatch(fetchCurrentSubscription()).unwrap();
-        console.log('✅ Data refreshed');
-        
-        setStatusMessage('Subscription cancelled successfully!');
-        showAlert(
-          'Subscription Cancelled',
-          'Your subscription has been cancelled. You will continue to have access until the end of your billing period.'
-        );
-      } catch (error: any) {
-        console.error('❌ Cancel subscription error:', error);
-        setStatusMessage('Cancellation failed!');
-        showAlert(
-          'Error', 
-          error?.message || error?.toString() || 'Failed to cancel subscription. Please try again.'
-        );
-      } finally {
-        setIsCancelling(false);
-        setTimeout(() => setStatusMessage(''), 3000);
-      }
-    };
-
-    showAlert(
-      'Cancel Subscription',
-      'Are you sure you want to cancel your subscription? You will still have access until the end of your current billing period.',
-      [
-        { text: 'Keep Subscription', style: 'cancel' },
-        { text: 'Cancel Subscription', onPress: confirmCancel }
-      ]
+  if (isLoading && !pricingInfo) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={colors.primary} />
+        </View>
+      </SafeAreaView>
     );
-  };
-
-  const formatExpiryDate = (date: string) => {
-    try {
-      return new Date(date).toLocaleDateString('en-US', {
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric',
-      });
-    } catch {
-      return 'Invalid date';
-    }
-  };
-
-  const webStyles = Platform.select({
-    web: {
-      maxHeight: screenHeight - 100,
-      overflowY: 'auto' as any,
-    },
-    default: {},
-  });
+  }
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => navigation.goBack()}
-        >
-          <Icon name="arrow-back" type="material" size={24} color={colors.text} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>
-          {isProUser ? 'Manage Subscription' : 'Upgrade to Pro'}
-        </Text>
-        <View style={styles.backButton} />
-      </View>
-
-      {/* 🔥 状态消息显示 */}
-      {statusMessage ? (
-        <View style={styles.statusBanner}>
-          <ActivityIndicator size="small" color={colors.primary} />
-          <Text style={styles.statusText}>{statusMessage}</Text>
-        </View>
-      ) : null}
-
       <ScrollView 
-        style={[styles.scrollView, webStyles]}
+        style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={true}
+        showsVerticalScrollIndicator={false}
       >
+        {/* Header */}
+        <View style={styles.header}>
+          <TouchableOpacity 
+            style={styles.backButton}
+            onPress={() => navigation.goBack()}
+          >
+            <Icon name="arrow-back" type="material" size={24} color={colors.text} />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Upgrade to Pro</Text>
+          <View style={styles.headerSpacer} />
+        </View>
+
         {/* Hero Section */}
         <View style={styles.heroSection}>
-          <View style={styles.heroIconContainer}>
-            <Icon name="flash-on" type="material" size={60} color={colors.primary} />
-          </View>
-          <Text style={styles.heroTitle}>HermeSpeed Pro</Text>
-          <Text style={styles.heroSubtitle}>Where Information Begins</Text>
-          <Text style={styles.heroDescription}>
-            Professional-grade financial intelligence system delivering institutional insights to individual investors
+          <Text style={styles.heroTitle}>Know First. Act Fast.</Text>
+          <Text style={styles.heroSubtitle}>
+            Get AI-powered SEC analysis in under 2 minutes—before the market reacts.
           </Text>
-          
-          {/* 🔥 修正：Early Bird状态显示 - 移除倒计时，显示永久锁定 */}
-          {!isProUser && isEarlyBird ? (
-            <View style={styles.earlyBirdBadge}>
-              <Icon name="local-offer" type="material" size={16} color={colors.warning} />
-              <Text style={styles.earlyBirdText}>
-                {user?.user_sequence_number 
-                  ? `🎉 Early Bird Member #${user.user_sequence_number} - $39/month locked forever!`
-                  : `🦅 Early bird pricing: $39/month locked forever!`
-                }
-              </Text>
-            </View>
-          ) : null}
-          
-          {!isProUser && !isEarlyBird && earlyBirdStatus && earlyBirdStatus.slots_remaining > 0 ? (
-            <View style={styles.earlyBirdBadge}>
-              <Icon name="local-offer" type="material" size={16} color={colors.warning} />
-              <Text style={styles.earlyBirdText}>
-                {earlyBirdStatus.slots_remaining < 100 
-                  ? `🔥 Only ${earlyBirdStatus.slots_remaining} early bird spots left!`
-                  : `Early bird pricing available: ${earlyBirdStatus.slots_remaining} spots remaining`
-                }
-              </Text>
-            </View>
-          ) : null}
         </View>
 
-        {/* 🔥 修正：Current Status - 显示永久价格锁定而不是倒计时 */}
-        {isProUser && currentSubscription ? (
-          <View style={styles.currentPlanBanner}>
-            <Icon name="star" type="material" size={24} color={colors.warning} />
-            <View style={styles.currentPlanText}>
-              <Text style={styles.currentPlanTitle}>You're a Pro Member!</Text>
-              <Text style={styles.currentPlanSubtitle}>
-                {currentSubscription.subscription_type === SubscriptionType.MONTHLY ? 'Monthly' : 'Annual'} plan
-                {/* 🔥 修正：移除到期时间显示，因为这会造成混淆 */}
-              </Text>
-              {isEarlyBird && currentSubscription.current_price ? (
-                <Text style={styles.earlyBirdLocked}>
-                  🎉 Early bird price locked: ${currentSubscription.current_price}/
-                  {currentSubscription.subscription_type === SubscriptionType.MONTHLY ? 'mo' : 'yr'} forever
-                </Text>
-              ) : null}
+        {/* Impossible Triangle */}
+        <View style={styles.triangleSection}>
+          <Text style={styles.triangleSectionTitle}>The Impossible Triangle, Solved.</Text>
+          
+          {/* Triangle Visualization */}
+          <View style={styles.triangleContainer}>
+            {/* Triangle Lines - Using simple positioned Views */}
+            <View style={styles.triangleLineLeft} />
+            <View style={styles.triangleLineRight} />
+            <View style={styles.triangleLineBottom} />
+            
+            {/* Top Vertex - Fast */}
+            <View style={[styles.vertex, styles.vertexTop]}>
+              <Text style={styles.vertexLabel}>Fast</Text>
+            </View>
+            
+            {/* Bottom Left Vertex - Cheap */}
+            <View style={[styles.vertex, styles.vertexBottomLeft]}>
+              <Text style={styles.vertexLabel}>Cheap</Text>
+            </View>
+            
+            {/* Bottom Right Vertex - Value */}
+            <View style={[styles.vertex, styles.vertexBottomRight]}>
+              <Text style={styles.vertexLabel}>Value</Text>
             </View>
           </View>
-        ) : null}
-        
-        {/* Trial Banner */}
-        {!isProUser ? (
-          <View style={styles.trialBanner}>
-            <Icon name="info" type="material" size={20} color={colors.primary} />
-            <Text style={styles.trialText}>
-              Free users get 2 reports daily • Upgrade for unlimited access
+          
+          <Text style={styles.triangleDescription}>
+            Traditional investing: pick two.{'\n'}
+            <Text style={styles.triangleDescriptionBold}>With AllSight AI: get all three.</Text>
+          </Text>
+        </View>
+
+        {/* AllSight vs Traditional Media Comparison Table */}
+        <View style={styles.comparisonTableContainer}>
+          <Text style={styles.comparisonTableTitle}>AllSight vs Traditional Media</Text>
+          
+          <View style={styles.comparisonTable}>
+            {/* Header Row */}
+            <View style={[styles.tableRow, styles.tableHeaderRow]}>
+              <Text style={[styles.tableCell, styles.tableHeaderCell, styles.dimensionCell]}>Dimension</Text>
+              <Text style={[styles.tableCell, styles.tableHeaderCell, styles.traditionalCell]}>Traditional Media</Text>
+              <Text style={[styles.tableCell, styles.tableHeaderCell, styles.allsightCell]}>AllSight</Text>
+            </View>
+            
+            {/* Data Rows */}
+            <View style={styles.tableRow}>
+              <Text style={[styles.tableCell, styles.labelCell]}>Speed</Text>
+              <Text style={[styles.tableCell, styles.traditionalValueCell]}>❌ Hours to days</Text>
+              <Text style={[styles.tableCell, styles.allsightValueCell]}>✅ Under 2 minutes</Text>
+            </View>
+            
+            <View style={styles.tableRow}>
+              <Text style={[styles.tableCell, styles.labelCell]}>Coverage</Text>
+              <Text style={[styles.tableCell, styles.traditionalValueCell]}>❌ Selective picks</Text>
+              <Text style={[styles.tableCell, styles.allsightValueCell]}>✅ 600+ companies</Text>
+            </View>
+            
+            <View style={styles.tableRow}>
+              <Text style={[styles.tableCell, styles.labelCell]}>Analysis</Text>
+              <Text style={[styles.tableCell, styles.traditionalValueCell]}>❌ Brief summaries</Text>
+              <Text style={[styles.tableCell, styles.allsightValueCell]}>✅ Deep AI insights</Text>
+            </View>
+            
+            <View style={styles.tableRow}>
+              <Text style={[styles.tableCell, styles.labelCell]}>Volume</Text>
+              <Text style={[styles.tableCell, styles.traditionalValueCell]}>❌ 5-10 stories/day</Text>
+              <Text style={[styles.tableCell, styles.allsightValueCell]}>✅ 30-40 reports/day</Text>
+            </View>
+            
+            <View style={styles.tableRow}>
+              <Text style={[styles.tableCell, styles.labelCell]}>Verification</Text>
+              <Text style={[styles.tableCell, styles.traditionalValueCell]}>❌ Trust the writer</Text>
+              <Text style={[styles.tableCell, styles.allsightValueCell]}>✅ Source-cited</Text>
+            </View>
+            
+            <View style={styles.tableRow}>
+              <Text style={[styles.tableCell, styles.labelCell]}>Access</Text>
+              <Text style={[styles.tableCell, styles.traditionalValueCell]}>❌ Paywalls</Text>
+              <Text style={[styles.tableCell, styles.allsightValueCell]}>✅ Level playing field</Text>
+            </View>
+            
+            <View style={styles.tableRow}>
+              <Text style={[styles.tableCell, styles.labelCell]}>Community</Text>
+              <Text style={[styles.tableCell, styles.traditionalValueCell]}>❌ Read-only</Text>
+              <Text style={[styles.tableCell, styles.allsightValueCell]}>✅ Vote & discuss</Text>
+            </View>
+            
+            <View style={styles.tableRow}>
+              <Text style={[styles.tableCell, styles.labelCell]}>Bias</Text>
+              <Text style={[styles.tableCell, styles.traditionalValueCell]}>❌ Editorial spin</Text>
+              <Text style={[styles.tableCell, styles.allsightValueCell]}>✅ Data only</Text>
+            </View>
+          </View>
+          
+          <Text style={styles.comparisonFooter}>
+            Your edge in the market: Speed × Depth × Scale
+          </Text>
+        </View>
+
+        {/* Product Benefits */}
+        <View style={styles.benefitsSection}>
+          <BenefitItem 
+            icon="flash"
+            iconType="ionicon"
+            title="Instant Intelligence"
+            description="AI analysis within 2 minutes of SEC publication—before headlines break"
+          />
+          <BenefitItem 
+            icon="check-circle"
+            iconType="feather"
+            title="Verified Insights"
+            description="Every metric linked directly to source pages—no fluff, just facts"
+          />
+          <BenefitItem 
+            icon="target"
+            iconType="feather"
+            title="Market Timing"
+            description="Get actionable insights 15-45 minutes ahead of mainstream coverage"
+          />
+          <BenefitItem 
+            icon="file-text"
+            iconType="feather"
+            title="Complete Coverage"
+            description="10-Q, 10-K, 8-K, S-1 across 600+ S&P 500 and NASDAQ 100 companies"
+          />
+          <BenefitItem 
+            icon="users"
+            iconType="feather"
+            title="Your AI Analyst"
+            description="Professional-grade financial analysis on demand—like having a research team in your pocket"
+          />
+        </View>
+
+        {/* Pricing Card */}
+        <View style={styles.pricingCard}>
+          {isDiscounted && (
+            <View style={styles.limitedTimeBadge}>
+              <Text style={styles.limitedTimeText}>LIMITED TIME</Text>
+            </View>
+          )}
+          
+          <View style={styles.priceContainer}>
+            {isDiscounted && (
+              <Text style={styles.originalPrice}>${originalPrice.toFixed(2)}</Text>
+            )}
+            <Text style={styles.currentPrice}>${currentPrice.toFixed(2)}</Text>
+            <Text style={styles.priceUnit}>/month</Text>
+          </View>
+
+          {isDiscounted && (
+            <Text style={styles.savingsText}>
+              Save ${(originalPrice - currentPrice).toFixed(2)}/month • Limited-time promotional price
             </Text>
-          </View>
-        ) : null}
+          )}
 
-        {/* Plan Toggle - Only show if not Pro */}
-        {!isProUser ? (
-          <>
-            <View style={styles.planToggle}>
-              <TouchableOpacity
-                style={[
-                  styles.planOption,
-                  selectedPlan === 'monthly' && styles.planOptionActive,
-                ]}
-                onPress={() => setSelectedPlan('monthly')}
-              >
-                <Text
-                  style={[
-                    styles.planOptionText,
-                    selectedPlan === 'monthly' && styles.planOptionTextActive,
-                  ]}
-                >
-                  Monthly
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[
-                  styles.planOption,
-                  selectedPlan === 'yearly' && styles.planOptionActive,
-                ]}
-                onPress={() => setSelectedPlan('yearly')}
-              >
-                <Text
-                  style={[
-                    styles.planOptionText,
-                    selectedPlan === 'yearly' && styles.planOptionTextActive,
-                  ]}
-                >
-                  Annual
-                </Text>
-                {selectedPlan === 'yearly' ? (
-                  <View style={styles.saveBadge}>
-                    <Text style={styles.saveBadgeText}>Save {yearlySavings}%</Text>
-                  </View>
-                ) : null}
-              </TouchableOpacity>
-            </View>
-
-            {/* Pricing Display */}
-            <View style={styles.pricingContainer}>
-              <Text style={styles.priceAmount}>
-                ${selectedPlan === 'monthly' ? monthlyPrice : yearlyPrice.toFixed(2)}
-              </Text>
-              <Text style={styles.pricePeriod}>
-                {selectedPlan === 'monthly' ? 'per month' : 'per year'}
-              </Text>
-              {selectedPlan === 'yearly' ? (
-                <Text style={styles.monthlyEquivalent}>
-                  Only ${(yearlyPrice / 12).toFixed(2)}/month
-                </Text>
-              ) : null}
-              {isEarlyBird ? (
-                <View style={styles.earlyBirdPriceBadge}>
-                  <Icon name="local-offer" type="material" size={14} color={colors.warning} />
-                  <Text style={styles.earlyBirdPriceText}>
-                    Early bird price - locked forever!
-                  </Text>
-                </View>
-              ) : null}
-              {!isEarlyBird ? (
-                <Text style={styles.standardPriceNote}>
-                  Standard pricing
-                </Text>
-              ) : null}
-            </View>
-
-            {/* Payment Options Section */}
-            <View style={styles.paymentOptionsSection}>
-              <Text style={styles.paymentOptionsTitle}>Choose Payment Method</Text>
-              
-              {/* Apple Pay Option */}
-              {Platform.OS === 'ios' ? (
-                <TouchableOpacity 
-                  style={styles.paymentOption}
-                  onPress={() => {
-                    showAlert('Coming Soon', 'Apple Pay integration will be available in Phase 3');
-                  }}
-                >
-                  <View style={styles.paymentOptionContent}>
-                    <Icon name="apple" type="font-awesome" size={24} color={colors.text} />
-                    <View style={styles.paymentOptionText}>
-                      <Text style={styles.paymentOptionTitle}>Apple Pay</Text>
-                      <Text style={styles.paymentOptionSubtitle}>Quick and secure</Text>
-                    </View>
-                  </View>
-                  <Icon name="chevron-right" type="material" size={24} color={colors.textSecondary} />
-                </TouchableOpacity>
-              ) : null}
-
-              {/* Google Pay Option */}
-              {Platform.OS === 'android' ? (
-                <TouchableOpacity 
-                  style={styles.paymentOption}
-                  onPress={() => {
-                    showAlert('Coming Soon', 'Google Pay integration will be available in Phase 3');
-                  }}
-                >
-                  <View style={styles.paymentOptionContent}>
-                    <Icon name="google" type="font-awesome" size={24} color={colors.text} />
-                    <View style={styles.paymentOptionText}>
-                      <Text style={styles.paymentOptionTitle}>Google Pay</Text>
-                      <Text style={styles.paymentOptionSubtitle}>Fast checkout</Text>
-                    </View>
-                  </View>
-                  <Icon name="chevron-right" type="material" size={24} color={colors.textSecondary} />
-                </TouchableOpacity>
-              ) : null}
-
-              {/* Mock Upgrade Option */}
-              <TouchableOpacity 
-                style={[
-                  styles.paymentOption, 
-                  styles.mockPaymentOption,
-                  (isUpgrading || subscriptionLoading) && styles.paymentOptionDisabled
-                ]}
-                onPress={handleUpgrade}
-                disabled={isUpgrading || subscriptionLoading}
-              >
-                <View style={styles.paymentOptionContent}>
-                  <Icon name="code" type="material" size={24} color={colors.primary} />
-                  <View style={styles.paymentOptionText}>
-                    <Text style={[styles.paymentOptionTitle, { color: colors.primary }]}>
-                      Mock Payment Option
-                    </Text>
-                    <Text style={styles.paymentOptionSubtitle}>Test subscription without payment</Text>
-                  </View>
-                </View>
-                {isUpgrading ? (
-                  <ActivityIndicator size="small" color={colors.primary} />
-                ) : (
-                  <Icon name="chevron-right" type="material" size={24} color={colors.primary} />
-                )}
-              </TouchableOpacity>
-            </View>
-          </>
-        ) : null}
-
-        {/* Platform Features Section */}
-        <View style={styles.featuresSection}>
-          <Text style={styles.featuresTitle}>The HermeSpeed Advantage</Text>
-          <Text style={styles.featuresSubtitle}>
-            All features. No tiers. Just pure financial intelligence.
-          </Text>
-          
-          {platformFeatures.map((feature, index) => (
-            <View key={index} style={styles.featureCard}>
-              <View style={styles.featureIconWrapper}>
-                <Icon 
-                  name={feature.icon} 
-                  type="material" 
-                  size={28} 
-                  color={colors.primary} 
-                />
-              </View>
-              <View style={styles.featureContent}>
-                <Text style={styles.featureTitle}>{feature.title}</Text>
-                <Text style={styles.featureDescription}>{feature.description}</Text>
-                <View style={styles.featureHighlight}>
-                  <Icon name="check-circle" type="material" size={16} color={colors.success} />
-                  <Text style={styles.featureHighlightText}>{feature.highlight}</Text>
-                </View>
-              </View>
-            </View>
-          ))}
-        </View>
-
-        {/* Simple Access Model */}
-        <View style={styles.accessModel}>
-          <Text style={styles.accessTitle}>Simple & Transparent</Text>
-          <View style={styles.accessRow}>
-            <View style={styles.accessItem}>
-              <Icon name="lock-open" type="material" size={24} color={colors.success} />
-              <Text style={styles.accessLabel}>Free Trial</Text>
-              <Text style={styles.accessValue}>2 reports daily</Text>
-            </View>
-            <View style={styles.accessDivider} />
-            <View style={styles.accessItem}>
-              <Icon name="all-inclusive" type="material" size={24} color={colors.primary} />
-              <Text style={styles.accessLabel}>Pro Access</Text>
-              <Text style={styles.accessValue}>Unlimited everything</Text>
-            </View>
-          </View>
-        </View>
-
-        {/* Upgrade CTA - Only show if not Pro */}
-        {!isProUser ? (
-          <View style={styles.upgradeSection}>
-            <TouchableOpacity
-              style={[
-                styles.upgradeButton,
-                (isUpgrading || subscriptionLoading) && styles.upgradeButtonDisabled
-              ]}
+          {/* CTA Button */}
+          {!isProUser ? (
+            <TouchableOpacity 
+              style={[styles.ctaButton, isUpgrading && styles.ctaButtonDisabled]}
               onPress={handleUpgrade}
-              disabled={isUpgrading || subscriptionLoading}
+              disabled={isUpgrading}
             >
               {isUpgrading ? (
-                <ActivityIndicator color="white" />
+                <ActivityIndicator color="#FFFFFF" />
               ) : (
                 <>
-                  <Icon name="rocket-launch" type="material" size={20} color="white" />
-                  <Text style={styles.upgradeButtonText}>
-                    Start Pro Access - ${selectedPlan === 'monthly' ? monthlyPrice : yearlyPrice.toFixed(2)}
-                    {selectedPlan === 'yearly' ? '/year' : '/month'}
-                  </Text>
+                  <Text style={styles.ctaButtonText}>Subscribe to Pro</Text>
+                  <Icon name="arrow-right" type="feather" size={20} color="#FFFFFF" />
                 </>
               )}
             </TouchableOpacity>
-            
-            <Text style={styles.guaranteeText}>
-              7-day money back guarantee • Cancel anytime
-            </Text>
-            
-            <Text style={styles.devNotice}>
-              ⚠️ Development Mode: This is a mock upgrade for testing
-            </Text>
-          </View>
-        ) : null}
-
-        {/* 🔥 修正：简化的订阅管理 - 只显示取消功能 */}
-        {isProUser ? (
-          <View style={styles.manageSection}>
-            <View style={styles.currentSubscriptionInfo}>
-              <Text style={styles.subscriptionInfoTitle}>Current Subscription</Text>
-              <View style={styles.subscriptionDetails}>
-                <View style={styles.subscriptionDetailRow}>
-                  <Text style={styles.subscriptionDetailLabel}>Plan:</Text>
-                  <Text style={styles.subscriptionDetailValue}>
-                    {currentSubscription?.subscription_type === SubscriptionType.MONTHLY ? 'Monthly' : 'Annual'} Pro
-                  </Text>
-                </View>
-                <View style={styles.subscriptionDetailRow}>
-                  <Text style={styles.subscriptionDetailLabel}>Price:</Text>
-                  <Text style={styles.subscriptionDetailValue}>
-                    ${currentSubscription?.current_price || monthlyPrice}/
-                    {currentSubscription?.subscription_type === SubscriptionType.MONTHLY ? 'month' : 'year'}
-                  </Text>
-                </View>
-                {isEarlyBird ? (
-                  <View style={styles.subscriptionDetailRow}>
-                    <Text style={styles.subscriptionDetailLabel}>Status:</Text>
-                    <Text style={[styles.subscriptionDetailValue, styles.earlyBirdStatus]}>
-                      🎉 Early Bird - Permanent Price Lock
-                    </Text>
-                  </View>
-                ) : null}
-                <View style={styles.subscriptionDetailRow}>
-                  <Text style={styles.subscriptionDetailLabel}>Auto-Renew:</Text>
-                  <Text style={styles.subscriptionDetailValue}>
-                    {currentSubscription?.auto_renew ? 'Enabled' : 'Disabled'}
-                  </Text>
-                </View>
+          ) : (
+            <View style={styles.activeSection}>
+              <View style={styles.activeBadge}>
+                <Icon name="check-circle" type="feather" size={24} color={colors.success} />
+                <Text style={styles.activeText}>Pro Active</Text>
               </View>
+              
+              <TouchableOpacity 
+                style={styles.manageButton}
+                onPress={() => {
+                  const url = Platform.select({
+                    ios: 'https://apps.apple.com/account/subscriptions',
+                    default: 'https://apps.apple.com/account/subscriptions'
+                  });
+                  Linking.openURL(url).catch(err => 
+                    showAlert('Error', 'Unable to open App Store settings')
+                  );
+                }}
+              >
+                <Text style={styles.manageButtonText}>
+                  Manage Subscription in App Store
+                </Text>
+                <Icon name="external-link" type="feather" size={16} color={colors.primary} />
+              </TouchableOpacity>
             </View>
-
-            {/* Simple cancel option */}
-            <TouchableOpacity 
-              style={[
-                styles.cancelButton, 
-                isCancelling && styles.cancelButtonDisabled
-              ]}
-              onPress={handleCancelSubscription}
-              disabled={isCancelling}
-            >
-              {isCancelling ? (
-                <ActivityIndicator size="small" color={colors.white} />
-              ) : (
-                <Text style={styles.cancelButtonText}>Cancel Subscription</Text>
-              )}
-            </TouchableOpacity>
-            
-            <Text style={styles.cancelNote}>
-              You'll continue to have Pro access until the end of your current billing period.
-            </Text>
-          </View>
-        ) : null}
-
-        {/* Trust Indicators */}
-        <View style={styles.trustSection}>
-          <Text style={styles.trustTitle}>Trusted by Thousands</Text>
-          <View style={styles.trustStats}>
-            <View style={styles.trustStat}>
-              <Text style={styles.trustNumber}>
-                {earlyBirdStatus ? `${10000 - earlyBirdStatus.slots_remaining}+` : '10,000+'}
-              </Text>
-              <Text style={styles.trustLabel}>Active Users</Text>
-            </View>
-            <View style={styles.trustStat}>
-              <Text style={styles.trustNumber}>&lt; 60s</Text>
-              <Text style={styles.trustLabel}>Filing to Alert</Text>
-            </View>
-            <View style={styles.trustStat}>
-              <Text style={styles.trustNumber}>200+</Text>
-              <Text style={styles.trustLabel}>Companies Tracked</Text>
-            </View>
-          </View>
+          )}
         </View>
 
-        {/* Bottom padding */}
-        <View style={styles.bottomPadding} />
+        {/* Fine Print */}
+        <View style={styles.finePrint}>
+          <Text style={styles.finePrintText}>
+            • Subscription automatically renews unless cancelled
+          </Text>
+          <Text style={styles.finePrintText}>
+            • Cancel anytime in App Store settings
+          </Text>
+          <Text style={styles.finePrintText}>
+            • No refunds for partial billing periods
+          </Text>
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
 }
+
+// Benefit Item Component
+interface BenefitItemProps {
+  icon: string;
+  iconType: string;
+  title: string;
+  description: string;
+}
+
+const BenefitItem: React.FC<BenefitItemProps> = ({ icon, iconType, title, description }) => (
+  <View style={styles.benefitItem}>
+    <View style={styles.benefitIconContainer}>
+      <Icon name={icon} type={iconType} size={24} color={colors.primary} />
+    </View>
+    <View style={styles.benefitContent}>
+      <Text style={styles.benefitTitle}>{title}</Text>
+      <Text style={styles.benefitDescription}>{description}</Text>
+    </View>
+  </View>
+);
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,
   },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.md,
-    backgroundColor: colors.white,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  backButton: {
-    width: 40,
-  },
-  headerTitle: {
-    fontSize: typography.fontSize.lg,
-    fontWeight: typography.fontWeight.semibold,
-    color: colors.text,
-  },
-  statusBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  loadingContainer: {
+    flex: 1,
     justifyContent: 'center',
-    backgroundColor: colors.primary + '20',
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.md,
-  },
-  statusText: {
-    fontSize: typography.fontSize.sm,
-    color: colors.primary,
-    marginLeft: spacing.sm,
-    fontWeight: typography.fontWeight.medium,
+    alignItems: 'center',
   },
   scrollView: {
     flex: 1,
   },
   scrollContent: {
-    paddingBottom: spacing.xxxl,
+    paddingBottom: spacing.xl,
   },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+  },
+  backButton: {
+    padding: spacing.sm,
+    width: 40,
+  },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: colors.text,
+    flex: 1,
+    textAlign: 'center',
+  },
+  headerSpacer: {
+    width: 40,
+  },
+  
+  // Hero Section
   heroSection: {
-    alignItems: 'center',
-    paddingVertical: spacing.xl,
     paddingHorizontal: spacing.lg,
-    backgroundColor: colors.white,
-  },
-  heroIconContainer: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    backgroundColor: colors.primary + '10',
+    paddingVertical: spacing.xl,
     alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: spacing.md,
   },
   heroTitle: {
-    fontSize: typography.fontSize.xxl,
-    fontWeight: typography.fontWeight.bold,
+    fontSize: 32,
+    fontWeight: '700',
     color: colors.text,
-    marginBottom: spacing.xs,
+    textAlign: 'center',
+    marginBottom: spacing.sm,
+    letterSpacing: -0.5,
   },
   heroSubtitle: {
-    fontSize: typography.fontSize.md,
-    color: colors.primary,
-    fontWeight: typography.fontWeight.semibold,
-    marginBottom: spacing.sm,
+    fontSize: 16,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    lineHeight: 24,
+    maxWidth: 320,
   },
-  heroDescription: {
-    fontSize: typography.fontSize.base,
+  
+  // Triangle Section
+  triangleSection: {
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.xl,
+    alignItems: 'center',
+    backgroundColor: `${colors.primary}08`,
+    marginHorizontal: spacing.lg,
+    borderRadius: borderRadius.lg,
+    marginBottom: spacing.xl,
+  },
+  triangleSectionTitle: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: colors.text,
+    marginBottom: spacing.xl,
+    textAlign: 'center',
+  },
+  triangleContainer: {
+    width: 260,
+    height: 220,
+    position: 'relative',
+    marginBottom: spacing.lg,
+  },
+  
+  // Triangle Lines - Using positioned rectangles with rotation
+  triangleLineLeft: {
+    position: 'absolute',
+    top: 78,
+    left: 72,
+    width: 155,
+    height: 3,
+    backgroundColor: colors.primary,
+    transform: [{ rotate: '60deg' }],
+    zIndex: 1,
+  },
+  triangleLineRight: {
+    position: 'absolute',
+    top: 78,
+    right: 72,
+    width: 155,
+    height: 3,
+    backgroundColor: colors.primary,
+    transform: [{ rotate: '-60deg' }],
+    zIndex: 1,
+  },
+  triangleLineBottom: {
+    position: 'absolute',
+    bottom: 40,
+    left: 50,
+    width: 160,
+    height: 3,
+    backgroundColor: colors.primary,
+    zIndex: 1,
+  },
+  
+  // Vertices
+  vertex: {
+    position: 'absolute',
+    backgroundColor: colors.primary,
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+    ...shadows.md,
+    zIndex: 2,
+  },
+  vertexTop: {
+    top: 0,
+    left: 90,
+  },
+  vertexBottomLeft: {
+    bottom: 0,
+    left: 10,
+  },
+  vertexBottomRight: {
+    bottom: 0,
+    right: 10,
+  },
+  vertexLabel: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  triangleDescription: {
+    fontSize: 15,
     color: colors.textSecondary,
     textAlign: 'center',
     lineHeight: 22,
-    maxWidth: 320,
   },
-  earlyBirdBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.warning + '10',
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    borderRadius: borderRadius.full,
-    marginTop: spacing.md,
-  },
-  earlyBirdText: {
-    fontSize: typography.fontSize.sm,
-    color: colors.warning,
-    fontWeight: typography.fontWeight.medium,
-    marginLeft: spacing.xs,
-    textAlign: 'center',
-  },
-  currentPlanBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.primary,
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
-    margin: spacing.md,
-    borderRadius: borderRadius.lg,
-  },
-  currentPlanText: {
-    marginLeft: spacing.md,
-    flex: 1,
-  },
-  currentPlanTitle: {
-    fontSize: typography.fontSize.base,
-    fontWeight: typography.fontWeight.semibold,
-    color: colors.white,
-  },
-  currentPlanSubtitle: {
-    fontSize: typography.fontSize.sm,
-    color: colors.white,
-    opacity: 0.9,
-  },
-  earlyBirdLocked: {
-    fontSize: typography.fontSize.sm,
-    color: colors.warning,
-    marginTop: spacing.xs,
-    fontWeight: typography.fontWeight.semibold,
-  },
-  trialBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.primaryLight + '20',
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    margin: spacing.md,
-    borderRadius: borderRadius.md,
-    borderWidth: 1,
-    borderColor: colors.primary + '30',
-  },
-  trialText: {
-    fontSize: typography.fontSize.sm,
+  triangleDescriptionBold: {
+    fontWeight: '600',
     color: colors.primary,
-    marginLeft: spacing.sm,
-    fontWeight: typography.fontWeight.medium,
   },
-  planToggle: {
+  
+  // Comparison Table (3-column layout like image)
+  comparisonTableContainer: {
+    marginHorizontal: spacing.lg,
+    marginBottom: spacing.xl,
+  },
+  comparisonTableTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: colors.text,
+    textAlign: 'center',
+    marginBottom: spacing.md,
+  },
+  comparisonTable: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: borderRadius.md,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  tableRow: {
     flexDirection: 'row',
-    backgroundColor: colors.gray100,
-    marginHorizontal: spacing.md,
-    marginTop: spacing.md,
-    borderRadius: borderRadius.lg,
-    padding: spacing.xs,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
   },
-  planOption: {
+  tableHeaderRow: {
+    backgroundColor: '#F8F9FA',
+  },
+  tableCell: {
     flex: 1,
     paddingVertical: spacing.sm,
-    alignItems: 'center',
-    borderRadius: borderRadius.md,
+    paddingHorizontal: spacing.xs,
+    justifyContent: 'center',
   },
-  planOptionActive: {
-    backgroundColor: colors.white,
-    ...shadows.sm,
+  tableHeaderCell: {
+    paddingVertical: spacing.md,
   },
-  planOptionText: {
-    fontSize: typography.fontSize.base,
-    color: colors.textSecondary,
-  },
-  planOptionTextActive: {
+  dimensionCell: {
+    fontSize: 14,
+    fontWeight: '700',
     color: colors.text,
-    fontWeight: typography.fontWeight.semibold,
+    textAlign: 'center',
   },
-  saveBadge: {
-    position: 'absolute',
-    top: -8,
-    right: 10,
-    backgroundColor: colors.success,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 2,
-    borderRadius: borderRadius.sm,
+  traditionalCell: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: colors.textSecondary,
+    textAlign: 'center',
   },
-  saveBadgeText: {
-    fontSize: typography.fontSize.xs,
-    fontWeight: typography.fontWeight.semibold,
-    color: colors.white,
+  allsightCell: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: colors.text,
+    textAlign: 'center',
   },
-  pricingContainer: {
-    alignItems: 'center',
-    paddingVertical: spacing.xl,
-  },
-  priceAmount: {
-    fontSize: 48,
-    fontWeight: typography.fontWeight.bold,
+  labelCell: {
+    fontSize: 13,
+    fontWeight: '600',
     color: colors.text,
   },
-  pricePeriod: {
-    fontSize: typography.fontSize.base,
+  traditionalValueCell: {
+    fontSize: 13,
     color: colors.textSecondary,
   },
-  monthlyEquivalent: {
-    fontSize: typography.fontSize.sm,
-    color: colors.success,
-    marginTop: spacing.xs,
+  allsightValueCell: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: colors.text,
   },
-  earlyBirdPriceBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.warning + '10',
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xs,
-    borderRadius: borderRadius.sm,
-    marginTop: spacing.sm,
+  comparisonFooter: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.primary,
+    textAlign: 'center',
+    marginTop: spacing.md,
   },
-  earlyBirdPriceText: {
-    fontSize: typography.fontSize.xs,
-    color: colors.warning,
-    fontWeight: typography.fontWeight.medium,
-    marginLeft: spacing.xs,
-  },
-  standardPriceNote: {
-    fontSize: typography.fontSize.sm,
-    color: colors.textSecondary,
-    marginTop: spacing.xs,
-  },
-  paymentOptionsSection: {
-    paddingHorizontal: spacing.md,
-    marginTop: spacing.xl,
+  
+  // Benefits Section
+  benefitsSection: {
+    paddingHorizontal: spacing.lg,
     marginBottom: spacing.xl,
   },
-  paymentOptionsTitle: {
-    fontSize: typography.fontSize.lg,
-    fontWeight: typography.fontWeight.semibold,
-    color: colors.text,
-    marginBottom: spacing.md,
-  },
-  paymentOption: {
+  benefitItem: {
     flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: colors.white,
-    padding: spacing.md,
-    borderRadius: borderRadius.lg,
-    marginBottom: spacing.sm,
-    ...shadows.sm,
-  },
-  mockPaymentOption: {
-    borderWidth: 2,
-    borderColor: colors.primary + '30',
-    backgroundColor: colors.primary + '05',
-  },
-  paymentOptionDisabled: {
-    opacity: 0.6,
-  },
-  paymentOptionContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-  },
-  paymentOptionText: {
-    marginLeft: spacing.md,
-    flex: 1,
-  },
-  paymentOptionTitle: {
-    fontSize: typography.fontSize.base,
-    fontWeight: typography.fontWeight.semibold,
-    color: colors.text,
-    marginBottom: spacing.xxs,
-  },
-  paymentOptionSubtitle: {
-    fontSize: typography.fontSize.sm,
-    color: colors.textSecondary,
-  },
-  accessModel: {
-    backgroundColor: colors.white,
-    marginHorizontal: spacing.md,
-    padding: spacing.lg,
-    borderRadius: borderRadius.lg,
     marginBottom: spacing.lg,
-    ...shadows.sm,
   },
-  accessTitle: {
-    fontSize: typography.fontSize.lg,
-    fontWeight: typography.fontWeight.semibold,
-    color: colors.text,
-    textAlign: 'center',
-    marginBottom: spacing.md,
-  },
-  accessRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-around',
-  },
-  accessItem: {
-    alignItems: 'center',
-    flex: 1,
-  },
-  accessLabel: {
-    fontSize: typography.fontSize.sm,
-    color: colors.textSecondary,
-    marginTop: spacing.sm,
-    marginBottom: spacing.xs,
-  },
-  accessValue: {
-    fontSize: typography.fontSize.base,
-    fontWeight: typography.fontWeight.semibold,
-    color: colors.text,
-  },
-  accessDivider: {
-    width: 1,
-    height: 60,
-    backgroundColor: colors.border,
-    marginHorizontal: spacing.md,
-  },
-  featuresSection: {
-    paddingHorizontal: spacing.md,
-    marginTop: spacing.lg,
-  },
-  featuresTitle: {
-    fontSize: typography.fontSize.xl,
-    fontWeight: typography.fontWeight.bold,
-    color: colors.text,
-    textAlign: 'center',
-    marginBottom: spacing.xs,
-  },
-  featuresSubtitle: {
-    fontSize: typography.fontSize.base,
-    color: colors.textSecondary,
-    textAlign: 'center',
-    marginBottom: spacing.xl,
-  },
-  featureCard: {
-    flexDirection: 'row',
-    backgroundColor: colors.white,
-    padding: spacing.md,
-    borderRadius: borderRadius.lg,
-    marginBottom: spacing.md,
-    ...shadows.sm,
-  },
-  featureIconWrapper: {
+  benefitIconContainer: {
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: colors.primary + '10',
-    alignItems: 'center',
+    backgroundColor: `${colors.primary}15`,
     justifyContent: 'center',
+    alignItems: 'center',
     marginRight: spacing.md,
   },
-  featureContent: {
+  benefitContent: {
     flex: 1,
-  },
-  featureTitle: {
-    fontSize: typography.fontSize.base,
-    fontWeight: typography.fontWeight.semibold,
-    color: colors.text,
-    marginBottom: spacing.xxs,
-  },
-  featureDescription: {
-    fontSize: typography.fontSize.sm,
-    color: colors.textSecondary,
-    lineHeight: 18,
-    marginBottom: spacing.xs,
-  },
-  featureHighlight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  featureHighlightText: {
-    fontSize: typography.fontSize.xs,
-    color: colors.success,
-    fontWeight: typography.fontWeight.medium,
-    marginLeft: spacing.xs,
-  },
-  upgradeSection: {
-    paddingHorizontal: spacing.md,
-    marginTop: spacing.xl,
-  },
-  upgradeButton: {
-    flexDirection: 'row',
-    backgroundColor: colors.primary,
-    paddingVertical: spacing.md,
-    borderRadius: borderRadius.lg,
-    alignItems: 'center',
     justifyContent: 'center',
-    ...shadows.md,
   },
-  upgradeButtonDisabled: {
-    opacity: 0.6,
-  },
-  upgradeButtonText: {
-    fontSize: typography.fontSize.base,
-    fontWeight: typography.fontWeight.semibold,
-    color: colors.white,
-    marginLeft: spacing.sm,
-  },
-  guaranteeText: {
-    fontSize: typography.fontSize.sm,
-    color: colors.textSecondary,
-    textAlign: 'center',
-    marginTop: spacing.md,
-  },
-  devNotice: {
-    fontSize: typography.fontSize.xs,
-    color: colors.warning,
-    textAlign: 'center',
-    marginTop: spacing.sm,
-    fontStyle: 'italic',
-  },
-  // 🔥 新增：简化的订阅管理样式
-  manageSection: {
-    paddingHorizontal: spacing.md,
-    marginTop: spacing.xl,
-  },
-  currentSubscriptionInfo: {
-    backgroundColor: colors.white,
-    padding: spacing.lg,
-    borderRadius: borderRadius.lg,
-    marginBottom: spacing.lg,
-    ...shadows.sm,
-  },
-  subscriptionInfoTitle: {
-    fontSize: typography.fontSize.lg,
-    fontWeight: typography.fontWeight.semibold,
+  benefitTitle: {
+    fontSize: 16,
+    fontWeight: '600',
     color: colors.text,
+    marginBottom: 4,
+  },
+  benefitDescription: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    lineHeight: 20,
+  },
+  
+  // Pricing Card
+  pricingCard: {
+    marginHorizontal: spacing.lg,
+    padding: spacing.xl,
+    backgroundColor: '#FFFFFF',  // 使用纯白色作为卡片背景
+    borderRadius: borderRadius.lg,
+    ...shadows.md,
+    borderWidth: 2,
+    borderColor: colors.primary,
+  },
+  limitedTimeBadge: {
+    alignSelf: 'flex-start',
+    backgroundColor: colors.error,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 4,
+    borderRadius: borderRadius.sm,
     marginBottom: spacing.md,
   },
-  subscriptionDetails: {
-    gap: spacing.sm,
+  limitedTimeText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    letterSpacing: 1,
   },
-  subscriptionDetailRow: {
+  priceContainer: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: spacing.xs,
-  },
-  subscriptionDetailLabel: {
-    fontSize: typography.fontSize.base,
-    color: colors.textSecondary,
-    fontWeight: typography.fontWeight.medium,
-  },
-  subscriptionDetailValue: {
-    fontSize: typography.fontSize.base,
-    color: colors.text,
-    fontWeight: typography.fontWeight.semibold,
-  },
-  earlyBirdStatus: {
-    color: colors.warning,
-  },
-  cancelButton: {
-    backgroundColor: colors.error,
-    paddingVertical: spacing.md,
-    borderRadius: borderRadius.lg,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: spacing.sm,
-    ...shadows.sm,
   },
-  cancelButtonText: {
-    fontSize: typography.fontSize.base,
-    fontWeight: typography.fontWeight.semibold,
-    color: colors.white,
-  },
-  cancelButtonDisabled: {
-    opacity: 0.5,
-  },
-  cancelNote: {
-    fontSize: typography.fontSize.sm,
+  originalPrice: {
+    fontSize: 24,
     color: colors.textSecondary,
-    textAlign: 'center',
-    fontStyle: 'italic',
+    textDecorationLine: 'line-through',
+    marginRight: spacing.sm,
   },
-  trustSection: {
-    marginTop: spacing.xxl,
-    paddingHorizontal: spacing.md,
-    paddingBottom: spacing.xl,
-  },
-  trustTitle: {
-    fontSize: typography.fontSize.lg,
-    fontWeight: typography.fontWeight.semibold,
+  currentPrice: {
+    fontSize: 48,
+    fontWeight: '700',
     color: colors.text,
+  },
+  priceUnit: {
+    fontSize: 18,
+    color: colors.textSecondary,
+    marginLeft: 4,
+    marginTop: 16,
+  },
+  savingsText: {
+    fontSize: 14,
+    color: colors.success,
     textAlign: 'center',
     marginBottom: spacing.lg,
+    fontWeight: '600',
   },
-  trustStats: {
+  
+  // CTA Button
+  ctaButton: {
+    backgroundColor: colors.primary,
+    paddingVertical: spacing.md,
+    borderRadius: borderRadius.md,
     flexDirection: 'row',
-    justifyContent: 'space-around',
-  },
-  trustStat: {
+    justifyContent: 'center',
     alignItems: 'center',
+    ...shadows.sm,
   },
-  trustNumber: {
-    fontSize: typography.fontSize.xl,
-    fontWeight: typography.fontWeight.bold,
+  ctaButtonDisabled: {
+    opacity: 0.6,
+  },
+  ctaButtonText: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#FFFFFF',
+    marginRight: spacing.sm,
+  },
+  
+  // Active Subscription
+  activeSection: {
+    alignItems: 'center',
+    paddingVertical: spacing.md,
+  },
+  activeBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: `${colors.success}15`,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+    borderRadius: borderRadius.md,
+    marginBottom: spacing.md,
+  },
+  activeText: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: colors.success,
+    marginLeft: spacing.sm,
+  },
+  manageButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.lg,
+    borderWidth: 1,
+    borderColor: colors.primary,
+    borderRadius: borderRadius.md,
+    backgroundColor: '#FFFFFF',
+    ...shadows.sm,
+  },
+  manageButtonText: {
+    fontSize: 15,
+    fontWeight: '600',
     color: colors.primary,
-    marginBottom: spacing.xxs,
+    marginRight: spacing.xs,
   },
-  trustLabel: {
-    fontSize: typography.fontSize.sm,
+  
+  // Fine Print
+  finePrint: {
+    marginTop: spacing.xl,
+    paddingHorizontal: spacing.lg,
+  },
+  finePrintText: {
+    fontSize: 12,
     color: colors.textSecondary,
-  },
-  bottomPadding: {
-    height: spacing.xxxl,
+    lineHeight: 18,
+    marginBottom: 4,
   },
 });

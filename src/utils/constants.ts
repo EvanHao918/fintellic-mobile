@@ -1,5 +1,5 @@
 // API Configuration
-export const API_BASE_URL = 'http://localhost:8000/api/v1';
+export const API_BASE_URL = 'https://web-production-39ac3.up.railway.app/api/v1';
 
 // Storage Keys
 export const STORAGE_KEYS = {

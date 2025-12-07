@@ -1,6 +1,6 @@
 // Push Notification Service
 // Phase 4: Handle device token registration and permission requests
-// FINAL: All type errors fixed, removed Redux dependencies to avoid circular imports
+// SIMPLIFIED: Core functionality only, unified token management, removed Redux dependencies
 
 import { Platform, Alert, Linking } from 'react-native';
 import * as Notifications from 'expo-notifications';
@@ -8,6 +8,7 @@ import * as Device from 'expo-device';
 import Constants from 'expo-constants';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { notificationAPI } from '../api/notifications';
+import { PushTokenInfo } from '../types/notification';
 
 // Storage keys
 const STORAGE_KEYS = {
@@ -19,7 +20,7 @@ const STORAGE_KEYS = {
 // Navigation reference type
 interface NavigationRef {
   navigate: (name: string, params?: any) => void;
-  getCurrentRoute: () => any;
+  getCurrentRoute?: () => any;
 }
 
 // Configure notification handler
@@ -28,8 +29,8 @@ Notifications.setNotificationHandler({
     shouldShowAlert: true,
     shouldPlaySound: true,
     shouldSetBadge: true,
-    shouldShowBanner: true,  // Added for iOS
-    shouldShowList: true,    // Added for Android
+    shouldShowBanner: true,
+    shouldShowList: true,
   }),
 });
 
@@ -41,7 +42,6 @@ class NotificationService {
 
   /**
    * Set navigation reference for handling notification taps
-   * Call this from your root App component
    */
   setNavigationRef(navigationRef: NavigationRef) {
     this.navigationRef = navigationRef;
@@ -49,6 +49,7 @@ class NotificationService {
 
   /**
    * Initialize the notification service
+   * SIMPLIFIED: Core initialization only
    */
   async initialize() {
     try {
@@ -80,13 +81,12 @@ class NotificationService {
 
   /**
    * Set up notification listeners
+   * SIMPLIFIED: Core notification handling only
    */
   private setupListeners() {
     // Handle notifications received while app is foregrounded
     this.notificationListener = Notifications.addNotificationReceivedListener(notification => {
       console.log('Notification received:', notification);
-      
-      // Handle foreground notifications
       this.handleForegroundNotification(notification);
     });
 
@@ -99,12 +99,13 @@ class NotificationService {
 
   /**
    * Handle incoming notification when app is in foreground
+   * SIMPLIFIED: Basic foreground handling
    */
   private handleForegroundNotification(notification: Notifications.Notification) {
     const data = notification.request.content.data;
     
-    // For critical notifications, show an alert even when app is active
-    if (data?.type === 'subscription' || data?.priority === 'high') {
+    // Show alert for important notifications
+    if (data?.type === 'filing_release' || data?.type === 'test') {
       Alert.alert(
         notification.request.content.title || 'HermeSpeed',
         notification.request.content.body || '',
@@ -124,7 +125,7 @@ class NotificationService {
 
   /**
    * Handle notification tap/response with proper navigation
-   * FIXED: Type safety for notification data
+   * SIMPLIFIED: Core filing notifications only
    */
   private handleNotificationResponse(response: Notifications.NotificationResponse) {
     const { notification } = response;
@@ -136,67 +137,53 @@ class NotificationService {
     }
 
     try {
-      // Navigate based on notification type
-      if (data?.type === 'filing_release') {
-        if (data?.filing_id) {
-          // Navigate to specific filing detail
-          this.navigationRef.navigate('FilingDetail', { 
-            filingId: parseInt(data.filing_id as string),
-            ticker: (data.ticker as string) || 'Unknown',
-            source: 'push_notification'
+      const notificationType = data?.type as string;
+      
+      switch (notificationType) {
+        case 'filing_release':
+          if (data?.filing_id) {
+            // Navigate to specific filing detail
+            this.navigationRef.navigate('FilingDetail', { 
+              filingId: parseInt(data.filing_id as string),
+              ticker: (data.ticker as string) || 'Unknown',
+              source: 'push_notification'
+            });
+          } else if (data?.ticker) {
+            // Navigate to company filings
+            this.navigationRef.navigate('CompanyFilings', { 
+              ticker: data.ticker as string,
+              source: 'push_notification'
+            });
+          } else {
+            // Fallback to home screen
+            this.navigationRef.navigate('Home', {
+              source: 'push_notification'
+            });
+          }
+          break;
+          
+        case 'test':
+          // Navigate to notifications settings
+          this.navigationRef.navigate('Notifications', {
+            source: 'push_notification',
+            showTestSuccess: true
           });
-        } else if (data?.ticker) {
-          // Navigate to company filings if we have ticker but no specific filing
-          this.navigationRef.navigate('CompanyFilings', { 
-            ticker: data.ticker as string,
-            source: 'push_notification'
-          });
-        } else {
-          // Fallback to home screen
+          break;
+          
+        default:
+          // Default: navigate to home screen
           this.navigationRef.navigate('Home', {
             source: 'push_notification'
           });
-        }
-        
-      } else if ((data?.type as string) === 'subscription' || (data?.type as string)?.includes('subscription')) {
-        // Navigate to subscription management screen
-        this.navigationRef.navigate('Subscription', {
-          source: 'push_notification'
-        });
-        
-      } else if ((data?.type as string) === 'daily_reset') {
-        // Navigate to home screen with reset message for free users
-        this.navigationRef.navigate('Home', {
-          showResetMessage: true,
-          source: 'push_notification'
-        });
-        
-      } else if ((data?.type as string) === 'test') {
-        // For test notifications, navigate to notifications settings
-        this.navigationRef.navigate('Notifications', {
-          source: 'push_notification',
-          showTestSuccess: true
-        });
-        
-      } else if ((data?.type as string) === 'market_summary') {
-        // Navigate to calendar or home for market summaries
-        this.navigationRef.navigate('Calendar', {
-          source: 'push_notification'
-        });
-        
-      } else {
-        // Default case: navigate to home screen
-        this.navigationRef.navigate('Home', {
-          source: 'push_notification'
-        });
+          break;
       }
       
-      console.log(`Navigated from ${(data?.type as string) || 'unknown'} notification`);
+      console.log(`Navigated from ${notificationType || 'unknown'} notification`);
       
     } catch (navigationError) {
       console.error('Error navigating from notification:', navigationError);
       
-      // Ultimate fallback: try to navigate to home without params
+      // Ultimate fallback: try to navigate to home
       try {
         this.navigationRef.navigate('Home');
       } catch (fallbackError) {
@@ -215,6 +202,7 @@ class NotificationService {
 
   /**
    * Request notification permission
+   * SIMPLIFIED: Clear permission flow
    */
   async requestPermission(): Promise<boolean> {
     try {
@@ -231,12 +219,10 @@ class NotificationService {
         // User has denied before, show alert to go to settings
         Alert.alert(
           'Enable Notifications',
-          'Please enable notifications in your device settings to receive filing alerts.',
+          'Please enable notifications in your device settings to receive SEC filing alerts.',
           [
             { text: 'Cancel', style: 'cancel' },
-            { text: 'Open Settings', onPress: () => {
-              Linking.openSettings();
-            }},
+            { text: 'Open Settings', onPress: () => Linking.openSettings() }
           ]
         );
         return false;
@@ -255,6 +241,7 @@ class NotificationService {
 
   /**
    * Register for push notifications and get token
+   * OPTIMIZED: Simplified token registration
    */
   async registerForPushNotifications(): Promise<string | null> {
     try {
@@ -267,13 +254,13 @@ class NotificationService {
         this.pushToken = token.data;
         await AsyncStorage.setItem(STORAGE_KEYS.PUSH_TOKEN, token.data);
         
-        // Configure channel for Android
+        // Configure notification channel for Android
         if (Platform.OS === 'android') {
-          await Notifications.setNotificationChannelAsync('default', {
-            name: 'HermeSpeed Filings',
+          await Notifications.setNotificationChannelAsync('hermespeed_filings', {
+            name: 'HermeSpeed Filing Alerts',
             importance: Notifications.AndroidImportance.MAX,
             vibrationPattern: [0, 250, 250, 250],
-            lightColor: '#E88B00', // HermeSpeed brand color
+            lightColor: '#E88B00',
             description: 'Notifications for new SEC filings and updates',
           });
         }
@@ -289,6 +276,7 @@ class NotificationService {
 
   /**
    * Sync token with backend
+   * SIMPLIFIED: Basic sync with unified backend storage
    */
   async syncTokenWithBackend(): Promise<boolean> {
     try {
@@ -377,6 +365,23 @@ class NotificationService {
   }
 
   /**
+   * Get push token info for UI display
+   * SIMPLIFIED: Core token status only
+   */
+  async getPushTokenInfo(): Promise<PushTokenInfo> {
+    const hasPermission = await this.checkPermission();
+    const lastSync = await AsyncStorage.getItem(STORAGE_KEYS.LAST_TOKEN_SYNC);
+    
+    return {
+      token: this.pushToken,
+      hasPermission,
+      synced: !!lastSync,
+      lastSyncAt: lastSync || undefined,
+      platform: Platform.OS as 'ios' | 'android',
+    };
+  }
+
+  /**
    * Schedule a local notification (for testing)
    */
   async scheduleTestNotification() {
@@ -431,23 +436,8 @@ class NotificationService {
   }
 
   /**
-   * Force refresh notification data
-   */
-  async refreshNotificationData() {
-    try {
-      // Direct API calls instead of Redux to avoid circular dependencies
-      await notificationAPI.getSettings();
-      await notificationAPI.getHistory(50, 0);
-      
-      return true;
-    } catch (error) {
-      console.error('Error refreshing notification data:', error);
-      return false;
-    }
-  }
-
-  /**
    * Check if notifications are properly configured
+   * SIMPLIFIED: Basic system status
    */
   async getSystemStatus() {
     const hasPermission = await this.checkPermission();
@@ -458,10 +448,22 @@ class NotificationService {
       hasToken: !!pushToken,
       deviceSupported: Device.isDevice,
       platform: Platform.OS,
-      
-      // Configuration status
       isFullyConfigured: hasPermission && !!pushToken
     };
+  }
+
+  /**
+   * Force refresh token sync
+   */
+  async forceTokenSync(): Promise<boolean> {
+    try {
+      // Clear last sync time to force resync
+      await AsyncStorage.removeItem(STORAGE_KEYS.LAST_TOKEN_SYNC);
+      return await this.syncTokenWithBackend();
+    } catch (error) {
+      console.error('Error forcing token sync:', error);
+      return false;
+    }
   }
 
   /**

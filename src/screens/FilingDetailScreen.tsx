@@ -64,8 +64,8 @@ export default function FilingDetailScreen() {
     });
   }, [user, isProUser]);
   
-  // Get filing ID from route params
-  const { filingId } = route.params;
+  // Get filing ID and optional initial filing from route params
+  const { filingId, initialFiling } = route.params;
   
   // State
   const [filing, setFiling] = useState<Filing | null>(null);
@@ -231,10 +231,13 @@ export default function FilingDetailScreen() {
     
     const FilingComponent = getFilingDetailComponent(filing.form_type);
     
-    // 🔥 关键修复：正确传递增强的公司信息，确保类型匹配
+    // 🔥 关键修复：合并 initialFiling 的时间数据和 companyInfo
     const enhancedFiling = {
       ...filing,
-      company: companyInfo || filing.company  // 这里 companyInfo 是 CompanyInfo | null，与 CompanyInfo | undefined 兼容
+      // 优先使用 initialFiling 的时间数据（来自列表页，包含 detected_at）
+      detected_at: initialFiling?.detected_at || filing.detected_at,
+      display_time: initialFiling?.display_time || filing.display_time,
+      company: companyInfo || filing.company
     };
     
     return <FilingComponent filing={enhancedFiling} />;
@@ -245,11 +248,15 @@ export default function FilingDetailScreen() {
     loadFilingDetails();
     
     // Fix for web scrolling issue
+    // @ts-ignore - document only exists in web environment
     if (Platform.OS === 'web') {
+      // @ts-ignore
       const originalOverflow = document.body.style.overflow;
+      // @ts-ignore
       document.body.style.overflow = 'auto';
       
       return () => {
+        // @ts-ignore
         document.body.style.overflow = originalOverflow;
       };
     }
@@ -375,6 +382,7 @@ export default function FilingDetailScreen() {
             
             <VotingModule
               filingId={filingId}
+              formType={filing.form_type}
               initialVoteCounts={filing.vote_counts || { bullish: 0, neutral: 0, bearish: 0 }}
               initialUserVote={filing.user_vote || null}
               mode="full"
@@ -489,7 +497,7 @@ export default function FilingDetailScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: colors.background, // 🎨 Changed back to white
     paddingTop: Platform.OS === 'ios' ? 44 : 0,
   },
   scrollContainer: {

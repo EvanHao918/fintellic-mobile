@@ -1,23 +1,27 @@
-// src/utils/notificationPermission.ts - 修复版本
+// src/utils/notificationPermission.ts
+// SIMPLIFIED: Core notification permission utilities only
 import * as Notifications from 'expo-notifications';
 import { Platform, Alert } from 'react-native';
 import Constants from 'expo-constants';
 
-// Configure notification handler - 修复类型错误
+// Configure notification handler - SIMPLIFIED: Core configuration only
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
     shouldShowAlert: true,
     shouldPlaySound: true,
     shouldSetBadge: true,
-    shouldShowBanner: true,  // 添加缺失的属性
-    shouldShowList: true,    // 添加缺失的属性
+    shouldShowBanner: true,
+    shouldShowList: true,
   }),
 });
 
-// 后面的代码保持不变...
+/**
+ * Request notification permission with clear user feedback
+ * SIMPLIFIED: Streamlined permission flow
+ */
 export const requestNotificationPermission = async (): Promise<boolean> => {
   try {
-    // Check if we're in a physical device
+    // Check if we're on a physical device
     if (!Constants.isDevice) {
       console.log('Push notifications only work on physical devices');
       return false;
@@ -36,7 +40,7 @@ export const requestNotificationPermission = async (): Promise<boolean> => {
     if (finalStatus !== 'granted') {
       Alert.alert(
         'Permission Required',
-        'Please enable push notifications in your device settings to receive filing alerts.',
+        'Please enable push notifications in your device settings to receive SEC filing alerts.',
         [{ text: 'OK' }]
       );
       return false;
@@ -49,6 +53,10 @@ export const requestNotificationPermission = async (): Promise<boolean> => {
   }
 };
 
+/**
+ * Get Expo push token
+ * SIMPLIFIED: Basic token retrieval with proper error handling
+ */
 export const getExpoPushToken = async (): Promise<string | null> => {
   try {
     if (!Constants.isDevice) {
@@ -67,6 +75,10 @@ export const getExpoPushToken = async (): Promise<string | null> => {
   }
 };
 
+/**
+ * Schedule local notification for testing
+ * SIMPLIFIED: Basic local notification scheduling
+ */
 export const scheduleLocalNotification = async (
   title: string,
   body: string,
@@ -78,7 +90,11 @@ export const scheduleLocalNotification = async (
       content: {
         title,
         body,
-        data,
+        data: {
+          ...data,
+          source: 'local',
+          timestamp: new Date().toISOString(),
+        },
         sound: true,
         priority: Notifications.AndroidNotificationPriority.HIGH,
       },
@@ -92,6 +108,9 @@ export const scheduleLocalNotification = async (
   }
 };
 
+/**
+ * Cancel all scheduled notifications
+ */
 export const cancelAllScheduledNotifications = async () => {
   try {
     await Notifications.cancelAllScheduledNotificationsAsync();
@@ -100,6 +119,9 @@ export const cancelAllScheduledNotifications = async () => {
   }
 };
 
+/**
+ * Set badge count (iOS only)
+ */
 export const setBadgeCount = async (count: number) => {
   try {
     if (Platform.OS === 'ios') {
@@ -107,6 +129,64 @@ export const setBadgeCount = async (count: number) => {
     }
   } catch (error) {
     console.error('Error setting badge count:', error);
+  }
+};
+
+/**
+ * Clear badge count (iOS only)
+ */
+export const clearBadgeCount = async () => {
+  try {
+    if (Platform.OS === 'ios') {
+      await Notifications.setBadgeCountAsync(0);
+    }
+  } catch (error) {
+    console.error('Error clearing badge count:', error);
+  }
+};
+
+/**
+ * Dismiss all notifications
+ */
+export const dismissAllNotifications = async () => {
+  try {
+    await Notifications.dismissAllNotificationsAsync();
+  } catch (error) {
+    console.error('Error dismissing notifications:', error);
+  }
+};
+
+/**
+ * Check if notifications are enabled
+ */
+export const checkNotificationPermission = async (): Promise<boolean> => {
+  try {
+    const { status } = await Notifications.getPermissionsAsync();
+    return status === 'granted';
+  } catch (error) {
+    console.error('Error checking notification permission:', error);
+    return false;
+  }
+};
+
+/**
+ * Get notification permission status details
+ */
+export const getNotificationPermissionStatus = async () => {
+  try {
+    const permissions = await Notifications.getPermissionsAsync();
+    return {
+      granted: permissions.status === 'granted',
+      canAskAgain: permissions.canAskAgain,
+      status: permissions.status,
+    };
+  } catch (error) {
+    console.error('Error getting permission status:', error);
+    return {
+      granted: false,
+      canAskAgain: false,
+      status: 'undetermined',
+    };
   }
 };
 
