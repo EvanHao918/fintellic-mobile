@@ -244,19 +244,55 @@ const SimpleLogo = () => (
 // 🔐 Configure WebBrowser for Google Auth
 WebBrowser.maybeCompleteAuthSession();
 
-// Google OAuth Client ID
-const GOOGLE_CLIENT_ID_IOS = '644244434871-9juntrmqun10tqfk5u5mcfga1h6ckifl.apps.googleusercontent.com';
+// Google OAuth Client IDs  
+// Use iOS Client ID - it allows custom URL scheme redirects
+const GOOGLE_CLIENT_ID_IOS = '64424434871-9juntrmqun10tqfk5u5mcfga1h6ckifl.apps.googleusercontent.com';
 
 export default function LoginScreen() {
   const dispatch = useDispatch<AppDispatch>();
   const navigation = useNavigation<LoginScreenNavigationProp>();
   const { isLoading, error } = useSelector((state: RootState) => state.auth);
   
-  // Google Sign In hook
+  // Google Sign In hook - use iOS Client ID (allows custom scheme redirect)
   const [googleRequest, googleResponse, googlePromptAsync] = Google.useAuthRequest({
     iosClientId: GOOGLE_CLIENT_ID_IOS,
     scopes: ['profile', 'email'],
   });
+  
+  // Debug: Log Google Auth info
+  React.useEffect(() => {
+    if (googleRequest) {
+      console.log('🔍 Google Auth Debug:');
+      console.log('  - Redirect URI:', googleRequest.redirectUri);
+    }
+  }, [googleRequest]);
+  
+  // Handle Google Sign In response
+  React.useEffect(() => {
+    if (googleResponse) {
+      console.log('🔍 Google Response type:', googleResponse.type);
+      if (googleResponse.type === 'success' && googleResponse.authentication) {
+        console.log('✅ Google auth success!');
+        handleGoogleAuthSuccess(googleResponse.authentication.accessToken);
+      } else if (googleResponse.type === 'error') {
+        console.log('❌ Google auth error:', googleResponse.error);
+        Alert.alert('Sign In Failed', googleResponse.error?.message || 'Google sign in failed');
+      }
+    }
+  }, [googleResponse]);
+
+  const handleGoogleAuthSuccess = async (accessToken: string) => {
+    try {
+      console.log('📤 Sending Google token to backend...');
+      const result = await dispatch(googleSignIn({
+        accessToken: accessToken,
+      })).unwrap();
+      console.log('✅ Google sign in complete:', result);
+    } catch (error: any) {
+      console.error('❌ Google sign in error:', error);
+      Alert.alert('Sign In Failed', error.message || 'Failed to sign in with Google');
+    }
+  };
   
   // Form state
   const [isLoginMode, setIsLoginMode] = useState(true);
@@ -326,49 +362,6 @@ export default function LoginScreen() {
     checkForSavedCredentials();
     checkAppleSignInAvailability();
   }, []);
-
-  // Handle Google Sign In response
-  useEffect(() => {
-    if (googleResponse?.type === 'success') {
-      const { authentication } = googleResponse;
-      if (authentication?.accessToken) {
-        handleGoogleAuthSuccess(authentication.accessToken);
-      }
-    }
-  }, [googleResponse]);
-
-  const handleGoogleAuthSuccess = async (accessToken: string) => {
-    try {
-      // Fetch user info from Google
-      const userInfoResponse = await fetch(
-        'https://www.googleapis.com/userinfo/v2/me',
-        { headers: { Authorization: `Bearer ${accessToken}` } }
-      );
-      const userInfo = await userInfoResponse.json();
-      
-      console.log('Google user info:', userInfo);
-      
-      // Dispatch Google sign in with the id_token or user info
-      const result = await dispatch(googleSignIn({
-        idToken: accessToken, // We'll use accessToken to get user info on backend
-        accessToken: accessToken,
-        user: {
-          id: userInfo.id,
-          email: userInfo.email,
-          name: userInfo.name,
-          picture: userInfo.picture,
-        }
-      })).unwrap();
-      
-      console.log('Google sign in result:', result);
-    } catch (error: any) {
-      console.error('Google sign in error:', error);
-      Alert.alert(
-        'Sign In Failed',
-        error.message || 'Failed to sign in with Google'
-      );
-    }
-  };
 
   const checkForSavedCredentials = async () => {
     try {
