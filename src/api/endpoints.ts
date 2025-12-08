@@ -12,6 +12,34 @@ import {
   PricingInfo,
 } from '../types/subscription';
 
+// Social auth response types
+export interface SocialAuthResponse {
+  id: number;
+  email: string | null;
+  full_name: string | null;
+  username: string | null;
+  access_token: string;
+  refresh_token: string;
+  token_type: string;
+  is_new_user: boolean;
+  email_verified: boolean;
+  tier: string;
+  is_early_bird: boolean;
+  pricing_tier: string | null;
+  user_sequence_number: number | null;
+  monthly_price: number;
+  yearly_price: number;
+  early_bird_slots_remaining: number | null;
+  linked_providers: string[];
+}
+
+export interface SocialAccountStatus {
+  apple_linked: boolean;
+  google_linked: boolean;
+  linkedin_linked: boolean;
+  can_unlink: boolean;
+}
+
 // Auth endpoints
 export const authAPI = {
   login: async (credentials: LoginCredentials) => {
@@ -57,6 +85,56 @@ export const authAPI = {
     const response = await apiClient.post('/auth/password/reset-confirm', { 
       token, 
       new_password: newPassword 
+    });
+    return response;
+  },
+
+  // ==================== Social Auth APIs ====================
+  
+  // Apple Sign In
+  appleSignIn: async (data: {
+    identity_token: string;
+    authorization_code?: string;
+    full_name?: string;
+    given_name?: string;
+    family_name?: string;
+    device_id?: string;
+    device_type?: string;
+  }) => {
+    const response = await apiClient.post<SocialAuthResponse>('/auth/apple', data);
+    return response;
+  },
+
+  // Google Sign In
+  googleSignIn: async (data: {
+    id_token: string;
+    access_token?: string;
+    device_id?: string;
+    device_type?: string;
+  }) => {
+    const response = await apiClient.post<SocialAuthResponse>('/auth/google', data);
+    return response;
+  },
+
+  // Get social account status
+  getSocialAccounts: async () => {
+    const response = await apiClient.get<SocialAccountStatus>('/auth/social-accounts');
+    return response;
+  },
+
+  // Link social account
+  linkSocialAccount: async (provider: 'apple' | 'google' | 'linkedin', token: string) => {
+    const response = await apiClient.post<SocialAccountStatus>('/auth/link-social', {
+      provider,
+      token,
+    });
+    return response;
+  },
+
+  // Unlink social account
+  unlinkSocialAccount: async (provider: 'apple' | 'google' | 'linkedin') => {
+    const response = await apiClient.post<SocialAccountStatus>('/auth/unlink-social', {
+      provider,
     });
     return response;
   },

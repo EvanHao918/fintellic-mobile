@@ -32,8 +32,10 @@
       },
       "associatedDomains": [
         "applinks:hermespeed.com",
-        "applinks:www.hermespeed.com"
-      ]
+        "applinks:www.hermespeed.com",
+        "webcredentials:hermespeed.com"
+      ],
+      "usesAppleSignIn": true
     },
     "android": {
       "adaptiveIcon": {
@@ -84,7 +86,16 @@
           "androidCollapsedTitle": "AllSight"
         }
       ],
-      "react-native-iap"
+      "react-native-iap",
+      "expo-apple-authentication",
+      [
+        "expo-build-properties",
+        {
+          "ios": {
+            "useFrameworks": "static"
+          }
+        }
+      ]
     ],
     "extra": {
       "eas": {

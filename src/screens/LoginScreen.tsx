@@ -19,8 +19,11 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LinearGradient } from 'expo-linear-gradient';
+import * as AppleAuthentication from 'expo-apple-authentication';
+import * as Google from 'expo-auth-session/providers/google';
+import * as WebBrowser from 'expo-web-browser';
 import { AppDispatch, RootState } from '../store';
-import { login, register } from '../store/slices/authSlice';
+import { login, register, appleSignIn, googleSignIn } from '../store/slices/authSlice';
 import themeConfig from '../theme';
 import { STORAGE_KEYS } from '../utils/constants';
 import { useNavigation } from '@react-navigation/native';
@@ -238,10 +241,22 @@ const SimpleLogo = () => (
   </View>
 );
 
+// 🔐 Configure WebBrowser for Google Auth
+WebBrowser.maybeCompleteAuthSession();
+
+// Google OAuth Client ID
+const GOOGLE_CLIENT_ID_IOS = '644244434871-9juntrmqun10tqfk5u5mcfga1h6ckifl.apps.googleusercontent.com';
+
 export default function LoginScreen() {
   const dispatch = useDispatch<AppDispatch>();
   const navigation = useNavigation<LoginScreenNavigationProp>();
   const { isLoading, error } = useSelector((state: RootState) => state.auth);
+  
+  // Google Sign In hook
+  const [googleRequest, googleResponse, googlePromptAsync] = Google.useAuthRequest({
+    iosClientId: GOOGLE_CLIENT_ID_IOS,
+    scopes: ['profile', 'email'],
+  });
   
   // Form state
   const [isLoginMode, setIsLoginMode] = useState(true);
@@ -256,6 +271,9 @@ export default function LoginScreen() {
   const [passwordError, setPasswordError] = useState('');
   const [confirmPasswordError, setConfirmPasswordError] = useState('');
   const [usernameError, setUsernameError] = useState('');
+  
+  // Apple Sign In state
+  const [isAppleSignInAvailable, setIsAppleSignInAvailable] = useState(false);
   
   // Animations
   const { fadeAnim } = useFadeAnimation(0, true);
@@ -306,7 +324,51 @@ export default function LoginScreen() {
   // Check for saved email
   useEffect(() => {
     checkForSavedCredentials();
+    checkAppleSignInAvailability();
   }, []);
+
+  // Handle Google Sign In response
+  useEffect(() => {
+    if (googleResponse?.type === 'success') {
+      const { authentication } = googleResponse;
+      if (authentication?.accessToken) {
+        handleGoogleAuthSuccess(authentication.accessToken);
+      }
+    }
+  }, [googleResponse]);
+
+  const handleGoogleAuthSuccess = async (accessToken: string) => {
+    try {
+      // Fetch user info from Google
+      const userInfoResponse = await fetch(
+        'https://www.googleapis.com/userinfo/v2/me',
+        { headers: { Authorization: `Bearer ${accessToken}` } }
+      );
+      const userInfo = await userInfoResponse.json();
+      
+      console.log('Google user info:', userInfo);
+      
+      // Dispatch Google sign in with the id_token or user info
+      const result = await dispatch(googleSignIn({
+        idToken: accessToken, // We'll use accessToken to get user info on backend
+        accessToken: accessToken,
+        user: {
+          id: userInfo.id,
+          email: userInfo.email,
+          name: userInfo.name,
+          picture: userInfo.picture,
+        }
+      })).unwrap();
+      
+      console.log('Google sign in result:', result);
+    } catch (error: any) {
+      console.error('Google sign in error:', error);
+      Alert.alert(
+        'Sign In Failed',
+        error.message || 'Failed to sign in with Google'
+      );
+    }
+  };
 
   const checkForSavedCredentials = async () => {
     try {
@@ -317,6 +379,12 @@ export default function LoginScreen() {
     } catch (error) {
       console.log('Error checking saved credentials:', error);
     }
+  };
+
+  // Check Apple Sign In availability
+  const checkAppleSignInAvailability = async () => {
+    const isAvailable = await AppleAuthentication.isAvailableAsync();
+    setIsAppleSignInAvailable(isAvailable);
   };
 
   // Email validation
@@ -389,6 +457,71 @@ export default function LoginScreen() {
   const handleForgotPassword = () => {
     // 允许用户直接跳转到重置页面，即使没有输入邮箱
     navigation.navigate('ResetPassword', {});
+  };
+
+  // ==================== Social Sign In Handlers ====================
+  
+  // Apple Sign In
+  const handleAppleSignIn = async () => {
+    try {
+      const credential = await AppleAuthentication.signInAsync({
+        requestedScopes: [
+          AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
+          AppleAuthentication.AppleAuthenticationScope.EMAIL,
+        ],
+      });
+
+      console.log('Apple credential:', credential);
+
+      // Build full name from Apple's response (only available on first sign in)
+      let fullName: string | undefined;
+      if (credential.fullName) {
+        const parts = [
+          credential.fullName.givenName,
+          credential.fullName.familyName,
+        ].filter(Boolean);
+        fullName = parts.length > 0 ? parts.join(' ') : undefined;
+      }
+
+      // Dispatch Apple Sign In
+      await dispatch(appleSignIn({
+        identityToken: credential.identityToken!,
+        authorizationCode: credential.authorizationCode || undefined,
+        fullName,
+        givenName: credential.fullName?.givenName || undefined,
+        familyName: credential.fullName?.familyName || undefined,
+      })).unwrap();
+
+      console.log('Apple Sign In successful');
+    } catch (error: any) {
+      if (error.code === 'ERR_REQUEST_CANCELED') {
+        // User cancelled, do nothing
+        console.log('Apple Sign In cancelled');
+      } else {
+        console.error('Apple Sign In error:', error);
+        Alert.alert(
+          'Sign In Failed',
+          error.message || 'Apple Sign In failed. Please try again.'
+        );
+      }
+    }
+  };
+
+  // Google Sign In (placeholder - requires additional setup)
+  const handleGoogleSignIn = async () => {
+    try {
+      if (!googleRequest) {
+        Alert.alert('Error', 'Google Sign In is not available');
+        return;
+      }
+      await googlePromptAsync();
+    } catch (error: any) {
+      console.error('Google sign in error:', error);
+      Alert.alert(
+        'Sign In Failed',
+        error.message || 'Failed to initiate Google Sign In'
+      );
+    }
   };
 
   // ✅ NEW: Dynamic scroll content style based on mode
@@ -601,6 +734,47 @@ export default function LoginScreen() {
                     </LinearGradient>
                   </TouchableOpacity>
                 </Animated.View>
+
+                {/* Social Sign In Divider */}
+                <View style={styles.dividerContainer}>
+                  <View style={styles.dividerLine} />
+                  <Text style={styles.dividerText}>or continue with</Text>
+                  <View style={styles.dividerLine} />
+                </View>
+
+                {/* Social Sign In Buttons */}
+                <View style={styles.socialButtonsContainer}>
+                  {/* Apple Sign In Button */}
+                  {isAppleSignInAvailable && (
+                    <TouchableOpacity
+                      style={styles.socialButton}
+                      onPress={handleAppleSignIn}
+                      disabled={isLoading}
+                      activeOpacity={0.8}
+                    >
+                      <View style={styles.socialButtonContent}>
+                        <Icon name="apple" size={20} color="#000" style={styles.socialIcon} />
+                        <Text style={styles.socialButtonText}>Apple</Text>
+                      </View>
+                    </TouchableOpacity>
+                  )}
+
+                  {/* Google Sign In Button */}
+                  <TouchableOpacity
+                    style={styles.socialButton}
+                    onPress={handleGoogleSignIn}
+                    disabled={isLoading}
+                    activeOpacity={0.8}
+                  >
+                    <View style={styles.socialButtonContent}>
+                      <Image
+                        source={{ uri: 'https://www.google.com/favicon.ico' }}
+                        style={styles.googleIcon}
+                      />
+                      <Text style={styles.socialButtonText}>Google</Text>
+                    </View>
+                  </TouchableOpacity>
+                </View>
 
                 {/* Switch Mode Link */}
                 <View style={styles.switchContainer}>
@@ -835,6 +1009,57 @@ const styles = StyleSheet.create({
     fontSize: typography.fontSize.sm,
     fontWeight: typography.fontWeight.bold,
     color: colors.fintechGoldLight,
+  },
+  // Social Sign In Styles
+  dividerContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: spacing.md,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: 'rgba(139, 69, 19, 0.3)',
+  },
+  dividerText: {
+    fontSize: typography.fontSize.sm,
+    color: '#8B4513',
+    paddingHorizontal: spacing.md,
+    fontWeight: typography.fontWeight.medium,
+  },
+  socialButtonsContainer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: spacing.md,
+    marginBottom: spacing.md,
+  },
+  socialButton: {
+    flex: 1,
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    borderRadius: borderRadius.lg,
+    borderWidth: 1,
+    borderColor: 'rgba(139, 69, 19, 0.3)',
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.lg,
+    ...shadows.md,
+  },
+  socialButtonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  socialIcon: {
+    marginRight: spacing.sm,
+  },
+  googleIcon: {
+    width: 18,
+    height: 18,
+    marginRight: spacing.sm,
+  },
+  socialButtonText: {
+    fontSize: typography.fontSize.base,
+    fontWeight: typography.fontWeight.semibold,
+    color: '#333333',
   },
   // ✅ MODIFIED: Enhanced footer style with moderate padding
   footer: {
