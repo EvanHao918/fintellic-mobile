@@ -168,8 +168,7 @@ export interface CompanyInfo {
   
   // FMP API 新增字段
   market_cap_formatted?: string;
-  pe_ratio?: number;
-  pe_ratio_formatted?: string;
+  analyst_consensus?: string;  // 分析师共识评级 (Strong Buy/Buy/Hold/Sell/Strong Sell)
   
   // SIC classification
   sic?: string;

@@ -143,12 +143,12 @@ const CompanyInfoCard: React.FC<CompanyInfoCardProps> = ({
           </View>
         )}
         
-        {/* PE比率 */}
-        {company.pe_ratio_formatted && (
+        {/* 分析师共识评级 */}
+        {company.analyst_consensus && (
           <View style={styles.dataRow}>
-            <Icon name="trending-up" size={16} color={colors.textSecondary} />
-            <Text style={styles.dataLabel}>P/E Ratio</Text>
-            <Text style={styles.dataValue}>{company.pe_ratio_formatted}</Text>
+            <Icon name="analytics" size={16} color={colors.textSecondary} />
+            <Text style={styles.dataLabel}>Analyst Consensus</Text>
+            <Text style={styles.dataValue}>{company.analyst_consensus}</Text>
           </View>
         )}
         
