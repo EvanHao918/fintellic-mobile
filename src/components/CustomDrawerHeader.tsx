@@ -223,7 +223,8 @@ export const CustomDrawerHeader: React.FC<CustomDrawerHeaderProps> = ({
           styles.resultsContainer, 
           { 
             width: searchContainerWidth,
-            right: spacing.md
+            right: spacing.md,
+            top: insets.top + spacing.md + 44 + spacing.md, // header padding + content height + bottom padding
           }
         ]}>
           <ScrollView
@@ -274,7 +275,8 @@ export const CustomDrawerHeader: React.FC<CustomDrawerHeaderProps> = ({
           styles.noResultsWrapper,
           { 
             width: searchContainerWidth,
-            right: spacing.md 
+            right: spacing.md,
+            top: insets.top + spacing.md + 44 + spacing.md, // header padding + content height + bottom padding
           }
         ]}>
           <View style={styles.noResultsContainer}>
@@ -351,7 +353,6 @@ const styles = StyleSheet.create({
   },
   resultsContainer: {
     position: 'absolute',
-    top: Platform.OS === 'ios' ? 88 : 68,
     backgroundColor: colors.white,
     maxHeight: 400,
     borderRadius: 12,

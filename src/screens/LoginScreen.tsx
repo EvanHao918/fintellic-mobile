@@ -245,17 +245,18 @@ const SimpleLogo = () => (
 WebBrowser.maybeCompleteAuthSession();
 
 // Google OAuth Client IDs  
-// Use iOS Client ID - it allows custom URL scheme redirects
 const GOOGLE_CLIENT_ID_IOS = '64424434871-9juntrmqun10tqfk5u5mcfga1h6ckifl.apps.googleusercontent.com';
+const GOOGLE_CLIENT_ID_WEB = '64424434871-193fhc64bq7a9t6o6prtedgi0n381ma2.apps.googleusercontent.com';
 
 export default function LoginScreen() {
   const dispatch = useDispatch<AppDispatch>();
   const navigation = useNavigation<LoginScreenNavigationProp>();
   const { isLoading, error } = useSelector((state: RootState) => state.auth);
   
-  // Google Sign In hook - use iOS Client ID (allows custom scheme redirect)
+  // Google Sign In hook - iOS uses native redirect, Web uses auth.expo.io
   const [googleRequest, googleResponse, googlePromptAsync] = Google.useAuthRequest({
     iosClientId: GOOGLE_CLIENT_ID_IOS,
+    webClientId: GOOGLE_CLIENT_ID_WEB,
     scopes: ['profile', 'email'],
   });
   
@@ -539,7 +540,7 @@ export default function LoginScreen() {
         start={{ x: 0, y: 0 }}
         end={{ x: 0, y: 1 }}
       >
-        <SafeAreaView style={styles.safeArea}>
+        <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
           <KeyboardAvoidingView
             behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
             style={styles.keyboardView}
@@ -853,20 +854,20 @@ const styles = StyleSheet.create({
   },
   headerContainer: {
     alignItems: 'center',
-    marginTop: spacing.lg,      
-    marginBottom: spacing.lg,   // ✅ INCREASED: from spacing.md (16) to spacing.lg (24) - more breathing room
+    marginTop: 0,                 // ✅ REDUCED: no top margin
+    marginBottom: spacing.xs,     // ✅ REDUCED: minimal bottom margin
   },
   // ⚡ Logo Animation Styles - REMOVED (using simple logo now)
   logoContainer: {
-    width: 160,                  // ✅ REDUCED: from 200 to 160
-    height: 160,                 // ✅ REDUCED: from 200 to 160
+    width: 130,                   // ✅ REDUCED: from 140 to 130
+    height: 130,                  // ✅ REDUCED: from 140 to 130
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: spacing.sm,    // ✅ REDUCED: from spacing.lg (24) to spacing.sm (12)
+    marginBottom: spacing.xs,
   },
   logoImage: {
-    width: 160,                  // ✅ REDUCED: from 200 to 160
-    height: 160,                 // ✅ REDUCED: from 200 to 160
+    width: 130,                   // ✅ REDUCED: from 140 to 130
+    height: 130,                  // ✅ REDUCED: from 140 to 130
   },
   // 📝 Tagline Styles with Typewriter
   sloganContainer: {
@@ -1054,10 +1055,10 @@ const styles = StyleSheet.create({
     fontWeight: typography.fontWeight.semibold,
     color: '#333333',
   },
-  // ✅ MODIFIED: Enhanced footer style with moderate padding
+  // ✅ MODIFIED: Enhanced footer style with more bottom padding
   footer: {
-    paddingTop: spacing.sm,      // ✅ ADJUSTED: from spacing.xs (8) to spacing.sm (12) - slight increase
-    paddingBottom: spacing.xxl,  // Keep this for safe area
+    paddingTop: spacing.sm,
+    paddingBottom: spacing.xxxl,  // ✅ INCREASED: more bottom padding for safe area
     paddingHorizontal: spacing.xl,
   },
   footerText: {

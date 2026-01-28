@@ -33,6 +33,13 @@ class IAPService {
   // 购买成功回调 - 用于刷新用户信息
   private onPurchaseSuccessCallback: (() => void) | null = null;
   
+  // 防止重复处理购买
+  private processingTransactions: Set<string> = new Set();
+  private lastProcessedTransaction: string | null = null;
+  
+  // 标记是否正在初始化（清理待处理交易时不处理）
+  private isCleaningPendingPurchases: boolean = false;
+  
   // Error tracking and retry logic
   private readonly MAX_RETRY_ATTEMPTS = 3;
   private readonly RETRY_DELAY_MS = 2000;
@@ -89,8 +96,31 @@ class IAPService {
           // 不阻止初始化流程
         }
       }
-
+      
+      // 先设置监听器
       this.setupListeners();
+      
+      // iOS: 清理待处理的交易，避免重复触发（设置标记防止监听器处理）
+      if (Platform.OS === 'ios') {
+        this.isCleaningPendingPurchases = true;
+        try {
+          const pendingPurchases = await getAvailablePurchases();
+          console.log(`Found ${pendingPurchases.length} pending purchases to clear`);
+          for (const purchase of pendingPurchases) {
+            try {
+              await finishTransaction({ purchase, isConsumable: false });
+              console.log(`Cleared pending transaction: ${purchase.transactionId}`);
+            } catch (e) {
+              console.warn(`Failed to clear transaction ${purchase.transactionId}:`, e);
+            }
+          }
+        } catch (error) {
+          console.warn('Failed to clear pending iOS purchases:', error);
+        } finally {
+          this.isCleaningPendingPurchases = false;
+        }
+      }
+
       await this.loadProducts();
       
       this.isInitialized = true;
@@ -275,9 +305,31 @@ class IAPService {
   }
 
   /**
-   * 处理购买更新 - 增强验证和错误处理
+   * 处理购买更新 - 增强验证和错误处理，防止重复处理
    */
   private async handlePurchaseUpdate(purchase: Purchase): Promise<void> {
+    // 如果正在清理待处理交易，跳过处理
+    if (this.isCleaningPendingPurchases) {
+      console.log(`Skipping purchase update during cleanup: ${purchase.productId}`);
+      return;
+    }
+    
+    const transactionId = purchase.transactionId || purchase.productId + Date.now();
+    
+    // 防止重复处理同一笔交易
+    if (this.processingTransactions.has(transactionId)) {
+      console.log(`Transaction ${transactionId} is already being processed, skipping...`);
+      return;
+    }
+    
+    // 防止短时间内重复处理
+    if (this.lastProcessedTransaction === transactionId) {
+      console.log(`Transaction ${transactionId} was just processed, skipping...`);
+      return;
+    }
+    
+    this.processingTransactions.add(transactionId);
+    
     try {
       console.log(`Processing purchase update for product: ${purchase.productId}`);
       
@@ -288,6 +340,9 @@ class IAPService {
       );
       
       const isValid = await Promise.race([verificationPromise, timeoutPromise]);
+      
+      // 记录最后处理的交易
+      this.lastProcessedTransaction = transactionId;
       
       if (isValid) {
         await this.finishPurchase(purchase);
@@ -303,6 +358,9 @@ class IAPService {
     } catch (error) {
       console.error('Purchase update error:', error);
       this.showPurchaseError(error);
+    } finally {
+      // 清理处理中的交易标记
+      this.processingTransactions.delete(transactionId);
     }
   }
 

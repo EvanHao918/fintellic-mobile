@@ -311,7 +311,7 @@ export default function FilingDetailScreen() {
   // 如果没有filing且显示弹窗，不显示空白页面
   if (!filing && showUpgradeModal) {
     return (
-      <SafeAreaView style={styles.container}>
+      <SafeAreaView style={styles.container} edges={['bottom']}>
         {/* Header */}
         <View style={styles.header}>
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
@@ -351,7 +351,7 @@ export default function FilingDetailScreen() {
   // Use differentiated display if enabled
   if (ENABLE_DIFFERENTIATED_DISPLAY && filing) {
     return (
-      <SafeAreaView style={styles.container}>
+      <SafeAreaView style={styles.container} edges={['bottom']}>
         {/* Header */}
         <View style={styles.header}>
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
@@ -438,9 +438,16 @@ export default function FilingDetailScreen() {
                 </TouchableOpacity>
               </View>
 
-              {/* Comments List for Pro users */}
+              {/* Encouragement text */}
+              <Text style={styles.commentEncouragement}>
+                When insights become consensus, a trend forms.
+              </Text>
+
+              {/* Comments List for Pro users - sorted by net_votes */}
               {comments.length > 0 ? (
-                comments.map((comment) => (
+                [...comments]
+                  .sort((a, b) => (b.net_votes || 0) - (a.net_votes || 0))
+                  .map((comment) => (
                   <CommentItem
                     key={comment.id}
                     comment={comment}
@@ -497,8 +504,7 @@ export default function FilingDetailScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background, // 🎨 Changed back to white
-    paddingTop: Platform.OS === 'ios' ? 44 : 0,
+    backgroundColor: colors.background,
   },
   scrollContainer: {
     flex: 1,
@@ -524,14 +530,12 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingTop: Platform.OS === 'ios' ? 44 : 0,
   },
   errorContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     padding: spacing.xl,
-    paddingTop: Platform.OS === 'ios' ? 44 : 0,
   },
   errorText: {
     fontSize: typography.fontSize.lg,
@@ -549,7 +553,8 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.md,
-    backgroundColor: colors.white,
+    paddingTop: Platform.OS === 'ios' ? 50 : spacing.md,  // ✅ 添加顶部安全区域
+    backgroundColor: '#F5F5DC',
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   },
@@ -663,6 +668,14 @@ const styles = StyleSheet.create({
     marginLeft: spacing.sm,
     marginRight: spacing.sm,
     flex: 1,
+  },
+  commentEncouragement: {
+    fontSize: typography.fontSize.xs,
+    color: colors.textSecondary,
+    fontStyle: 'italic',
+    textAlign: 'center',
+    marginBottom: spacing.md,
+    paddingHorizontal: spacing.md,
   },
   noComments: {
     fontSize: typography.fontSize.md,
