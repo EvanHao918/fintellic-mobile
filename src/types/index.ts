@@ -6,6 +6,7 @@ export type RootStackParamList = {
   Main: undefined;
   Login: undefined;
   Register: undefined;
+  Personalization: undefined;  // 新增：用户偏好调查
   FilingDetail: { filingId: number; initialFiling?: Filing };
   CompanyFilings: { ticker: string; companyName: string };
   Subscription: undefined;
@@ -95,6 +96,10 @@ export interface User {
     watchlist_only: boolean;
     filing_types: string[];
   };
+  
+  // Onboarding 相关字段
+  onboarding_completed?: number;  // 0=未完成, 1=已完成
+  onboarding_responses?: Record<string, any>;
 }
 
 // Auth Types

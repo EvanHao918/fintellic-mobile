@@ -1,5 +1,5 @@
 // src/screens/LoginScreen.tsx
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View,
   StyleSheet,
@@ -12,8 +12,10 @@ import {
   TextInput,
   Image,
   Dimensions,
+  NativeSyntheticEvent,
+  NativeScrollEvent,
 } from 'react-native';
-import { Text, Button } from 'react-native-elements';
+import { Text } from 'react-native-elements';
 import { useDispatch, useSelector } from 'react-redux';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialIcons';
@@ -29,139 +31,32 @@ import { STORAGE_KEYS } from '../utils/constants';
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RootStackParamList } from '../types';
-import { useFadeAnimation, useTypewriterAnimation } from '../utils/animations';
-import { BRAND_IMAGES, BRAND_NAME, BRAND_TAGLINES } from '../constants/brand';
+import { BRAND_IMAGES, BRAND_NAME, BRAND_TAGLINES, ONBOARDING_SLIDES } from '../constants/brand';
 
 const { colors, typography, spacing, borderRadius, shadows } = themeConfig;
-const { width, height } = Dimensions.get('window');
+const { width } = Dimensions.get('window');
 
 type LoginScreenNavigationProp = StackNavigationProp<RootStackParamList, 'Login'>;
 
-// 🎨 Financial Chart Background Component
-const FinancialChartBackground = () => {
-  const line1Anim = useState(new Animated.Value(0))[0];
-  const line2Anim = useState(new Animated.Value(0))[0];
-  const line3Anim = useState(new Animated.Value(0))[0];
+// 🔐 Configure WebBrowser for Google Auth
+WebBrowser.maybeCompleteAuthSession();
 
-  useEffect(() => {
-    // Three parallel animated lines with different speeds
-    Animated.loop(
-      Animated.parallel([
-        Animated.sequence([
-          Animated.timing(line1Anim, {
-            toValue: 1,
-            duration: 8000,
-            useNativeDriver: true,
-          }),
-          Animated.timing(line1Anim, {
-            toValue: 0,
-            duration: 0,
-            useNativeDriver: true,
-          }),
-        ]),
-        Animated.sequence([
-          Animated.timing(line2Anim, {
-            toValue: 1,
-            duration: 10000,
-            useNativeDriver: true,
-          }),
-          Animated.timing(line2Anim, {
-            toValue: 0,
-            duration: 0,
-            useNativeDriver: true,
-          }),
-        ]),
-        Animated.sequence([
-          Animated.timing(line3Anim, {
-            toValue: 1,
-            duration: 12000,
-            useNativeDriver: true,
-          }),
-          Animated.timing(line3Anim, {
-            toValue: 0,
-            duration: 0,
-            useNativeDriver: true,
-          }),
-        ]),
-      ])
-    ).start();
-  }, []);
+// Google OAuth Client IDs  
+const GOOGLE_CLIENT_ID_IOS = '64424434871-9juntrmqun10tqfk5u5mcfga1h6ckifl.apps.googleusercontent.com';
+const GOOGLE_CLIENT_ID_WEB = '64424434871-193fhc64bq7a9t6o6prtedgi0n381ma2.apps.googleusercontent.com';
 
-  const line1TranslateX = line1Anim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [-width, width],
-  });
-
-  const line2TranslateX = line2Anim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [-width * 0.8, width * 0.8],
-  });
-
-  const line3TranslateX = line3Anim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [-width * 1.2, width * 1.2],
-  });
-
-  return (
-    <View style={styles.chartBackground}>
-      {/* Line 1 - Top */}
-      <Animated.View
-        style={[
-          styles.chartLine,
-          {
-            top: '20%',
-            transform: [{ translateX: line1TranslateX }],
-          },
-        ]}
-      >
-        <LinearGradient
-          colors={['transparent', colors.fintechGoldLight + '40', 'transparent']}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 0 }}
-          style={styles.chartLineGradient}
-        />
-      </Animated.View>
-
-      {/* Line 2 - Middle */}
-      <Animated.View
-        style={[
-          styles.chartLine,
-          {
-            top: '50%',
-            transform: [{ translateX: line2TranslateX }],
-          },
-        ]}
-      >
-        <LinearGradient
-          colors={['transparent', colors.fintechGoldDark + '30', 'transparent']}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 0 }}
-          style={styles.chartLineGradient}
-        />
-      </Animated.View>
-
-      {/* Line 3 - Bottom */}
-      <Animated.View
-        style={[
-          styles.chartLine,
-          {
-            top: '75%',
-            transform: [{ translateX: line3TranslateX }],
-          },
-        ]}
-      >
-        <LinearGradient
-          colors={['transparent', colors.fintechGoldLight + '20', 'transparent']}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 0 }}
-          style={styles.chartLineGradient}
-        />
-      </Animated.View>
-    </View>
-  );
+// Helper function to interpolate colors
+const interpolateColor = (color1: string, color2: string, factor: number): string => {
+  const hex = (c: string) => parseInt(c, 16);
+  const r1 = hex(color1.slice(1, 3)), g1 = hex(color1.slice(3, 5)), b1 = hex(color1.slice(5, 7));
+  const r2 = hex(color2.slice(1, 3)), g2 = hex(color2.slice(3, 5)), b2 = hex(color2.slice(5, 7));
+  const r = Math.round(r1 + (r2 - r1) * factor);
+  const g = Math.round(g1 + (g2 - g1) * factor);
+  const b = Math.round(b1 + (b2 - b1) * factor);
+  return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
 };
 
-// Validation helper functions
+// Validation helper functions (unchanged from original)
 const validationHelpers = {
   email: (email: string, setError: (msg: string) => void) => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -230,46 +125,35 @@ const validationHelpers = {
   },
 };
 
-// Simple Logo Component (no animation)
-const SimpleLogo = () => (
-  <View style={styles.logoContainer}>
-    <Image
-      source={BRAND_IMAGES.LOGO_FULL}
-      style={styles.logoImage}
-      resizeMode="contain"
-    />
-  </View>
-);
-
-// 🔐 Configure WebBrowser for Google Auth
-WebBrowser.maybeCompleteAuthSession();
-
-// Google OAuth Client IDs  
-const GOOGLE_CLIENT_ID_IOS = '64424434871-9juntrmqun10tqfk5u5mcfga1h6ckifl.apps.googleusercontent.com';
-const GOOGLE_CLIENT_ID_WEB = '64424434871-193fhc64bq7a9t6o6prtedgi0n381ma2.apps.googleusercontent.com';
+// Carousel slide width (full screen width for paging)
+const SLIDE_WIDTH = width;
 
 export default function LoginScreen() {
   const dispatch = useDispatch<AppDispatch>();
   const navigation = useNavigation<LoginScreenNavigationProp>();
   const { isLoading, error } = useSelector((state: RootState) => state.auth);
   
-  // Google Sign In hook - iOS uses native redirect, Web uses auth.expo.io
+  // ==================== Carousel State ====================
+  const [currentSlideIndex, setCurrentSlideIndex] = useState(0);
+  const [scrollX, setScrollX] = useState(0);
+  const scrollViewRef = useRef<ScrollView>(null);
+  const autoPlayRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  
+  // Google Sign In hook
   const [googleRequest, googleResponse, googlePromptAsync] = Google.useAuthRequest({
     iosClientId: GOOGLE_CLIENT_ID_IOS,
     webClientId: GOOGLE_CLIENT_ID_WEB,
     scopes: ['profile', 'email'],
   });
   
-  // Debug: Log Google Auth info
-  React.useEffect(() => {
+  // Handle Google Sign In response
+  useEffect(() => {
     if (googleRequest) {
-      console.log('🔍 Google Auth Debug:');
-      console.log('  - Redirect URI:', googleRequest.redirectUri);
+      console.log('🔍 Google Auth Debug - Redirect URI:', googleRequest.redirectUri);
     }
   }, [googleRequest]);
   
-  // Handle Google Sign In response
-  React.useEffect(() => {
+  useEffect(() => {
     if (googleResponse) {
       console.log('🔍 Google Response type:', googleResponse.type);
       if (googleResponse.type === 'success' && googleResponse.authentication) {
@@ -285,9 +169,7 @@ export default function LoginScreen() {
   const handleGoogleAuthSuccess = async (accessToken: string) => {
     try {
       console.log('📤 Sending Google token to backend...');
-      const result = await dispatch(googleSignIn({
-        accessToken: accessToken,
-      })).unwrap();
+      const result = await dispatch(googleSignIn({ accessToken })).unwrap();
       console.log('✅ Google sign in complete:', result);
     } catch (error: any) {
       console.error('❌ Google sign in error:', error);
@@ -295,7 +177,7 @@ export default function LoginScreen() {
     }
   };
   
-  // Form state
+  // ==================== Form State (unchanged from original) ====================
   const [isLoginMode, setIsLoginMode] = useState(true);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -312,53 +194,66 @@ export default function LoginScreen() {
   // Apple Sign In state
   const [isAppleSignInAvailable, setIsAppleSignInAvailable] = useState(false);
   
-  // Animations
-  const { fadeAnim } = useFadeAnimation(0, true);
-  const formFadeAnim = useState(new Animated.Value(1))[0];
-  const buttonScaleAnim = useState(new Animated.Value(1))[0];
-  
-  // Typewriter effect for main tagline
-  const { displayedText: mainTaglineText } = useTypewriterAnimation(
-    BRAND_TAGLINES.MAIN,
-    100,
-    800,
-    true
-  );
-  
-  // Rotating taglines carousel
-  const rotatingTaglines = [
-    "CEO resigned? You knew 3 minutes ago.",
-    "Earnings made simple. Decisions made smart.",
-    "Beat or miss? Know what really matters.",
-    "Understand the IPO before everyone piles in."
-  ];
-  
-  const [currentTaglineIndex, setCurrentTaglineIndex] = useState(0);
-  const taglineOpacity = useState(new Animated.Value(1))[0];
+  // Animation
+  const buttonScaleAnim = useRef(new Animated.Value(1)).current;
+  const formFadeAnim = useRef(new Animated.Value(1)).current;
 
+  // ==================== Auto-play carousel ====================
   useEffect(() => {
-    const interval = setInterval(() => {
-      // Fade out
-      Animated.timing(taglineOpacity, {
-        toValue: 0,
-        duration: 500,
-        useNativeDriver: true,
-      }).start(() => {
-        // Change text
-        setCurrentTaglineIndex((prev) => (prev + 1) % rotatingTaglines.length);
-        // Fade in
-        Animated.timing(taglineOpacity, {
-          toValue: 1,
-          duration: 500,
-          useNativeDriver: true,
-        }).start();
-      });
-    }, 4000); // Change every 4 seconds
+    startAutoPlay();
+    return () => stopAutoPlay();
+  }, [currentSlideIndex]);
 
-    return () => clearInterval(interval);
-  }, []);
+  const startAutoPlay = () => {
+    stopAutoPlay();
+    autoPlayRef.current = setTimeout(() => {
+      const nextIndex = (currentSlideIndex + 1) % ONBOARDING_SLIDES.length;
+      scrollViewRef.current?.scrollTo({ x: nextIndex * SLIDE_WIDTH, animated: true });
+      setCurrentSlideIndex(nextIndex);
+    }, 4000);
+  };
 
-  // Check for saved email
+  const stopAutoPlay = () => {
+    if (autoPlayRef.current) {
+      clearTimeout(autoPlayRef.current);
+      autoPlayRef.current = null;
+    }
+  };
+
+  const onScrollEnd = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const contentOffsetX = event.nativeEvent.contentOffset.x;
+    const newIndex = Math.round(contentOffsetX / SLIDE_WIDTH);
+    if (newIndex !== currentSlideIndex && newIndex >= 0 && newIndex < ONBOARDING_SLIDES.length) {
+      setCurrentSlideIndex(newIndex);
+    }
+  };
+
+  const onScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const contentOffsetX = event.nativeEvent.contentOffset.x;
+    setScrollX(contentOffsetX);
+  };
+
+  // Calculate interpolated gradient colors based on scroll position
+  const getInterpolatedGradientColors = (): readonly [string, string, string] => {
+    const currentIndex = Math.floor(scrollX / SLIDE_WIDTH);
+    const nextIndex = Math.min(currentIndex + 1, ONBOARDING_SLIDES.length - 1);
+    const progress = (scrollX % SLIDE_WIDTH) / SLIDE_WIDTH;
+
+    if (currentIndex < 0 || currentIndex >= ONBOARDING_SLIDES.length) {
+      return ONBOARDING_SLIDES[0].gradientColors;
+    }
+
+    const currentColors = ONBOARDING_SLIDES[currentIndex].gradientColors;
+    const nextColors = ONBOARDING_SLIDES[nextIndex].gradientColors;
+
+    return [
+      interpolateColor(currentColors[0], nextColors[0], progress),
+      interpolateColor(currentColors[1], nextColors[1], progress),
+      interpolateColor(currentColors[2], nextColors[2], progress),
+    ] as const;
+  };
+
+  // Check for saved credentials & Apple availability
   useEffect(() => {
     checkForSavedCredentials();
     checkAppleSignInAvailability();
@@ -367,34 +262,25 @@ export default function LoginScreen() {
   const checkForSavedCredentials = async () => {
     try {
       const savedEmail = await AsyncStorage.getItem(STORAGE_KEYS.REMEMBER_ME);
-      if (savedEmail) {
-        setEmail(savedEmail);
-      }
+      if (savedEmail) setEmail(savedEmail);
     } catch (error) {
       console.log('Error checking saved credentials:', error);
     }
   };
 
-  // Check Apple Sign In availability
   const checkAppleSignInAvailability = async () => {
     const isAvailable = await AppleAuthentication.isAvailableAsync();
     setIsAppleSignInAvailable(isAvailable);
   };
 
-  // Email validation
+  // ==================== Validation (unchanged) ====================
   const validateEmail = (email: string) => validationHelpers.email(email, setEmailError);
-
-  // Password validation
   const validatePassword = (password: string) => validationHelpers.password(password, isLoginMode, setPasswordError);
-
-  // Username validation
   const validateUsername = (username: string) => validationHelpers.username(username, setUsernameError);
-
-  // Confirm password validation
   const validateConfirmPassword = (confirmPassword: string) => 
     validationHelpers.confirmPassword(password, confirmPassword, setConfirmPasswordError);
 
-  // Handle form submission
+  // ==================== Form Submit (unchanged) ====================
   const handleSubmit = async () => {
     const validations = [validateEmail(email), validatePassword(password)];
     if (!isLoginMode) {
@@ -402,7 +288,6 @@ export default function LoginScreen() {
     }
     if (!validations.every(v => v)) return;
 
-    // Button press animation
     Animated.sequence([
       Animated.timing(buttonScaleAnim, { toValue: 0.95, duration: 100, useNativeDriver: true }),
       Animated.timing(buttonScaleAnim, { toValue: 1, duration: 100, useNativeDriver: true }),
@@ -449,13 +334,10 @@ export default function LoginScreen() {
 
   // Handle forgot password
   const handleForgotPassword = () => {
-    // 允许用户直接跳转到重置页面，即使没有输入邮箱
     navigation.navigate('ResetPassword', {});
   };
 
-  // ==================== Social Sign In Handlers ====================
-  
-  // Apple Sign In
+  // ==================== Social Sign In Handlers (unchanged) ====================
   const handleAppleSignIn = async () => {
     try {
       const credential = await AppleAuthentication.signInAsync({
@@ -465,19 +347,12 @@ export default function LoginScreen() {
         ],
       });
 
-      console.log('Apple credential:', credential);
-
-      // Build full name from Apple's response (only available on first sign in)
       let fullName: string | undefined;
       if (credential.fullName) {
-        const parts = [
-          credential.fullName.givenName,
-          credential.fullName.familyName,
-        ].filter(Boolean);
+        const parts = [credential.fullName.givenName, credential.fullName.familyName].filter(Boolean);
         fullName = parts.length > 0 ? parts.join(' ') : undefined;
       }
 
-      // Dispatch Apple Sign In
       await dispatch(appleSignIn({
         identityToken: credential.identityToken!,
         authorizationCode: credential.authorizationCode || undefined,
@@ -488,20 +363,12 @@ export default function LoginScreen() {
 
       console.log('Apple Sign In successful');
     } catch (error: any) {
-      if (error.code === 'ERR_REQUEST_CANCELED') {
-        // User cancelled, do nothing
-        console.log('Apple Sign In cancelled');
-      } else {
-        console.error('Apple Sign In error:', error);
-        Alert.alert(
-          'Sign In Failed',
-          error.message || 'Apple Sign In failed. Please try again.'
-        );
+      if (error.code !== 'ERR_REQUEST_CANCELED') {
+        Alert.alert('Sign In Failed', error.message || 'Apple Sign In failed. Please try again.');
       }
     }
   };
 
-  // Google Sign In (placeholder - requires additional setup)
   const handleGoogleSignIn = async () => {
     try {
       if (!googleRequest) {
@@ -510,300 +377,275 @@ export default function LoginScreen() {
       }
       await googlePromptAsync();
     } catch (error: any) {
-      console.error('Google sign in error:', error);
-      Alert.alert(
-        'Sign In Failed',
-        error.message || 'Failed to initiate Google Sign In'
-      );
+      Alert.alert('Sign In Failed', error.message || 'Failed to initiate Google Sign In');
     }
   };
 
-  // ✅ NEW: Dynamic scroll content style based on mode
-  const dynamicScrollContentStyle = useMemo(() => {
-    // Use minHeight to ensure content always exceeds viewport
-    // This forces the ScrollView to be scrollable
-    return {
-      ...styles.scrollContent,
-      minHeight: height + 100, // Always taller than screen
-    };
-  }, [isLoginMode]);
+  // Get image source for slide
+  const getImageSource = (imageKey: string) => {
+    switch (imageKey) {
+      case 'ONBOARDING_STAR':
+        return BRAND_IMAGES.ONBOARDING_STAR;
+      case 'ONBOARDING_CHECKLIST':
+        return BRAND_IMAGES.ONBOARDING_CHECKLIST;
+      case 'ONBOARDING_ARROW':
+        return BRAND_IMAGES.ONBOARDING_ARROW;
+      default:
+        return BRAND_IMAGES.ONBOARDING_STAR;
+    }
+  };
+
+  // Get interpolated gradient colors for smooth transition
+  const currentGradientColors = getInterpolatedGradientColors();
 
   return (
     <View style={styles.container}>
-      {/* Animated Financial Chart Background */}
-      <FinancialChartBackground />
-
-      {/* Main Gradient Overlay - Beige Gradient (Soft Luxury) */}
       <LinearGradient
-        colors={['#FFF8DC', '#F5F5DC', '#F0E8D0', '#F5F5DC', '#FFF8DC']}
+        colors={currentGradientColors}
         style={styles.gradientContainer}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 0, y: 1 }}
+        start={{ x: 0.5, y: 0 }}
+        end={{ x: 0.5, y: 1 }}
       >
         <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
           <KeyboardAvoidingView
             behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
             style={styles.keyboardView}
           >
-            <ScrollView 
-              contentContainerStyle={dynamicScrollContentStyle}
-              showsVerticalScrollIndicator={false}
-              keyboardShouldPersistTaps="handled"
-            >
-              {/* Animated Header */}
-              <Animated.View 
-                style={[
-                  styles.headerContainer,
-                  { opacity: fadeAnim }
-                ]}
+            {/* ==================== TOP: Logo ==================== */}
+            <View style={styles.logoContainer}>
+              <Image
+                source={BRAND_IMAGES.ONBOARDING_LOGO}
+                style={styles.logoImage}
+                resizeMode="contain"
+              />
+              <Text style={styles.brandName}>{BRAND_NAME.toUpperCase()}</Text>
+              <Text style={styles.brandTagline}>{BRAND_TAGLINES.MAIN}</Text>
+            </View>
+
+            {/* ==================== CAROUSEL: Horizontal ScrollView ==================== */}
+            <View style={styles.carouselContainer}>
+              <ScrollView
+                ref={scrollViewRef}
+                horizontal
+                pagingEnabled
+                showsHorizontalScrollIndicator={false}
+                onMomentumScrollEnd={onScrollEnd}
+                onScroll={onScroll}
+                scrollEventThrottle={16}
+                decelerationRate="fast"
               >
-                {/* Simple Logo */}
-                <SimpleLogo />
-                
-                {/* Main Slogan - Typewriter Effect */}
-                <View style={styles.sloganContainer}>
-                  <Text style={styles.slogan}>
-                    {mainTaglineText}
-                    {mainTaglineText.length < BRAND_TAGLINES.MAIN.length && (
-                      <Text style={styles.cursor}>|</Text>
-                    )}
-                  </Text>
+                {ONBOARDING_SLIDES.map((slide) => (
+                  <View key={slide.id} style={styles.slide}>
+                    <Image
+                      source={getImageSource(slide.image)}
+                      style={styles.slideIcon}
+                      resizeMode="contain"
+                    />
+                    <Text style={styles.slideTitle}>{slide.title}</Text>
+                    <Text style={styles.slideTitleBold}>{slide.titleBold}</Text>
+                    <Text style={styles.slideSubtitle}>{slide.subtitle}</Text>
+                  </View>
+                ))}
+              </ScrollView>
+
+              {/* Pagination Dots */}
+              <View style={styles.paginationContainer}>
+                {ONBOARDING_SLIDES.map((_, index) => (
+                  <View
+                    key={index}
+                    style={[
+                      styles.paginationDot,
+                      index === currentSlideIndex && styles.paginationDotActive,
+                    ]}
+                  />
+                ))}
+              </View>
+            </View>
+
+            {/* ==================== BOTTOM: Login Form Card ==================== */}
+            <Animated.View style={[styles.formCard, { opacity: formFadeAnim }]}>
+              {/* Username Input (Registration only) */}
+              {!isLoginMode && (
+                <View style={styles.inputWrapper}>
+                  <View style={styles.inputContainer}>
+                    <Icon name="person" size={20} color={colors.textSecondary} style={styles.inputIcon} />
+                    <TextInput
+                      placeholder="Username"
+                      placeholderTextColor={colors.textSecondary}
+                      value={username}
+                      onChangeText={(text) => {
+                        setUsername(text);
+                        if (usernameError) validateUsername(text);
+                      }}
+                      onBlur={() => validateUsername(username)}
+                      autoCapitalize="none"
+                      style={styles.textInput}
+                    />
+                  </View>
+                  {usernameError ? <Text style={styles.errorText}>{usernameError}</Text> : null}
                 </View>
-                
-                {/* Rotating Sub Taglines - Fade In/Out Carousel */}
-                <Animated.View style={[styles.subSloganContainer, { opacity: taglineOpacity }]}>
-                  <Text style={styles.subSlogan}>
-                    {rotatingTaglines[currentTaglineIndex]}
-                  </Text>
-                </Animated.View>
+              )}
+
+              {/* Email Input */}
+              <View style={styles.inputWrapper}>
+                <View style={styles.inputContainer}>
+                  <Icon name="email" size={20} color={colors.textSecondary} style={styles.inputIcon} />
+                  <TextInput
+                    placeholder="Email"
+                    placeholderTextColor={colors.textSecondary}
+                    value={email}
+                    onChangeText={(text) => {
+                      setEmail(text);
+                      if (emailError) validateEmail(text);
+                    }}
+                    onBlur={() => validateEmail(email)}
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                    style={styles.textInput}
+                  />
+                </View>
+                {emailError ? <Text style={styles.errorText}>{emailError}</Text> : null}
+              </View>
+
+              {/* Password Input */}
+              <View style={styles.inputWrapper}>
+                <View style={styles.inputContainer}>
+                  <Icon name="lock" size={20} color={colors.textSecondary} style={styles.inputIcon} />
+                  <TextInput
+                    placeholder="Password"
+                    placeholderTextColor={colors.textSecondary}
+                    value={password}
+                    onChangeText={(text) => {
+                      setPassword(text);
+                      if (passwordError) validatePassword(text);
+                    }}
+                    onBlur={() => validatePassword(password)}
+                    secureTextEntry={!showPassword}
+                    style={styles.textInput}
+                  />
+                  <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
+                    <Icon name={showPassword ? 'visibility' : 'visibility-off'} size={20} color={colors.textSecondary} />
+                  </TouchableOpacity>
+                </View>
+                {passwordError ? <Text style={styles.errorText}>{passwordError}</Text> : null}
+              </View>
+
+              {/* Confirm Password (Registration only) */}
+              {!isLoginMode && (
+                <View style={styles.inputWrapper}>
+                  <View style={styles.inputContainer}>
+                    <Icon name="lock" size={20} color={colors.textSecondary} style={styles.inputIcon} />
+                    <TextInput
+                      placeholder="Confirm Password"
+                      placeholderTextColor={colors.textSecondary}
+                      value={confirmPassword}
+                      onChangeText={(text) => {
+                        setConfirmPassword(text);
+                        if (confirmPasswordError) validateConfirmPassword(text);
+                      }}
+                      onBlur={() => validateConfirmPassword(confirmPassword)}
+                      secureTextEntry={!showPassword}
+                      style={styles.textInput}
+                    />
+                  </View>
+                  {confirmPasswordError ? <Text style={styles.errorText}>{confirmPasswordError}</Text> : null}
+                </View>
+              )}
+
+              {/* Forgot Password (Login only) */}
+              {isLoginMode && (
+                <TouchableOpacity onPress={handleForgotPassword} style={styles.forgotContainer}>
+                  <Text style={styles.forgotText}>Forgot Password?</Text>
+                </TouchableOpacity>
+              )}
+
+              {/* Error Message */}
+              {error && (
+                <View style={styles.errorMessageContainer}>
+                  <Icon name="error-outline" size={16} color={colors.error} />
+                  <Text style={styles.errorMessageText}>{error}</Text>
+                </View>
+              )}
+
+              {/* Submit Button */}
+              <Animated.View style={{ transform: [{ scale: buttonScaleAnim }] }}>
+                <TouchableOpacity onPress={handleSubmit} disabled={isLoading} activeOpacity={0.9}>
+                  <LinearGradient
+                    colors={[colors.primaryLight, colors.primary]}
+                    style={styles.submitButton}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                  >
+                    <Text style={styles.submitButtonText}>
+                      {isLoading 
+                        ? (isLoginMode ? 'Signing in...' : 'Creating account...') 
+                        : (isLoginMode ? 'Sign In' : 'Create Account')
+                      }
+                    </Text>
+                  </LinearGradient>
+                </TouchableOpacity>
               </Animated.View>
 
-              {/* Glass Form Container */}
-              <Animated.View style={[styles.glassCard, { opacity: formFadeAnim }]}>
-                {/* Username Input (Registration only) */}
-                {!isLoginMode && (
-                  <View style={styles.inputWrapper}>
-                    <View style={styles.glassInputContainer}>
-                      <Icon name="person" size={20} color={colors.textMuted} style={styles.inputIcon} />
-                      <TextInput
-                        placeholder="Username"
-                        placeholderTextColor={colors.textMuted}
-                        value={username}
-                        onChangeText={(text) => {
-                          setUsername(text);
-                          if (usernameError) validateUsername(text);
-                        }}
-                        onBlur={() => validateUsername(username)}
-                        autoCapitalize="none"
-                        style={styles.glassInput}
-                      />
-                    </View>
-                    {usernameError ? (
-                      <Text style={styles.errorText}>{usernameError}</Text>
-                    ) : null}
-                  </View>
-                )}
+              {/* Divider */}
+              <View style={styles.dividerContainer}>
+                <View style={styles.dividerLine} />
+                <Text style={styles.dividerText}>or continue with</Text>
+                <View style={styles.dividerLine} />
+              </View>
 
-                {/* Email Input */}
-                <View style={styles.inputWrapper}>
-                  <View style={styles.glassInputContainer}>
-                    <Icon name="email" size={20} color={colors.textMuted} style={styles.inputIcon} />
-                    <TextInput
-                      placeholder="Email"
-                      placeholderTextColor={colors.textMuted}
-                      value={email}
-                      onChangeText={(text) => {
-                        setEmail(text);
-                        if (emailError) validateEmail(text);
-                      }}
-                      onBlur={() => validateEmail(email)}
-                      keyboardType="email-address"
-                      autoCapitalize="none"
-                      returnKeyType="next"
-                      style={styles.glassInput}
-                    />
-                  </View>
-                  {emailError ? (
-                    <Text style={styles.errorText}>{emailError}</Text>
-                  ) : null}
-                </View>
-
-                {/* Password Input */}
-                <View style={styles.inputWrapper}>
-                  <View style={styles.glassInputContainer}>
-                    <Icon name="lock" size={20} color={colors.textMuted} style={styles.inputIcon} />
-                    <TextInput
-                      placeholder="Password"
-                      placeholderTextColor={colors.textMuted}
-                      value={password}
-                      onChangeText={(text) => {
-                        setPassword(text);
-                        if (passwordError) validatePassword(text);
-                      }}
-                      onBlur={() => validatePassword(password)}
-                      secureTextEntry={!showPassword}
-                      returnKeyType={isLoginMode ? "done" : "next"}
-                      onSubmitEditing={isLoginMode ? handleSubmit : undefined}
-                      style={styles.glassInput}
-                    />
-                    <TouchableOpacity
-                      onPress={() => setShowPassword(!showPassword)}
-                      hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                    >
-                      <Icon
-                        name={showPassword ? 'visibility' : 'visibility-off'}
-                        size={20}
-                        color={colors.textMuted}
-                      />
-                    </TouchableOpacity>
-                  </View>
-                  {passwordError ? (
-                    <Text style={styles.errorText}>{passwordError}</Text>
-                  ) : null}
-                </View>
-
-                {/* Confirm Password (Registration only) */}
-                {!isLoginMode && (
-                  <View style={styles.inputWrapper}>
-                    <View style={styles.glassInputContainer}>
-                      <Icon name="lock" size={20} color={colors.textMuted} style={styles.inputIcon} />
-                      <TextInput
-                        placeholder="Confirm Password"
-                        placeholderTextColor={colors.textMuted}
-                        value={confirmPassword}
-                        onChangeText={(text) => {
-                          setConfirmPassword(text);
-                          if (confirmPasswordError) validateConfirmPassword(text);
-                        }}
-                        onBlur={() => validateConfirmPassword(confirmPassword)}
-                        secureTextEntry={!showPassword}
-                        returnKeyType="done"
-                        onSubmitEditing={handleSubmit}
-                        style={styles.glassInput}
-                      />
-                    </View>
-                    {confirmPasswordError ? (
-                      <Text style={styles.errorText}>{confirmPasswordError}</Text>
-                    ) : null}
-                  </View>
-                )}
-
-                {/* Forgot Password (Login only) */}
-                {isLoginMode && (
-                  <TouchableOpacity
-                    onPress={handleForgotPassword}
-                    style={styles.forgotContainer}
-                  >
-                    <Text style={styles.forgotText}>Forgot Password?</Text>
-                  </TouchableOpacity>
-                )}
-
-                {/* Error Message */}
-                {error && (
-                  <View style={styles.errorContainer}>
-                    <Icon name="error-outline" size={16} color={colors.error} />
-                    <Text style={styles.errorMessageText}>{error}</Text>
-                  </View>
-                )}
-
-                {/* Submit Button */}
-                <Animated.View style={{ transform: [{ scale: buttonScaleAnim }] }}>
-                  <TouchableOpacity
-                    onPress={handleSubmit}
-                    disabled={isLoading}
-                    activeOpacity={0.9}
-                  >
-                    <LinearGradient
-                      colors={[colors.fintechGoldLight, colors.fintechGoldDark]}
-                      style={styles.submitButton}
-                      start={{ x: 0, y: 0 }}
-                      end={{ x: 1, y: 0 }}
-                    >
-                      <Text style={styles.submitButtonText}>
-                        {isLoading 
-                          ? (isLoginMode ? 'Signing in...' : 'Creating account...') 
-                          : (isLoginMode ? 'Sign In' : 'Create Account')
-                        }
-                      </Text>
-                    </LinearGradient>
-                  </TouchableOpacity>
-                </Animated.View>
-
-                {/* Social Sign In Divider */}
-                <View style={styles.dividerContainer}>
-                  <View style={styles.dividerLine} />
-                  <Text style={styles.dividerText}>or continue with</Text>
-                  <View style={styles.dividerLine} />
-                </View>
-
-                {/* Social Sign In Buttons */}
-                <View style={styles.socialButtonsContainer}>
-                  {/* Apple Sign In Button */}
-                  {isAppleSignInAvailable && (
-                    <TouchableOpacity
-                      style={styles.socialButton}
-                      onPress={handleAppleSignIn}
-                      disabled={isLoading}
-                      activeOpacity={0.8}
-                    >
-                      <View style={styles.socialButtonContent}>
-                        <Icon name="apple" size={20} color="#000" style={styles.socialIcon} />
-                        <Text style={styles.socialButtonText}>Apple</Text>
-                      </View>
-                    </TouchableOpacity>
-                  )}
-
-                  {/* Google Sign In Button */}
+              {/* Social Buttons */}
+              <View style={styles.socialButtonsRow}>
+                {isAppleSignInAvailable && (
                   <TouchableOpacity
                     style={styles.socialButton}
-                    onPress={handleGoogleSignIn}
+                    onPress={handleAppleSignIn}
                     disabled={isLoading}
                     activeOpacity={0.8}
                   >
-                    <View style={styles.socialButtonContent}>
-                      <Image
-                        source={{ uri: 'https://www.google.com/favicon.ico' }}
-                        style={styles.googleIcon}
-                      />
-                      <Text style={styles.socialButtonText}>Google</Text>
-                    </View>
+                    <Icon name="apple" size={20} color="#000" />
+                    <Text style={styles.socialButtonText}>Apple</Text>
                   </TouchableOpacity>
-                </View>
-
-                {/* Switch Mode Link */}
-                <View style={styles.switchContainer}>
-                  <Text style={styles.switchText}>
-                    {isLoginMode ? "Don't have an account?" : 'Already have an account?'}
-                    {' '}
-                  </Text>
-                  <TouchableOpacity onPress={switchMode} disabled={isLoading}>
-                    <Text style={styles.switchLink}>
-                      {isLoginMode ? 'Sign Up' : 'Sign In'}
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-              </Animated.View>
-
-              {/* Footer */}
-              <View style={styles.footer}>
-                <Text style={styles.footerText}>
-                  By {isLoginMode ? 'signing in' : 'creating an account'}, you agree to our{' '}
-                  <Text 
-                    style={styles.linkText}
-                    onPress={() => navigation.navigate('TermsOfService')}
-                  >
-                    Terms of Service
-                  </Text>
-                  {' and '}
-                  <Text 
-                    style={styles.linkText}
-                    onPress={() => navigation.navigate('PrivacyPolicy')}
-                  >
-                    Privacy Policy
-                  </Text>
-                </Text>
+                )}
+                <TouchableOpacity
+                  style={styles.socialButton}
+                  onPress={handleGoogleSignIn}
+                  disabled={isLoading}
+                  activeOpacity={0.8}
+                >
+                  <Image
+                    source={{ uri: 'https://www.google.com/favicon.ico' }}
+                    style={styles.socialIconImage}
+                  />
+                  <Text style={styles.socialButtonText}>Google</Text>
+                </TouchableOpacity>
               </View>
-            </ScrollView>
+
+              {/* Switch Mode */}
+              <View style={styles.switchContainer}>
+                <Text style={styles.switchText}>
+                  {isLoginMode ? "Don't have an account? " : 'Already have an account? '}
+                </Text>
+                <TouchableOpacity onPress={switchMode} disabled={isLoading}>
+                  <Text style={styles.switchLink}>
+                    {isLoginMode ? 'Sign Up' : 'Sign In'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </Animated.View>
+
+            {/* Footer */}
+            <View style={styles.footer}>
+              <Text style={styles.footerText}>
+                By {isLoginMode ? 'signing in' : 'creating an account'}, you agree to our{' '}
+                <Text style={styles.linkText} onPress={() => navigation.navigate('TermsOfService')}>
+                  Terms of Service
+                </Text>
+                {' and '}
+                <Text style={styles.linkText} onPress={() => navigation.navigate('PrivacyPolicy')}>
+                  Privacy Policy
+                </Text>
+              </Text>
+            </View>
           </KeyboardAvoidingView>
         </SafeAreaView>
       </LinearGradient>
@@ -811,29 +653,10 @@ export default function LoginScreen() {
   );
 }
 
+// ==================== STYLES ====================
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F5F5DC',
-  },
-  // 🎨 Chart Background Styles
-  chartBackground: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    overflow: 'hidden',
-  },
-  chartLine: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    height: 2,
-  },
-  chartLineGradient: {
-    flex: 1,
-    height: '100%',
   },
   gradientContainer: {
     flex: 1,
@@ -844,232 +667,232 @@ const styles = StyleSheet.create({
   keyboardView: {
     flex: 1,
   },
-  // ✅ MODIFIED: Base style with consistent padding
-  scrollContent: {
-    flexGrow: 1,
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.md,      // ✅ NEW: Top padding
-    paddingBottom: spacing.xxxl + spacing.xxl, // ✅ 64 + 48 = 112px bottom padding
-    // minHeight will be applied dynamically to ensure scrollability
-  },
-  headerContainer: {
-    alignItems: 'center',
-    marginTop: 0,                 // ✅ REDUCED: no top margin
-    marginBottom: spacing.xs,     // ✅ REDUCED: minimal bottom margin
-  },
-  // ⚡ Logo Animation Styles - REMOVED (using simple logo now)
+
+  // ==================== LOGO ====================
   logoContainer: {
-    width: 130,                   // ✅ REDUCED: from 140 to 130
-    height: 130,                  // ✅ REDUCED: from 140 to 130
-    justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: spacing.xs,
+    paddingTop: spacing.md,
+    paddingBottom: spacing.sm,
   },
   logoImage: {
-    width: 130,                   // ✅ REDUCED: from 140 to 130
-    height: 130,                  // ✅ REDUCED: from 140 to 130
+    width: 60,
+    height: 60,
+    marginBottom: spacing.xs,
   },
-  // 📝 Tagline Styles with Typewriter
-  sloganContainer: {
-    minHeight: 24,               // ✅ REDUCED: from 30 to 24
-    marginBottom: spacing.xxs,   // ✅ REDUCED: from spacing.xs (8) to spacing.xxs (4)
-  },
-  slogan: {
-    fontSize: typography.fontSize.lg,
+  brandName: {
+    fontSize: typography.fontSize.xl,
     fontWeight: typography.fontWeight.bold,
-    color: '#8B4513',
-    letterSpacing: 1,
-    textTransform: 'uppercase',
-    textAlign: 'center',
-    fontFamily: Platform.OS === 'ios' ? 'San Francisco' : 'Roboto',
-    // Enhanced shadow for luxury feel
-    textShadowColor: 'rgba(0, 0, 0, 0.2)',
-    textShadowOffset: { width: 0, height: 2 },
-    textShadowRadius: 4,
+    color: '#000',
+    letterSpacing: 3,
   },
-  subSloganContainer: {
-    minHeight: 50,
-    paddingHorizontal: spacing.md,
-    justifyContent: 'center',
-    marginBottom: spacing.sm,    // ✅ NEW: Add small bottom margin for spacing
-  },
-  subSlogan: {
-    fontSize: typography.fontSize.md,
-    fontWeight: typography.fontWeight.semibold,
-    color: '#5C4033',
-    letterSpacing: 0.3,
-    lineHeight: typography.fontSize.md * 1.4,
-    textAlign: 'center',
-    fontFamily: Platform.OS === 'ios' ? 'SF Pro Display' : 'Roboto',
-    // Subtle shadow for depth
-    textShadowColor: 'rgba(0, 0, 0, 0.15)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 3,
-  },
-  cursor: {
-    color: '#8B4513',
-    fontWeight: typography.fontWeight.bold,
-  },
-  glassCard: {
-    backgroundColor: 'rgba(255, 255, 255, 0.85)',
-    borderRadius: borderRadius.xxl,
-    borderWidth: 1.5,
-    borderColor: 'rgba(139, 69, 19, 0.3)',
-    padding: spacing.lg,
-    marginBottom: spacing.md, // ✅ ADJUSTED: from spacing.sm (12) to spacing.md (16) - moderate increase
-    ...shadows.xl,
-  },
-  inputWrapper: {
-    marginBottom: spacing.md,
-  },
-  glassInputContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.glassBlur,
-    borderRadius: borderRadius.lg,
-    borderWidth: 1,
-    borderColor: colors.glassWhiteBorder,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-  },
-  inputIcon: {
-    marginRight: spacing.xs,
-  },
-  glassInput: {
-    flex: 1,
-    color: colors.text,
-    fontSize: typography.fontSize.base,
-    fontWeight: typography.fontWeight.medium,
-    padding: 0,
-  },
-  forgotContainer: {
-    alignSelf: 'flex-end',
-    marginBottom: spacing.md,
-  },
-  forgotText: {
+  brandTagline: {
     fontSize: typography.fontSize.sm,
-    fontWeight: typography.fontWeight.semibold,
-    color: colors.fintechGoldLight,
-  },
-  errorContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(239, 68, 68, 0.1)',
-    padding: spacing.sm,
-    borderRadius: borderRadius.md,
-    borderWidth: 1,
-    borderColor: 'rgba(239, 68, 68, 0.3)',
-    marginBottom: spacing.md,
-  },
-  errorText: {
-    fontSize: typography.fontSize.xs,
-    fontWeight: typography.fontWeight.medium,
-    color: colors.error,
-    marginTop: spacing.xxs,
-    marginLeft: spacing.xs,
-  },
-  errorMessageText: {
-    fontSize: typography.fontSize.sm,
-    fontWeight: typography.fontWeight.medium,
-    color: colors.error,
-    marginLeft: spacing.xs,
-    flex: 1,
-  },
-  submitButton: {
-    borderRadius: borderRadius.lg,
-    paddingVertical: spacing.md,
-    marginBottom: spacing.md,
-    ...shadows.goldGlow,
-  },
-  submitButtonText: {
-    fontSize: typography.fontSize.base,
-    fontWeight: typography.fontWeight.bold,
-    color: colors.white,
-    textAlign: 'center',
+    color: '#555',
     letterSpacing: 0.5,
   },
-  switchContainer: {
+
+  // ==================== CAROUSEL ====================
+  carouselContainer: {
+    height: 320,
+  },
+  slide: {
+    width: SLIDE_WIDTH,
+    alignItems: 'center',
+    paddingHorizontal: spacing.lg,
+  },
+  slideIcon: {
+    width: 120,
+    height: 120,
+    marginBottom: spacing.md,
+  },
+  slideTitle: {
+    fontSize: typography.fontSize.xxl,
+    fontWeight: typography.fontWeight.regular,
+    color: '#000',
+    textAlign: 'center',
+  },
+  slideTitleBold: {
+    fontSize: typography.fontSize.xxl,
+    fontWeight: typography.fontWeight.bold,
+    color: '#000',
+    textAlign: 'center',
+    marginBottom: spacing.sm,
+  },
+  slideSubtitle: {
+    fontSize: typography.fontSize.base,
+    color: '#555',
+    textAlign: 'center',
+    lineHeight: typography.fontSize.base * 1.4,
+    paddingHorizontal: spacing.md,
+  },
+
+  // Pagination
+  paginationContainer: {
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
     marginTop: spacing.sm,
   },
-  switchText: {
-    fontSize: typography.fontSize.sm,
-    fontWeight: typography.fontWeight.regular,
-    color: colors.textMuted,
+  paginationDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#ccc',
+    marginHorizontal: 3,
   },
-  switchLink: {
+  paginationDotActive: {
+    backgroundColor: '#000',
+  },
+
+  // ==================== FORM CARD ====================
+  formCard: {
+    flex: 1,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.sm,
+    paddingBottom: 0,
+  },
+  inputWrapper: {
+    marginBottom: spacing.xs,
+  },
+  inputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.7)',
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.9)',
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+    ...shadows.sm,
+  },
+  inputIcon: {
+    marginRight: spacing.xs,
+  },
+  textInput: {
+    flex: 1,
+    fontSize: typography.fontSize.sm,
+    color: colors.text,
+    paddingVertical: 2,
+  },
+  errorText: {
+    fontSize: typography.fontSize.xs,
+    color: colors.error,
+    marginTop: spacing.xxs,
+    marginLeft: spacing.xs,
+  },
+  forgotContainer: {
+    alignSelf: 'flex-end',
+    marginBottom: spacing.xs,
+  },
+  forgotText: {
+    fontSize: typography.fontSize.xs,
+    color: colors.primary,
+    fontWeight: typography.fontWeight.semibold,
+  },
+  errorMessageContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(239, 68, 68, 0.1)',
+    padding: spacing.xs,
+    borderRadius: borderRadius.sm,
+    marginBottom: spacing.xs,
+  },
+  errorMessageText: {
+    fontSize: typography.fontSize.xs,
+    color: colors.error,
+    marginLeft: spacing.xs,
+    flex: 1,
+  },
+  submitButton: {
+    borderRadius: borderRadius.md,
+    paddingVertical: spacing.xs + 2,
+    marginBottom: spacing.xs,
+  },
+  submitButtonText: {
     fontSize: typography.fontSize.sm,
     fontWeight: typography.fontWeight.bold,
-    color: colors.fintechGoldLight,
+    color: '#fff',
+    textAlign: 'center',
   },
-  // Social Sign In Styles
+
+  // Divider
   dividerContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginVertical: spacing.md,
+    marginVertical: spacing.xs,
   },
   dividerLine: {
     flex: 1,
     height: 1,
-    backgroundColor: 'rgba(139, 69, 19, 0.3)',
+    backgroundColor: 'rgba(0, 0, 0, 0.15)',
   },
   dividerText: {
-    fontSize: typography.fontSize.sm,
-    color: '#8B4513',
-    paddingHorizontal: spacing.md,
-    fontWeight: typography.fontWeight.medium,
+    fontSize: typography.fontSize.xs,
+    color: '#555',
+    paddingHorizontal: spacing.xs,
   },
-  socialButtonsContainer: {
+
+  // Social Buttons
+  socialButtonsRow: {
     flexDirection: 'row',
     justifyContent: 'center',
     gap: spacing.md,
-    marginBottom: spacing.md,
+    marginBottom: spacing.xs,
   },
   socialButton: {
     flex: 1,
-    backgroundColor: 'rgba(255, 255, 255, 0.9)',
-    borderRadius: borderRadius.lg,
-    borderWidth: 1,
-    borderColor: 'rgba(139, 69, 19, 0.3)',
-    paddingVertical: spacing.md,
-    paddingHorizontal: spacing.lg,
-    ...shadows.md,
-  },
-  socialButtonContent: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.7)',
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.9)',
+    paddingVertical: spacing.xs,
+    gap: spacing.xs,
+    ...shadows.sm,
   },
-  socialIcon: {
-    marginRight: spacing.sm,
-  },
-  googleIcon: {
-    width: 18,
-    height: 18,
-    marginRight: spacing.sm,
+  socialIconImage: {
+    width: 16,
+    height: 16,
   },
   socialButtonText: {
-    fontSize: typography.fontSize.base,
+    fontSize: typography.fontSize.sm,
     fontWeight: typography.fontWeight.semibold,
-    color: '#333333',
+    color: '#333',
   },
-  // ✅ MODIFIED: Enhanced footer style with more bottom padding
+
+  // Switch Mode
+  switchContainer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: spacing.xxs,
+  },
+  switchText: {
+    fontSize: typography.fontSize.xs,
+    color: '#444',
+  },
+  switchLink: {
+    fontSize: typography.fontSize.xs,
+    fontWeight: typography.fontWeight.bold,
+    color: colors.primary,
+  },
+
+  // Footer
   footer: {
-    paddingTop: spacing.sm,
-    paddingBottom: spacing.xxxl,  // ✅ INCREASED: more bottom padding for safe area
-    paddingHorizontal: spacing.xl,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.xxs,
+    paddingBottom: spacing.xs,
   },
   footerText: {
     fontSize: typography.fontSize.xs,
-    fontWeight: typography.fontWeight.regular,
-    color: colors.textMuted,
+    color: '#444',
     textAlign: 'center',
-    lineHeight: typography.fontSize.xs * 2.0, // ✅ INCREASED: from 1.8 to 2.0 for better spacing
+    lineHeight: typography.fontSize.xs * 1.6,
   },
   linkText: {
-    color: colors.fintechGoldLight,
+    color: colors.primary,
     fontWeight: typography.fontWeight.semibold,
   },
 });

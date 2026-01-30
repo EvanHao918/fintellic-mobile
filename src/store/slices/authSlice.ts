@@ -430,6 +430,47 @@ export const googleSignIn = createAsyncThunk(
   }
 );
 
+// ==================== ONBOARDING THUNKS ====================
+// 获取 onboarding 状态
+export const getOnboardingStatus = createAsyncThunk(
+  'auth/getOnboardingStatus',
+  async () => {
+    try {
+      const response = await apiClient.get<{
+        onboarding_completed: boolean;
+        onboarding_responses: Record<string, any> | null;
+      }>('/users/me/onboarding-status');
+      
+      console.log('Onboarding status:', response);
+      return response;
+    } catch (error) {
+      console.error('Get onboarding status error:', error);
+      throw error;
+    }
+  }
+);
+
+// 完成 onboarding
+export const completeOnboarding = createAsyncThunk(
+  'auth/completeOnboarding',
+  async (data: { responses: Record<string, any>; skipped: boolean }) => {
+    try {
+      const response = await apiClient.post<{
+        success: boolean;
+        message: string;
+        onboarding_completed: boolean;
+      }>('/users/me/complete-onboarding', data);
+      
+      console.log('Complete onboarding response:', response);
+      return response;
+    } catch (error) {
+      console.error('Complete onboarding error:', error);
+      throw error;
+    }
+  }
+);
+// ============================================================
+
 // Create slice
 const authSlice = createSlice({
   name: 'auth',
@@ -605,6 +646,26 @@ const authSlice = createSlice({
         state.refreshToken = null;
         state.error = action.error.message || 'Google Sign In failed';
       });
+
+    // ==================== ONBOARDING CASES ====================
+    // Get onboarding status cases
+    builder
+      .addCase(getOnboardingStatus.fulfilled, (state, action) => {
+        if (state.user) {
+          state.user.onboarding_completed = action.payload.onboarding_completed ? 1 : 0;
+          state.user.onboarding_responses = action.payload.onboarding_responses || undefined;
+        }
+      });
+
+    // Complete onboarding cases
+    builder
+      .addCase(completeOnboarding.fulfilled, (state, action) => {
+        if (state.user && action.payload.success) {
+          state.user.onboarding_completed = 1;
+          console.log('Onboarding completed, user updated');
+        }
+      });
+    // ============================================================
   },
 });
 

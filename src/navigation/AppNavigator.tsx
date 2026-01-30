@@ -1,18 +1,21 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { NavigationContainer, NavigationContainerRef } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
-import { useSelector } from 'react-redux';
-import { RootState } from '../store';
+import { useSelector, useDispatch } from 'react-redux';
+import { View, ActivityIndicator, StyleSheet } from 'react-native';
+import { RootState, AppDispatch } from '../store';
 import LoginScreen from '../screens/LoginScreen';
 import ResetPasswordScreen from '../screens/ResetPasswordScreen';
 import TermsScreen from '../screens/TermsScreen';
 import PrivacyPolicyScreen from '../screens/PrivacyPolicyScreen';
+import PersonalizationScreen from '../screens/PersonalizationScreen';
 import DrawerNavigator from './DrawerNavigator';
 import FilingDetailScreen from '../screens/FilingDetailScreen';
 import CompanyFilingsScreen from '../screens/CompanyFilingsScreen';
 import SubscriptionScreen from '../screens/SubscriptionScreen';
 import { RootStackParamList } from '../types';
 import NotificationService from '../services/NotificationService';
+import { getOnboardingStatus } from '../store/slices/authSlice';
 
 const Stack = createStackNavigator<RootStackParamList>();
 
@@ -30,8 +33,26 @@ const linking = {
 };
 
 export default function AppNavigator() {
+  const dispatch = useDispatch<AppDispatch>();
   const isAuthenticated = useSelector((state: RootState) => state.auth.isAuthenticated);
+  const user = useSelector((state: RootState) => state.auth.user);
   const navigationRef = useRef<NavigationContainerRef<RootStackParamList>>(null);
+  const [isCheckingOnboarding, setIsCheckingOnboarding] = useState(true);
+
+  // 登录后获取 onboarding 状态
+  useEffect(() => {
+    if (isAuthenticated) {
+      setIsCheckingOnboarding(true);
+      dispatch(getOnboardingStatus()).finally(() => {
+        setIsCheckingOnboarding(false);
+      });
+    } else {
+      setIsCheckingOnboarding(false);
+    }
+  }, [isAuthenticated, dispatch]);
+
+  // 检查 onboarding 状态（只有在确认获取到状态后才判断）
+  const needsOnboarding = isAuthenticated && user && user.onboarding_completed === 0;
 
   // Set navigation ref for NotificationService when navigation is ready
   const onNavigationReady = () => {
@@ -83,6 +104,24 @@ export default function AppNavigator() {
               }}
             />
           </>
+        ) : isCheckingOnboarding ? (
+          // 正在检查 onboarding 状态，显示空白或 loading
+          <Stack.Screen 
+            name="Main" 
+            component={() => (
+              <View style={loadingStyles.container}>
+                <ActivityIndicator size="large" color="#F59E0B" />
+              </View>
+            )}
+            options={{ headerShown: false }}
+          />
+        ) : needsOnboarding ? (
+          // 需要完成 onboarding 调查
+          <Stack.Screen 
+            name="Personalization" 
+            component={PersonalizationScreen}
+            options={{ headerShown: false }}
+          />
         ) : (
           <>
             <Stack.Screen name="Main" component={DrawerNavigator} />
@@ -114,3 +153,13 @@ export default function AppNavigator() {
     </NavigationContainer>
   );
 }
+
+// Loading 样式
+const loadingStyles = StyleSheet.create({
+  container: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#FFFBEB',
+  },
+});
