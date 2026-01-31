@@ -16,6 +16,9 @@ export const BRAND_IMAGES = {
   // Text logo (for navigation bars, headers)
   TEXT_LOGO: require('../assets/images/AllSight_text.png'),
   
+  // Header logo (for main app header) - 🎨 NEW
+  HEADER_LOGO: require('../assets/images/onboarding_logo.png'),
+  
   // Onboarding assets - NEW
   ONBOARDING_LOGO: require('../assets/images/onboarding_logo.png'),
   ONBOARDING_STAR: require('../assets/images/onboarding_star.png'),

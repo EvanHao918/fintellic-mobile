@@ -401,7 +401,7 @@ export const HomeScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.beige, // 🎨 修改：使用米色背景
+    backgroundColor: colors.gray100, // 🎨 修改：使用浅灰色背景
   },
   listContent: {
     paddingTop: spacing.sm,

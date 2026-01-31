@@ -19,7 +19,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { DrawerNavigationProp } from '@react-navigation/drawer';
 import { StackNavigationProp } from '@react-navigation/stack';
-import { colors, typography, spacing } from '../theme';
+import { colors, typography, spacing, borderRadius } from '../theme';
 import apiClient from '../api/client';
 import type { RootStackParamList, DrawerParamList } from '../types';
 import { BRAND_IMAGES, BRAND_NAME } from '../constants/brand';
@@ -132,42 +132,26 @@ export const CustomDrawerHeader: React.FC<CustomDrawerHeaderProps> = ({
 
   return (
     <>
-      <LinearGradient
-        colors={[colors.headerGreen, colors.warning, colors.primary]}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 0 }}
-        style={[styles.header, { paddingTop: insets.top + spacing.md }]}
-      >
+      {/* Header - 白色背景 */}
+      <View style={[styles.header, { paddingTop: insets.top + spacing.sm }]}>
         <View style={styles.headerContent}>
-          <View style={styles.leftSection}>
-            {showMenuButton && (
-              <TouchableOpacity
-                onPress={() => (navigation as DrawerNavigationProp<DrawerParamList>).openDrawer()}
-                style={styles.menuButton}
-              >
-                <Icon name="menu" type="material" color={colors.white} size={24} />
-              </TouchableOpacity>
-            )}
-            <Image 
-              source={BRAND_IMAGES.TEXT_LOGO}
-              style={styles.brandLogo}
-              resizeMode="contain"
-            />
-          </View>
+          {/* 左侧：菜单按钮 */}
+          {showMenuButton && (
+            <TouchableOpacity
+              onPress={() => (navigation as DrawerNavigationProp<DrawerParamList>).openDrawer()}
+              style={styles.menuButton}
+            >
+              <Icon name="menu" type="material" color={colors.gray700} size={26} />
+            </TouchableOpacity>
+          )}
           
-          <View style={[styles.searchContainer, { width: searchContainerWidth }]}>
+          {/* 中间：搜索框 */}
+          <View style={styles.searchContainer}>
             <View style={styles.searchInputWrapper}>
-              <Icon
-                name="search"
-                type="material"
-                color={colors.textSecondary}
-                size={20}
-                style={styles.searchIcon}
-              />
               <TextInput
                 style={styles.searchInput}
                 placeholder="Search ticker..."
-                placeholderTextColor={colors.textSecondary}
+                placeholderTextColor={colors.gray400}
                 value={searchQuery}
                 onChangeText={handleSearchChange}
                 autoCapitalize="characters"
@@ -209,22 +193,38 @@ export const CustomDrawerHeader: React.FC<CustomDrawerHeaderProps> = ({
                   }}
                   style={styles.clearButton}
                 >
-                  <Icon name="close" type="material" color={colors.textSecondary} size={18} />
+                  <Icon name="close" type="material" color={colors.gray400} size={18} />
                 </TouchableOpacity>
               )}
+              {/* 搜索图标 */}
+              <TouchableOpacity
+                style={styles.searchIconButton}
+                onPress={() => {
+                  if (searchQuery.trim()) {
+                    performSearch(searchQuery);
+                  }
+                }}
+              >
+                <Icon name="search" type="material" color={colors.primary} size={22} />
+              </TouchableOpacity>
             </View>
           </View>
+          
+          {/* 右侧：Logo */}
+          <Image 
+            source={BRAND_IMAGES.HEADER_LOGO}
+            style={styles.brandLogo}
+            resizeMode="contain"
+          />
         </View>
-      </LinearGradient>
+      </View>
 
       {/* Search results dropdown */}
       {showResults && searchResults.length > 0 && (
         <View style={[
           styles.resultsContainer, 
           { 
-            width: searchContainerWidth,
-            right: spacing.md,
-            top: insets.top + spacing.md + 44 + spacing.md, // header padding + content height + bottom padding
+            top: insets.top + spacing.sm + 50 + spacing.sm,
           }
         ]}>
           <ScrollView
@@ -297,52 +297,51 @@ export const CustomDrawerHeader: React.FC<CustomDrawerHeaderProps> = ({
 
 const styles = StyleSheet.create({
   header: {
+    backgroundColor: colors.white,
     paddingHorizontal: spacing.md,
-    paddingBottom: spacing.md,
+    paddingBottom: spacing.sm,
     zIndex: 1000,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.gray200,
   },
   headerContent: {
     flexDirection: 'row',
     alignItems: 'center',
-    height: 44,
+    height: 50,
     justifyContent: 'space-between',
-  },
-  leftSection: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-    marginRight: spacing.sm,
   },
   menuButton: {
     padding: spacing.xs,
     marginRight: spacing.sm,
   },
   brandLogo: {
-    height: 28,
-    width: 140,
-    backgroundColor: 'transparent',
+    height: 32,
+    width: 32,
+    marginLeft: spacing.sm,
   },
   searchContainer: {
-    minWidth: 160,
-    maxWidth: 280,
+    flex: 1,
+    marginHorizontal: spacing.sm,
   },
   searchInputWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: colors.white,
-    borderRadius: 20,
-    paddingHorizontal: spacing.sm,
-    height: 36,
-  },
-  searchIcon: {
-    marginRight: spacing.xs,
+    borderRadius: borderRadius.lg,
+    borderWidth: 1.5,
+    borderColor: colors.primary,  // 橙色边框
+    paddingLeft: spacing.md,
+    paddingRight: spacing.sm,
+    height: 40,
   },
   searchInput: {
     flex: 1,
     fontSize: typography.fontSize.sm,
     color: colors.text,
     paddingVertical: spacing.xs,
-    fontFamily: typography.fontFamily.regular,
+  },
+  searchIconButton: {
+    padding: spacing.xs,
   },
   searchLoading: {
     marginLeft: spacing.xs,
@@ -353,6 +352,8 @@ const styles = StyleSheet.create({
   },
   resultsContainer: {
     position: 'absolute',
+    left: spacing.md,
+    right: spacing.md,
     backgroundColor: colors.white,
     maxHeight: 400,
     borderRadius: 12,

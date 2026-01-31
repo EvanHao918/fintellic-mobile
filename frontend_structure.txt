@@ -5,16 +5,23 @@ src/
 │   ├── filings.ts
 │   ├── notifications.ts
 │   ├── subscription.ts
+│   ├── watchlist 2.ts
 │   └── watchlist.ts
 ├── assets
 │   └── images
 │       ├── AllSight_Icon.png
+│       ├── AllSight_Logo copy 2.png
 │       ├── AllSight_Logo copy.png
 │       ├── AllSight_Logo.png
 │       ├── AllSight_text.png
+│       ├── AppIcon.png
 │       ├── insightflash_icon.png
 │       ├── insightflash_logo.png
-│       └── insightflash_text.png
+│       ├── insightflash_text.png
+│       ├── onboarding_arrow.png
+│       ├── onboarding_checklist.png
+│       ├── onboarding_logo.png
+│       └── onboarding_star.png
 ├── components
 │   ├── CommentItem.tsx
 │   ├── CustomDrawerHeader.tsx
@@ -33,6 +40,7 @@ src/
 │   │   ├── Current8KDetail.tsx
 │   │   ├── GenericFilingDetail.tsx
 │   │   ├── IPOS1Detail.tsx
+│   │   ├── PaginatedAnalysis 2.tsx
 │   │   ├── PaginatedAnalysis.tsx
 │   │   ├── Quarterly10QDetail.tsx
 │   │   └── index.ts
@@ -42,6 +50,7 @@ src/
 │       ├── VotingModule.tsx
 │       └── index.ts
 ├── constants
+│   ├── brand 2.ts
 │   ├── brand.ts
 │   ├── history.ts
 │   └── historyManager.ts
@@ -61,6 +70,7 @@ src/
 │   ├── HomeScreen.tsx
 │   ├── LoginScreen.tsx
 │   ├── NotificationScreen.tsx
+│   ├── PersonalizationScreen.tsx
 │   ├── PrivacyPolicyScreen.tsx
 │   ├── ProfileScreen.tsx
 │   ├── ResetPasswordScreen.tsx
@@ -76,7 +86,8 @@ src/
 │       ├── authSlice.ts
 │       ├── filingsSlice.ts
 │       ├── notificationSlice.ts
-│       └── subscriptionSlice.ts
+│       ├── subscriptionSlice.ts
+│       └── votesSlice.ts
 ├── theme
 │   └── index.ts
 ├── types
@@ -92,4 +103,4 @@ src/
     ├── storage.ts
     └── textHelpers.ts
 
-18 directories, 75 files
+18 directories, 86 files

@@ -7,6 +7,7 @@
 // 🎯 FIXED: Remove numberOfLines limit on title to allow full display
 // 🛠️ FIXED: TypeScript type errors for optional properties
 // 🎨 MODIFIED: Reduced marginHorizontal from spacing.md (16px) to spacing.xs (8px) for wider cards
+// 🎨 NEW: Added cover image based on filing type
 
 import React from 'react';
 import {
@@ -14,6 +15,7 @@ import {
   StyleSheet,
   TouchableOpacity,
   Animated,
+  Image,
 } from 'react-native';
 import { Text, Icon } from 'react-native-elements';
 import { Filing } from '../types';
@@ -22,6 +24,15 @@ import { getDisplaySummary } from '../utils/textHelpers';
 import themeConfig from '../theme';
 
 const { colors, typography, spacing, borderRadius, shadows, filingTypes, sentiments } = themeConfig;
+
+// 配图映射：根据 filing 类型显示对应图片
+// ⚠️ 确保图片文件存在于 src/assets/images/ 目录
+const FILING_COVER_IMAGES: { [key: string]: any } = {
+  '10-K': require('../assets/images/card_10k.png'),
+  '10-Q': require('../assets/images/card_10q.png'),
+  '8-K': require('../assets/images/card_8k.png'),
+  'S-1': require('../assets/images/card_s1.png'),
+};
 
 interface FilingCardProps {
   filing: Filing;
@@ -147,6 +158,29 @@ export default function FilingCard({
   // 获取显示的摘要文本 - 使用新的优先逻辑
   const summaryText = getDisplaySummary(filing) || 'Processing summary...';
 
+  // 🎨 NEW: 拆分标题和副标题（第一个真正的句号前为大标题，之后为小标题）
+  const getHeadlineAndSubtext = (text: string) => {
+    // 使用正则匹配真正的句号：句号后面跟着空格和大写字母，或者句号在末尾
+    // 排除小数点（数字.数字）的情况
+    const sentenceEndRegex = /\.(?=\s+[A-Z])|\.$/;
+    const match = text.match(sentenceEndRegex);
+    
+    if (match && match.index !== undefined && match.index > 0) {
+      const periodIndex = match.index;
+      return {
+        headline: text.substring(0, periodIndex + 1),
+        subtext: text.substring(periodIndex + 1).trim(),
+      };
+    }
+    // 如果没有找到合适的句号，全部作为标题
+    return {
+      headline: text,
+      subtext: '',
+    };
+  };
+
+  const { headline, subtext } = getHeadlineAndSubtext(summaryText);
+
   // Handle press animations
   const handlePressIn = () => {
     Animated.spring(scaleAnim, {
@@ -174,93 +208,82 @@ export default function FilingCard({
       >
         <View style={styles.card}>
 
-          {/* Compact Header */}
-          <View style={styles.header}>
-            <View style={styles.headerLeft}>
-              <View style={styles.companyRow}>
-                <Text style={styles.ticker}>{filing.company_ticker}</Text>
-                <View style={[styles.filingBadge, { backgroundColor: filingConfig.color }]}>
-                  <Text style={styles.filingBadgeText}>{filingConfig.label}</Text>
-                </View>
-                {/* Add v2 indicator if using unified analysis */}
-                {filing.analysis_version === 'v2' && (
-                  <View style={styles.v2Badge}>
-                    <Icon name="auto-awesome" size={12} color={colors.primary} />
-                  </View>
-                )}
-                {/* ENHANCED: Add enhanced urgency indicator */}
-                {getUrgencyIndicator()}
-              </View>
-              <View style={styles.companyInfoRow}>
-                <Text style={styles.companyName} numberOfLines={1}>
-                  {filing.company_name}
-                </Text>
-                {/* 添加指数标签 */}
-                {(filing.company?.is_sp500 || filing.company?.is_nasdaq100) && (
-                  <View style={styles.indexTagsContainer}>
-                    {filing.company?.is_sp500 && (
-                      <View style={[styles.indexTag, styles.sp500Tag]}>
-                        <Text style={[styles.indexTagText, styles.sp500TagText]}>S&P 500</Text>
-                      </View>
-                    )}
-                    {filing.company?.is_nasdaq100 && (
-                      <View style={[styles.indexTag, styles.nasdaqTag]}>
-                        <Text style={[styles.indexTagText, styles.nasdaqTagText]}>NASDAQ</Text>
-                      </View>
-                    )}
-                  </View>
-                )}
-              </View>
+          {/* Cover Image - 根据 filing 类型显示对应配图 */}
+          {FILING_COVER_IMAGES[filing.form_type] && (
+            <View style={styles.coverImageContainer}>
+              <Image
+                source={FILING_COVER_IMAGES[filing.form_type]}
+                style={styles.coverImage}
+                resizeMode="cover"
+              />
             </View>
-            <View style={styles.headerRight}>
-              <Text style={[styles.date, getTimeIndicatorStyle()]}>{formatDate(filing)}</Text>
-              {/* ENHANCED: Show detection age indicator if available */}
-              {filing.detection_age_minutes !== null && filing.detection_age_minutes !== undefined && (
-                <Text style={styles.detectionIndicator}>
-                  {filing.detection_age_minutes < 60 ? `${filing.detection_age_minutes}m ago` : `${Math.floor(filing.detection_age_minutes / 60)}h ago`}
-                </Text>
-              )}
-            </View>
-          </View>
+          )}
 
-          {/* Main Content */}
-          <View style={styles.content}>
-            {/* Summary with event type - 🎯 FIXED: Removed numberOfLines limit */}
-            <View style={styles.summarySection}>
-              {eventType && filing.form_type === '8-K' && (
-                <Text style={styles.eventLabel}>{eventType}: </Text>
-              )}
-              <Text style={styles.summaryText}>
-                {summaryText}
+          {/* Company Info Row - Ticker + Badges */}
+          <View style={styles.companyInfoSection}>
+            <View style={styles.companyLeftSection}>
+              <Text style={styles.ticker}>{filing.company_ticker}</Text>
+              <Text style={styles.companyName} numberOfLines={1}>
+                {filing.company_name}
               </Text>
             </View>
-
-            {/* ENHANCED: Keywords Section - 显示AI提取的关键词 */}
-            {displayKeywords.length > 0 && (
-              <View style={styles.keywordsRow}>
-                <Icon 
-                  name="local-offer" 
-                  size={10}              // 更小的图标
-                  color={colors.gray400} // 更淡的颜色
-                  style={styles.keywordIcon}
-                />
-                {displayKeywords.map((keyword: string, index: number) => (
-                  <View key={index} style={styles.keywordBadge}>
-                    <Text style={styles.keywordText}>{keyword}</Text>
-                  </View>
-                ))}
-                {filing.tags && filing.tags.length > 3 && (
-                  <Text style={styles.moreKeywordsText}>
-                    +{filing.tags.length - 3} more
-                  </Text>
-                )}
+            <View style={styles.badgesSection}>
+              {/* 上行：指数标签 */}
+              {(filing.company?.is_sp500 || filing.company?.is_nasdaq100) && (
+                <View style={styles.badgesRow}>
+                  {filing.company?.is_sp500 && (
+                    <View style={styles.indexBadgeOutline}>
+                      <Text style={styles.indexBadgeOutlineText}>S&P 500</Text>
+                    </View>
+                  )}
+                  {filing.company?.is_nasdaq100 && (
+                    <View style={[styles.indexBadgeOutline, styles.nasdaqBadgeOutline]}>
+                      <Text style={[styles.indexBadgeOutlineText, styles.nasdaqBadgeOutlineText]}>NASDAQ</Text>
+                    </View>
+                  )}
+                </View>
+              )}
+              {/* 下行：Filing 类型标签 */}
+              <View style={styles.badgesRow}>
+                <View style={[styles.filingBadgeOutline, { backgroundColor: filingConfig.color }]}>
+                  <Text style={styles.filingBadgeOutlineText}>{filingConfig.label}</Text>
+                </View>
               </View>
-            )}
+            </View>
           </View>
 
-          {/* Footer with voting & stats - 🔥 FIXED: Stats in top-right corner */}
+          {/* Main Content - Headline + Subtext */}
+          <View style={styles.content}>
+            {/* 大标题 */}
+            <Text style={styles.headline}>{headline}</Text>
+            
+            {/* 小标题/摘要 */}
+            {subtext ? (
+              <Text style={styles.subtext} numberOfLines={3}>{subtext}</Text>
+            ) : null}
+
+            {/* Keywords + Date Row */}
+            <View style={styles.metaRow}>
+              {displayKeywords.length > 0 && (
+                <View style={styles.keywordsRow}>
+                  {displayKeywords.map((keyword: string, index: number) => (
+                    <View key={index} style={styles.keywordBadge}>
+                      <Text style={styles.keywordText}>{keyword}</Text>
+                    </View>
+                  ))}
+                  {filing.tags && filing.tags.length > 3 && (
+                    <Text style={styles.moreKeywordsText}>
+                      +{filing.tags.length - 3} more
+                    </Text>
+                  )}
+                </View>
+              )}
+            </View>
+          </View>
+
+          {/* Footer with voting & stats */}
           <View style={styles.footer}>
-            {/* 🔥 FIXED: Stats display moved to absolute positioning in top-right */}
+            {/* Stats display in top-right */}
             <View style={styles.footerStatsContainer}>
               <StatsDisplay 
                 viewCount={filing.view_count || 0}
@@ -269,7 +292,7 @@ export default function FilingCard({
               />
             </View>
             
-            {/* 🔥 FIXED: Voting module is now left-aligned */}
+            {/* Voting module */}
             <View style={styles.votingModule}>
               <VotingModule
                 filingId={filing.id}
@@ -298,28 +321,108 @@ const styles = StyleSheet.create({
   },
   card: {
     backgroundColor: colors.white,
-    borderRadius: borderRadius.lg,
+    borderRadius: borderRadius.xl,  // 更大的圆角
     overflow: 'hidden',
     borderWidth: 1,
     borderColor: colors.gray200,
     ...shadows.md,
   },
   
-  // Footer stats positioning - 🔥 FIXED: Now positioned at top-right of footer
+  // Cover Image Styles
+  coverImageContainer: {
+    width: '100%',
+    paddingHorizontal: spacing.sm,
+    paddingTop: spacing.sm,
+  },
+  coverImage: {
+    width: '100%',
+    height: 140,
+    borderRadius: borderRadius.lg,  // 四角圆角
+  },
+  
+  // Company Info Section
+  companyInfoSection: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    paddingHorizontal: spacing.md,
+    paddingTop: spacing.xs,  // 从 sm 减小到 xs
+    paddingBottom: spacing.xxs,  // 从 xs 减小到 xxs
+  },
+  companyLeftSection: {
+    flex: 1,
+    marginRight: spacing.sm,
+  },
+  badgesSection: {
+    flexDirection: 'column',
+    alignItems: 'flex-end',
+    gap: spacing.xxs,
+  },
+  badgesRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+  },
+  
+  // Filing Badge - 实心颜色样式（保留原有辨识度）
+  filingBadgeOutline: {
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 4,
+    borderRadius: borderRadius.md,
+  },
+  filingBadgeOutlineText: {
+    fontSize: 11,
+    fontWeight: typography.fontWeight.semibold,
+    color: colors.white,
+  },
+  
+  // Index Badge - 实心颜色样式（保留原有辨识度）
+  indexBadgeOutline: {
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 4,
+    borderRadius: borderRadius.md,
+    backgroundColor: 'rgba(129, 140, 248, 0.9)',  // S&P 500 紫色
+  },
+  indexBadgeOutlineText: {
+    fontSize: 11,
+    fontWeight: typography.fontWeight.bold,
+    color: '#1E1B4B',
+  },
+  nasdaqBadgeOutline: {
+    backgroundColor: 'rgba(16, 185, 129, 0.9)',  // NASDAQ 绿色
+  },
+  nasdaqBadgeOutlineText: {
+    color: '#14532D',
+  },
+  
+  // Ticker & Company Name
+  ticker: {
+    fontSize: typography.fontSize.base,
+    fontWeight: typography.fontWeight.bold,
+    color: colors.gray900,
+  },
+  companyName: {
+    fontSize: typography.fontSize.sm,
+    color: colors.gray500,
+    fontWeight: typography.fontWeight.regular,
+    marginTop: 2,
+  },
+  
+  // Footer stats positioning
   footerStatsContainer: {
     position: 'absolute',
-    top: spacing.xs, // 🔥 FIXED: Position inside footer, not above it
+    top: spacing.xs,
     right: spacing.sm,
     zIndex: 10,
-    backgroundColor: 'rgba(248, 250, 252, 0.9)', // Match footer background better
-    borderRadius: borderRadius.sm, // 🔥 FIXED: Use borderRadius.sm instead of xs
+    backgroundColor: 'rgba(248, 250, 252, 0.9)',
+    borderRadius: borderRadius.sm,
     paddingHorizontal: spacing.xs,
     paddingVertical: 1,
     borderWidth: 0.5,
     borderColor: colors.gray300,
   },
   
-  // Header Styles - Compact
+  // 保留旧样式以防其他地方使用
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -338,12 +441,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 2,
     flexWrap: 'wrap',
-  },
-  ticker: {
-    fontSize: typography.fontSize.base,
-    fontWeight: typography.fontWeight.bold,
-    color: colors.gray900,
-    marginRight: spacing.xs,
   },
   filingBadge: {
     paddingHorizontal: spacing.xs,
@@ -392,48 +489,6 @@ const styles = StyleSheet.create({
     color: colors.warning,
   },
   
-  companyInfoRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flexWrap: 'wrap',
-  },
-  companyName: {
-    fontSize: typography.fontSize.sm,
-    color: colors.gray600,
-    fontWeight: typography.fontWeight.medium,
-    fontStyle: 'italic',
-    marginRight: spacing.xs,
-  },
-  
-  // 指数标签样式
-  indexTagsContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  indexTag: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: borderRadius.sm,
-    marginRight: 4,
-  },
-  sp500Tag: {
-    backgroundColor: 'rgba(129, 140, 248, 0.85)',
-  },
-  nasdaqTag: {
-    backgroundColor: 'rgba(16, 185, 129, 0.85)',
-  },
-  indexTagText: {
-    fontSize: 10,
-    fontWeight: typography.fontWeight.bold,
-    letterSpacing: 0.3,
-  },
-  sp500TagText: {
-    color: '#1E1B4B',
-  },
-  nasdaqTagText: {
-    color: '#14532D',
-  },
-  
   headerRight: {
     alignItems: 'flex-end',
   },
@@ -463,21 +518,47 @@ const styles = StyleSheet.create({
     fontStyle: 'italic',
   },
   
-  // Content Styles - Dense
+  // Content Styles
   content: {
-    paddingHorizontal: spacing.sm,
-    paddingTop: spacing.xs,
-    paddingBottom: spacing.xxs,  // 减少底部边距
+    paddingHorizontal: spacing.md,
+    paddingTop: spacing.xxs,  // 从 xs 减小
+    paddingBottom: spacing.xs,  // 从 sm 减小
   },
+  
+  // Headline - 大标题
+  headline: {
+    fontSize: typography.fontSize.base,  // 从 lg 减小到 base
+    fontWeight: typography.fontWeight.bold,
+    color: colors.gray900,
+    lineHeight: typography.fontSize.base * 1.35,
+    marginBottom: spacing.xs,
+  },
+  
+  // Subtext - 小标题/摘要
+  subtext: {
+    fontSize: typography.fontSize.sm,
+    fontWeight: typography.fontWeight.regular,
+    color: colors.gray600,
+    lineHeight: typography.fontSize.sm * 1.5,
+    marginBottom: spacing.sm,
+  },
+  
+  // Meta Row - Keywords + Date
+  metaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+  },
+  
+  // 保留旧样式
   summarySection: {
-    marginBottom: spacing.xs,     // 减少摘要下方的边距
+    marginBottom: spacing.xs,
   },
   eventLabel: {
     fontSize: typography.fontSize.sm,
     fontWeight: typography.fontWeight.semibold,
     color: colors.primary,
   },
-  // 🎯 MODIFIED: summaryText now supports multi-line display (removed numberOfLines)
   summaryText: {
     fontSize: typography.fontSize.base,
     color: colors.gray800,
@@ -492,32 +573,28 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     flexWrap: 'wrap',
-    marginTop: -2,                // 负边距，更贴近上方内容
-    marginBottom: 2,              // 极小的底部边距（从4减到2）
+    gap: spacing.xs,
   },
   keywordIcon: {
     marginRight: 4,
-    opacity: 0.6,                 // 图标更淡
+    opacity: 0.6,
   },
   keywordBadge: {
-    backgroundColor: colors.gray100,  // 更淡的灰色背景
-    borderColor: colors.gray200,      // 淡边框 
-    borderWidth: 0.5,                 // 更细的边框 
-    paddingHorizontal: 6,             // 更小的水平内边距
-    paddingVertical: 1,               // 极小的垂直内边距
-    borderRadius: 3,                  // 更小的圆角
-    marginRight: 4,
+    backgroundColor: colors.gray100,
+    borderColor: colors.gray300,
+    borderWidth: 1,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 4,
+    borderRadius: borderRadius.md,
   },
   keywordText: {
-    fontSize: 10,                     // 更小的字体
-    color: colors.gray600,            // 更淡的文字颜色
-    fontWeight: typography.fontWeight.medium,  // 中等粗细的字体
-    letterSpacing: 0.1,
-    lineHeight: 12,                   // 更紧凑的行高
+    fontSize: 11,
+    color: colors.gray600,
+    fontWeight: typography.fontWeight.medium,
   },
   moreKeywordsText: {
-    fontSize: 9,                      // 更小
-    color: colors.gray400,            // 更淡
+    fontSize: 11,
+    color: colors.gray400,
     fontStyle: 'italic',
     marginLeft: 2,
   },
