@@ -219,36 +219,34 @@ export default function FilingCard({
             </View>
           )}
 
-          {/* Company Info Row - Ticker + Badges */}
+          {/* Company Info Section - 新布局 */}
           <View style={styles.companyInfoSection}>
-            <View style={styles.companyLeftSection}>
-              <Text style={styles.ticker}>{filing.company_ticker}</Text>
-              <Text style={styles.companyName} numberOfLines={1}>
-                {filing.company_name}
-              </Text>
-            </View>
-            <View style={styles.badgesSection}>
-              {/* 上行：指数标签 */}
-              {(filing.company?.is_sp500 || filing.company?.is_nasdaq100) && (
-                <View style={styles.badgesRow}>
-                  {filing.company?.is_sp500 && (
-                    <View style={styles.indexBadgeOutline}>
-                      <Text style={styles.indexBadgeOutlineText}>S&P 500</Text>
-                    </View>
-                  )}
-                  {filing.company?.is_nasdaq100 && (
-                    <View style={[styles.indexBadgeOutline, styles.nasdaqBadgeOutline]}>
-                      <Text style={[styles.indexBadgeOutlineText, styles.nasdaqBadgeOutlineText]}>NASDAQ</Text>
-                    </View>
-                  )}
-                </View>
-              )}
-              {/* 下行：Filing 类型标签 */}
-              <View style={styles.badgesRow}>
+            {/* 第一行：Ticker + 报告类型标签（左）| 时间戳（右） */}
+            <View style={styles.companyFirstRow}>
+              <View style={styles.tickerWithBadge}>
+                <Text style={styles.ticker}>{filing.company_ticker}</Text>
                 <View style={[styles.filingBadgeOutline, { backgroundColor: filingConfig.color }]}>
                   <Text style={styles.filingBadgeOutlineText}>{filingConfig.label}</Text>
                 </View>
               </View>
+              <Text style={styles.timestampText}>{formatDate(filing)}</Text>
+            </View>
+            
+            {/* 第二行：公司全名 + 指数标签 */}
+            <View style={styles.companySecondRow}>
+              <Text style={styles.companyName} numberOfLines={1}>
+                {filing.company_name}
+              </Text>
+              {filing.company?.is_sp500 && (
+                <View style={styles.indexBadgeOutline}>
+                  <Text style={styles.indexBadgeOutlineText}>S&P 500</Text>
+                </View>
+              )}
+              {filing.company?.is_nasdaq100 && (
+                <View style={[styles.indexBadgeOutline, styles.nasdaqBadgeOutline]}>
+                  <Text style={[styles.indexBadgeOutlineText, styles.nasdaqBadgeOutlineText]}>NASDAQ</Text>
+                </View>
+              )}
             </View>
           </View>
 
@@ -340,14 +338,28 @@ const styles = StyleSheet.create({
     borderRadius: borderRadius.lg,  // 四角圆角
   },
   
-  // Company Info Section
+  // Company Info Section - 新布局
   companyInfoSection: {
+    paddingHorizontal: spacing.md,
+    paddingTop: spacing.xs,
+    paddingBottom: spacing.xxs,
+  },
+  companyFirstRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    paddingHorizontal: spacing.md,
-    paddingTop: spacing.xs,  // 从 sm 减小到 xs
-    paddingBottom: spacing.xxs,  // 从 xs 减小到 xxs
+    alignItems: 'center',
+    marginBottom: spacing.xxs,
+  },
+  tickerWithBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+  },
+  companySecondRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: spacing.xs,
   },
   companyLeftSection: {
     flex: 1,
@@ -376,6 +388,13 @@ const styles = StyleSheet.create({
     color: colors.white,
   },
   
+  // Timestamp - 无背景框，右对齐
+  timestampText: {
+    fontSize: typography.fontSize.sm,
+    fontWeight: typography.fontWeight.medium,
+    color: colors.gray500,
+  },
+  
   // Index Badge - 实心颜色样式（保留原有辨识度）
   indexBadgeOutline: {
     paddingHorizontal: spacing.sm,
@@ -397,7 +416,7 @@ const styles = StyleSheet.create({
   
   // Ticker & Company Name
   ticker: {
-    fontSize: typography.fontSize.base,
+    fontSize: typography.fontSize.lg,
     fontWeight: typography.fontWeight.bold,
     color: colors.gray900,
   },
@@ -405,7 +424,7 @@ const styles = StyleSheet.create({
     fontSize: typography.fontSize.sm,
     color: colors.gray500,
     fontWeight: typography.fontWeight.regular,
-    marginTop: 2,
+    fontStyle: 'italic',
   },
   
   // Footer stats positioning

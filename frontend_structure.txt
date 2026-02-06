@@ -15,6 +15,14 @@ src/
 │       ├── AllSight_Logo.png
 │       ├── AllSight_text.png
 │       ├── AppIcon.png
+│       ├── card_10k.png
+│       ├── card_10q.png
+│       ├── card_8k.png
+│       ├── card_s1.png
+│       ├── detail_10k.png
+│       ├── detail_10q.png
+│       ├── detail_8k.png
+│       ├── detail_s1.png
 │       ├── insightflash_icon.png
 │       ├── insightflash_logo.png
 │       ├── insightflash_text.png
@@ -103,4 +111,4 @@ src/
     ├── storage.ts
     └── textHelpers.ts
 
-18 directories, 86 files
+18 directories, 94 files

@@ -109,7 +109,7 @@ const CompanyInfoCard: React.FC<CompanyInfoCardProps> = ({
     );
   }
 
-  // 成熟公司 - 显示完整信息（统一纵向排列设计）
+  // 成熟公司 - 显示完整信息（简洁左右对齐设计）
   return (
     <View style={styles.card}>
       {/* 公司身份区域 */}
@@ -132,30 +132,19 @@ const CompanyInfoCard: React.FC<CompanyInfoCardProps> = ({
         </View>
       </View>
 
-      {/* 所有数据项统一纵向排列 */}
+      {/* 所有数据项 - 简洁左右对齐，无图标 */}
       <View style={styles.dataSection}>
         {/* 市值 */}
         {company.market_cap_formatted && (
           <View style={styles.dataRow}>
-            <Icon name="account-balance" size={16} color={colors.textSecondary} />
             <Text style={styles.dataLabel}>Market Cap</Text>
             <Text style={styles.dataValue}>{company.market_cap_formatted}</Text>
-          </View>
-        )}
-        
-        {/* 分析师共识评级 */}
-        {company.analyst_consensus && (
-          <View style={styles.dataRow}>
-            <Icon name="analytics" size={16} color={colors.textSecondary} />
-            <Text style={styles.dataLabel}>Analyst Consensus</Text>
-            <Text style={styles.dataValue}>{company.analyst_consensus}</Text>
           </View>
         )}
         
         {/* 行业信息 */}
         {company.sector && (
           <View style={styles.dataRow}>
-            <Icon name="business" size={16} color={colors.textSecondary} />
             <Text style={styles.dataLabel}>Sector</Text>
             <Text style={styles.dataValue}>{company.sector}</Text>
           </View>
@@ -163,7 +152,6 @@ const CompanyInfoCard: React.FC<CompanyInfoCardProps> = ({
         
         {company.industry && (
           <View style={styles.dataRow}>
-            <Icon name="category" size={16} color={colors.textSecondary} />
             <Text style={styles.dataLabel}>Industry</Text>
             <Text style={styles.dataValue} numberOfLines={1}>{company.industry}</Text>
           </View>
@@ -172,7 +160,6 @@ const CompanyInfoCard: React.FC<CompanyInfoCardProps> = ({
         {/* 地理信息 */}
         {company.headquarters && (
           <View style={styles.dataRow}>
-            <Icon name="location-city" size={16} color={colors.textSecondary} />
             <Text style={styles.dataLabel}>Headquarters</Text>
             <Text style={styles.dataValue}>{company.headquarters}</Text>
           </View>
@@ -181,28 +168,10 @@ const CompanyInfoCard: React.FC<CompanyInfoCardProps> = ({
         {/* 员工信息 */}
         {company.employees && (
           <View style={styles.dataRow}>
-            <Icon name="groups" size={16} color={colors.textSecondary} />
             <Text style={styles.dataLabel}>Employees</Text>
             <Text style={styles.dataValue}>
               {company.employee_size || formatEmployees(company.employees)}
             </Text>
-          </View>
-        )}
-        
-        {/* 其他信息 */}
-        {company.founded_year && (
-          <View style={styles.dataRow}>
-            <Icon name="event-note" size={16} color={colors.textSecondary} />
-            <Text style={styles.dataLabel}>Founded</Text>
-            <Text style={styles.dataValue}>{company.founded_year}</Text>
-          </View>
-        )}
-        
-        {company.exchange && (
-          <View style={styles.dataRow}>
-            <Icon name="show-chart" size={16} color={colors.textSecondary} />
-            <Text style={styles.dataLabel}>Exchange</Text>
-            <Text style={styles.dataValue}>{company.exchange}</Text>
           </View>
         )}
       </View>
@@ -294,27 +263,33 @@ const styles = StyleSheet.create({
     letterSpacing: 0.3,
   },
   
-  // 统一的数据区域
+  // 统一的数据区域 - 简洁设计
   dataSection: {
-    gap: spacing.sm, // 统一间距
+    borderTopWidth: 1,
+    borderTopColor: colors.gray200,
+    paddingTop: spacing.md,
+    marginTop: spacing.sm,
   },
   dataRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
     paddingVertical: spacing.sm,
-    gap: spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.gray100,
   },
   dataLabel: {
     fontSize: adaptiveSizes.infoLabel,
     color: colors.textSecondary,
     fontWeight: typography.fontWeight.medium,
-    minWidth: isSmallPhone ? 80 : 100, // 确保标签对齐
   },
   dataValue: {
     fontSize: adaptiveSizes.infoValue,
     color: colors.text,
     fontWeight: typography.fontWeight.semibold,
+    textAlign: 'right',
     flex: 1,
+    marginLeft: spacing.md,
   },
   
   // IPO相关样式

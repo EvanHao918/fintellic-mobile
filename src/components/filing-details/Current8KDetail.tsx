@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   Linking,
   Platform,
+  Image,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { colors, typography, spacing, borderRadius } from '../../theme';
@@ -15,23 +16,24 @@ import CompanyInfoCard from './CompanyInfoCard';
 import PaginatedAnalysis from './PaginatedAnalysis';
 import { Filing } from '../../types';
 
+// 详情页专用配图
+const FILING_COVER_IMAGES: { [key: string]: any } = {
+  '8-K': require('../../assets/images/detail_8k.png'),
+};
+
 interface Current8KDetailProps {
   filing: Filing;
 }
 
 const Current8KDetail: React.FC<Current8KDetailProps> = ({ filing }) => {
-  const redColor = '#EF4444'; // 8-K signature color
-
   // Format filing time - use precise datetime format consistent with FilingCard
   const formatFilingTime = () => {
-    // Priority: detected_at > display_time > filing_date (same as FilingCard)
     const dateToFormat = filing.detected_at || filing.display_time || filing.filing_date;
     
     if (!dateToFormat) return '';
     
     const date = new Date(dateToFormat);
     
-    // Format as: "2025-12-02 17:21" (YYYY-MM-DD HH:mm)
     const year = date.getFullYear();
     const month = String(date.getMonth() + 1).padStart(2, '0');
     const day = String(date.getDate()).padStart(2, '0');
@@ -41,30 +43,25 @@ const Current8KDetail: React.FC<Current8KDetailProps> = ({ filing }) => {
     return `${year}-${month}-${day} ${hours}:${minutes}`;
   };
 
-  // 统一分析内容 - 唯一的内容区域
+  // 统一分析内容
   const renderUnifiedAnalysis = () => {
     const content = getDisplayAnalysis(filing);
     if (!content) return null;
 
     const isUnified = hasUnifiedAnalysis(filing);
-
-    // 🆕 使用智能分页
     const textPages = smartPaginateText(content, 2000);
 
     return (
       <View style={styles.unifiedSection}>
         <View style={styles.sectionHeader}>
-          <Icon name="flash-on" size={24} color={redColor} />
           <Text style={styles.sectionTitle}>Event Analysis</Text>
           {isUnified && (
             <View style={styles.unifiedBadge}>
-              <Icon name="auto-awesome" size={14} color={redColor} />
-              <Text style={styles.unifiedBadgeText}>AI</Text>
+              <Icon name="auto-awesome" size={14} color={colors.primary} />
             </View>
           )}
         </View>
 
-        {/* 🆕 使用分页组件 */}
         <PaginatedAnalysis pages={textPages} />
       </View>
     );
@@ -72,44 +69,44 @@ const Current8KDetail: React.FC<Current8KDetailProps> = ({ filing }) => {
 
   return (
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
-      {/* 8-K Header */}
-      <View style={[styles.header, { backgroundColor: redColor }]}>
-        <View style={styles.headerIcon}>
-          <Icon name="flash-on" size={32} color={colors.white} />
-        </View>
-        <Text style={styles.headerTitle}>Current Report (8-K)</Text>
-        <Text style={styles.headerSubtitle}>Material Event Disclosure</Text>
-        <View style={styles.urgencyBadge}>
-          <Icon name="schedule" size={16} color={colors.white} />
-          <Text style={styles.urgencyText}>
-            Filed {formatFilingTime()}
-          </Text>
-        </View>
-        {filing.item_type && (
-          <View style={styles.itemBadge}>
-            <Text style={styles.itemText}>Item {filing.item_type}</Text>
-          </View>
-        )}
+      {/* 配图区域 */}
+      <View style={styles.coverImageContainer}>
+        <Image
+          source={FILING_COVER_IMAGES['8-K']}
+          style={styles.coverImage}
+          resizeMode="cover"
+        />
       </View>
 
-      {/* 新增：公司信息卡片 */}
-      <CompanyInfoCard 
-        company={filing.company}
-        filingType={filing.form_type}
-        filingDate={filing.filing_date}
-        accessionNumber={filing.accession_number}
-      />
-      
-      {renderUnifiedAnalysis()}
+      {/* 报告标题区域 */}
+      <View style={styles.reportTitleSection}>
+        <View style={styles.filingDateBadge}>
+          <Text style={styles.filingDateText}>{formatFilingTime()}</Text>
+        </View>
+        <Text style={styles.reportTitle}>Current Report</Text>
+        <Text style={styles.reportSubtitle}>Material Event Disclosure</Text>
+      </View>
+
+      {/* 公司信息卡片 */}
+      <View style={styles.contentContainer}>
+        <CompanyInfoCard 
+          company={filing.company}
+          filingType={filing.form_type}
+          filingDate={filing.filing_date}
+          accessionNumber={filing.accession_number}
+        />
+        
+        {renderUnifiedAnalysis()}
+      </View>
 
       {/* Footer with SEC Link */}
       <View style={styles.footer}>
         <TouchableOpacity
-          style={[styles.secButton, { backgroundColor: redColor }]}
+          style={styles.secButton}
           onPress={() => filing.filing_url && Linking.openURL(filing.filing_url)}
         >
-          <Icon name="launch" size={20} color={colors.white} />
           <Text style={styles.secButtonText}>View Original SEC Filing</Text>
+          <Icon name="launch" size={16} color={colors.gray700} />
         </TouchableOpacity>
       </View>
     </ScrollView>
@@ -119,65 +116,59 @@ const Current8KDetail: React.FC<Current8KDetailProps> = ({ filing }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: colors.gray50,
   },
-  header: {
-    padding: spacing.xl,
-    alignItems: 'center',
+  
+  // 配图区域
+  coverImageContainer: {
+    marginHorizontal: spacing.md,
+    marginTop: spacing.md,
+    borderRadius: borderRadius.lg,
+    overflow: 'hidden',
+    backgroundColor: colors.gray100,
   },
-  headerIcon: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: colors.white + '20',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: spacing.md,
+  coverImage: {
+    width: '100%',
+    height: 200,
   },
-  headerTitle: {
+  
+  // 报告标题区域
+  reportTitleSection: {
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+    backgroundColor: colors.white,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.gray100,
+  },
+  filingDateBadge: {
+    backgroundColor: colors.gray200,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xxs,
+    borderRadius: borderRadius.sm,
+    alignSelf: 'flex-start',
+    marginBottom: spacing.xs,
+  },
+  filingDateText: {
+    fontSize: typography.fontSize.sm,
+    color: colors.textSecondary,
+  },
+  reportTitle: {
     fontSize: typography.fontSize.xl,
     fontWeight: typography.fontWeight.bold,
-    color: colors.white,
-    marginBottom: spacing.xs,
-    fontFamily: typography.fontFamily.serif,
+    color: colors.gray900,
+    marginBottom: spacing.xxs,
   },
-  headerSubtitle: {
-    fontSize: typography.fontSize.sm,
-    color: colors.white + '90',
-    textAlign: 'center',
-    fontFamily: typography.fontFamily.serif,
+  reportSubtitle: {
+    fontSize: typography.fontSize.md,
+    color: colors.textSecondary,
   },
-  urgencyBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.white + '20',
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.xs,
-    borderRadius: borderRadius.xl,
-    marginTop: spacing.sm,
-  },
-  urgencyText: {
-    color: colors.white,
-    fontSize: typography.fontSize.sm,
-    fontWeight: typography.fontWeight.medium,
-    marginLeft: spacing.xs,
-    fontFamily: typography.fontFamily.serif,
-  },
-  itemBadge: {
-    backgroundColor: colors.white + '30',
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.xs,
-    borderRadius: borderRadius.md,
-    marginTop: spacing.xs,
-  },
-  itemText: {
-    color: colors.white,
-    fontSize: typography.fontSize.sm,
-    fontWeight: typography.fontWeight.semibold,
-    fontFamily: typography.fontFamily.serif,
+  
+  // Content Container
+  contentContainer: {
+    paddingVertical: spacing.md,
   },
 
-  // Unified Analysis Section - 唯一的内容区域（现在包含分页）
+  // Unified Analysis Section
   unifiedSection: {
     backgroundColor: colors.background,
     marginBottom: spacing.md,
@@ -188,45 +179,52 @@ const styles = StyleSheet.create({
     marginHorizontal: spacing.md,
     marginTop: spacing.md,
     marginBottom: spacing.sm,
+    paddingBottom: spacing.md,
+    borderBottomWidth: 2,
+    borderBottomColor: colors.gray900,
   },
   sectionTitle: {
-    fontSize: typography.fontSize.lg,
-    fontWeight: typography.fontWeight.semibold,
-    color: colors.text,
-    marginLeft: spacing.sm,
+    fontSize: 20,
+    fontWeight: '700',
+    color: colors.primary,
     flex: 1,
+    letterSpacing: -0.5,
     fontFamily: typography.fontFamily.serif,
   },
   unifiedBadge: {
-    backgroundColor: '#EF4444',
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.primary + '15',
     paddingHorizontal: spacing.sm,
     paddingVertical: spacing.xs,
     borderRadius: borderRadius.sm,
   },
-  unifiedBadgeText: {
-    color: colors.white,
-    fontSize: typography.fontSize.xs,
-    fontWeight: typography.fontWeight.bold,
-    fontFamily: typography.fontFamily.serif,
-  },
 
   // Footer
   footer: {
-    padding: spacing.xl,
+    paddingVertical: spacing.xxl,
+    paddingHorizontal: spacing.lg,
     alignItems: 'center',
+    borderTopWidth: 1,
+    borderTopColor: colors.gray100,
+    backgroundColor: colors.white,
   },
   secButton: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: spacing.md,
     paddingHorizontal: spacing.xl,
-    borderRadius: borderRadius.md,
+    borderRadius: borderRadius.lg,
+    backgroundColor: colors.white,
+    borderWidth: 2,
+    borderColor: colors.gray900,
   },
   secButtonText: {
-    color: colors.white,
-    fontSize: typography.fontSize.md,
-    fontWeight: typography.fontWeight.medium,
-    marginLeft: spacing.sm,
+    color: colors.gray900,
+    fontSize: typography.fontSize.base,
+    fontWeight: typography.fontWeight.semibold,
+    marginRight: spacing.sm,
+    letterSpacing: 0.3,
     fontFamily: typography.fontFamily.serif,
   },
 });

@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   Linking,
   Platform,
+  Image,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { colors, typography, spacing, borderRadius } from '../../theme';
@@ -14,6 +15,11 @@ import { hasUnifiedAnalysis, getDisplayAnalysis, smartPaginateText } from '../..
 import CompanyInfoCard from './CompanyInfoCard';
 import PaginatedAnalysis from './PaginatedAnalysis';
 import { Filing } from '../../types';
+
+// 详情页专用配图
+const FILING_COVER_IMAGES: { [key: string]: any } = {
+  'S-1': require('../../assets/images/detail_s1.png'),
+};
 
 interface IPOS1DetailProps {
   filing: Filing;
@@ -26,16 +32,14 @@ const IPOS1Detail: React.FC<IPOS1DetailProps> = ({ filing }) => {
     }
   };
 
-  // Format filing time - use precise datetime format consistent with FilingCard
+  // Format filing time
   const formatFilingTime = () => {
-    // Priority: detected_at > display_time > filing_date (same as FilingCard)
     const dateToFormat = filing.detected_at || filing.display_time || filing.filing_date;
     
     if (!dateToFormat) return '';
     
     const date = new Date(dateToFormat);
     
-    // Format as: "2025-12-02 17:21" (YYYY-MM-DD HH:mm)
     const year = date.getFullYear();
     const month = String(date.getMonth() + 1).padStart(2, '0');
     const day = String(date.getDate()).padStart(2, '0');
@@ -45,30 +49,25 @@ const IPOS1Detail: React.FC<IPOS1DetailProps> = ({ filing }) => {
     return `${year}-${month}-${day} ${hours}:${minutes}`;
   };
 
-  // 统一分析内容 - 唯一的内容区域
+  // 统一分析内容
   const renderUnifiedAnalysis = () => {
     const content = getDisplayAnalysis(filing);
     if (!content) return null;
 
     const isUnified = hasUnifiedAnalysis(filing);
-
-    // 🆕 使用智能分页
     const textPages = smartPaginateText(content, 2000);
 
     return (
       <View style={styles.unifiedSection}>
         <View style={styles.sectionHeader}>
-          <Icon name="rocket-launch" size={24} color={colors.filingS1} />
           <Text style={styles.sectionTitle}>IPO Registration Analysis</Text>
           {isUnified && (
             <View style={styles.unifiedBadge}>
-              <Icon name="auto-awesome" size={14} color={colors.filingS1} />
-              <Text style={styles.unifiedBadgeText}>AI</Text>
+              <Icon name="auto-awesome" size={14} color={colors.primary} />
             </View>
           )}
         </View>
 
-        {/* 🆕 使用分页组件 */}
         <PaginatedAnalysis pages={textPages} />
       </View>
     );
@@ -76,26 +75,26 @@ const IPOS1Detail: React.FC<IPOS1DetailProps> = ({ filing }) => {
 
   return (
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
-      {/* S-1 Header - 紫色主题 */}
-      <View style={styles.header}>
-        <View style={styles.headerContent}>
-          <View style={styles.headerIcon}>
-            <Icon name="rocket-launch" size={32} color={colors.white} />
-          </View>
-          <View style={styles.headerTextContainer}>
-            <Text style={styles.headerTitle}>IPO Registration</Text>
-            <Text style={styles.headerSubtitle}>Form S-1 Statement</Text>
-            <View style={styles.filingTimeContainer}>
-              <Icon name="schedule" size={16} color={colors.white + '80'} />
-              <Text style={styles.filingTime}>Filed {formatFilingTime()}</Text>
-            </View>
-          </View>
-        </View>
+      {/* 配图区域 */}
+      <View style={styles.coverImageContainer}>
+        <Image
+          source={FILING_COVER_IMAGES['S-1']}
+          style={styles.coverImage}
+          resizeMode="cover"
+        />
       </View>
 
-      {/* Content Container with Company Info Card */}
+      {/* 报告标题区域 */}
+      <View style={styles.reportTitleSection}>
+        <View style={styles.filingDateBadge}>
+          <Text style={styles.filingDateText}>{formatFilingTime()}</Text>
+        </View>
+        <Text style={styles.reportTitle}>IPO Registration</Text>
+        <Text style={styles.reportSubtitle}>Form S-1 Statement</Text>
+      </View>
+
+      {/* 公司信息卡片 */}
       <View style={styles.contentContainer}>
-        {/* CompanyInfoCard会自动检测S-1并显示Pre-IPO徽章 */}
         <CompanyInfoCard 
           company={filing.company}
           filingType={filing.form_type}
@@ -112,8 +111,8 @@ const IPOS1Detail: React.FC<IPOS1DetailProps> = ({ filing }) => {
           style={styles.secButton}
           onPress={openSECFiling}
         >
-          <Icon name="launch" size={20} color={colors.white} />
           <Text style={styles.secButtonText}>View Full S-1 Filing</Text>
+          <Icon name="launch" size={16} color={colors.gray700} />
         </TouchableOpacity>
       </View>
     </ScrollView>
@@ -126,63 +125,48 @@ const styles = StyleSheet.create({
     backgroundColor: colors.gray50,
   },
   
-  // Header - S-1紫色主题
-  header: {
-    backgroundColor: colors.filingS1,
-    paddingTop: spacing.xxl,
-    paddingBottom: spacing.xl,
+  // 配图区域
+  coverImageContainer: {
+    marginHorizontal: spacing.md,
+    marginTop: spacing.md,
+    borderRadius: borderRadius.lg,
+    overflow: 'hidden',
+    backgroundColor: colors.gray100,
+  },
+  coverImage: {
+    width: '100%',
+    height: 200,
+  },
+  
+  // 报告标题区域
+  reportTitleSection: {
     paddingHorizontal: spacing.lg,
-    ...Platform.select({
-      ios: {
-        shadowColor: colors.black,
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.15,
-        shadowRadius: 8,
-      },
-      android: {
-        elevation: 8,
-      },
-    }),
+    paddingVertical: spacing.md,
+    backgroundColor: colors.white,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.gray100,
   },
-  headerContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  headerIcon: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: colors.white + '20',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: spacing.md,
-  },
-  headerTextContainer: {
-    flex: 1,
-  },
-  headerTitle: {
-    fontSize: typography.fontSize.xxl,
-    fontWeight: typography.fontWeight.bold,
-    color: colors.white,
-    marginBottom: spacing.xxs,
-    letterSpacing: 0.3,
-    fontFamily: typography.fontFamily.serif,
-  },
-  headerSubtitle: {
-    fontSize: typography.fontSize.md,
-    color: colors.white + '90',
+  filingDateBadge: {
+    backgroundColor: colors.gray200,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xxs,
+    borderRadius: borderRadius.sm,
+    alignSelf: 'flex-start',
     marginBottom: spacing.xs,
-    fontFamily: typography.fontFamily.serif,
   },
-  filingTimeContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  filingTime: {
+  filingDateText: {
     fontSize: typography.fontSize.sm,
-    color: colors.white + '80',
-    marginLeft: spacing.xs,
-    fontFamily: typography.fontFamily.serif,
+    color: colors.textSecondary,
+  },
+  reportTitle: {
+    fontSize: typography.fontSize.xl,
+    fontWeight: typography.fontWeight.bold,
+    color: colors.gray900,
+    marginBottom: spacing.xxs,
+  },
+  reportSubtitle: {
+    fontSize: typography.fontSize.md,
+    color: colors.textSecondary,
   },
   
   // Content Container
@@ -190,7 +174,7 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.md,
   },
 
-  // Unified Analysis Section（现在包含分页）
+  // Unified Analysis Section
   unifiedSection: {
     backgroundColor: colors.background,
     marginBottom: spacing.md,
@@ -208,8 +192,7 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 20,
     fontWeight: '700',
-    color: colors.gray900,
-    marginLeft: spacing.sm,
+    color: colors.primary,
     flex: 1,
     letterSpacing: -0.5,
     fontFamily: typography.fontFamily.serif,
@@ -217,18 +200,10 @@ const styles = StyleSheet.create({
   unifiedBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.filingS1 + '10',
+    backgroundColor: colors.primary + '15',
     paddingHorizontal: spacing.sm,
     paddingVertical: spacing.xs,
     borderRadius: borderRadius.sm,
-  },
-  unifiedBadgeText: {
-    fontSize: typography.fontSize.xs,
-    color: colors.filingS1,
-    marginLeft: spacing.xxs,
-    fontWeight: typography.fontWeight.medium,
-    letterSpacing: 0.5,
-    fontFamily: typography.fontFamily.serif,
   },
 
   // Footer
@@ -243,27 +218,18 @@ const styles = StyleSheet.create({
   secButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.filingS1,
     paddingVertical: spacing.md,
     paddingHorizontal: spacing.xl,
     borderRadius: borderRadius.lg,
-    ...Platform.select({
-      ios: {
-        shadowColor: colors.filingS1,
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.3,
-        shadowRadius: 8,
-      },
-      android: {
-        elevation: 6,
-      },
-    }),
+    backgroundColor: colors.white,
+    borderWidth: 2,
+    borderColor: colors.gray900,
   },
   secButtonText: {
-    color: colors.white,
-    fontSize: typography.fontSize.md,
+    color: colors.gray900,
+    fontSize: typography.fontSize.base,
     fontWeight: typography.fontWeight.semibold,
-    marginLeft: spacing.sm,
+    marginRight: spacing.sm,
     letterSpacing: 0.3,
     fontFamily: typography.fontFamily.serif,
   },

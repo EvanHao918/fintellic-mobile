@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   Linking,
   Platform,
+  Image,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { colors, typography, spacing, borderRadius } from '../../theme';
@@ -14,6 +15,11 @@ import { hasUnifiedAnalysis, getDisplayAnalysis, smartPaginateText } from '../..
 import CompanyInfoCard from './CompanyInfoCard';
 import PaginatedAnalysis from './PaginatedAnalysis';
 import { Filing } from '../../types';
+
+// 详情页专用配图（与首页卡片配图不同）
+const FILING_COVER_IMAGES: { [key: string]: any } = {
+  '10-Q': require('../../assets/images/detail_10q.png'),
+};
 
 interface Quarterly10QDetailProps {
   filing: Filing;
@@ -57,23 +63,21 @@ const Quarterly10QDetail: React.FC<Quarterly10QDetailProps> = ({ filing }) => {
 
     const isUnified = hasUnifiedAnalysis(filing);
 
-    // 🆕 使用智能分页
+    // 使用智能分页
     const textPages = smartPaginateText(content, 2000);
 
     return (
       <View style={styles.unifiedSection}>
         <View style={styles.sectionHeader}>
-          <Icon name="analytics" size={24} color={colors.primary} />
           <Text style={styles.sectionTitle}>Quarterly Results Analysis</Text>
           {isUnified && (
             <View style={styles.unifiedBadge}>
               <Icon name="auto-awesome" size={14} color={colors.primary} />
-              <Text style={styles.unifiedBadgeText}>AI</Text>
             </View>
           )}
         </View>
 
-        {/* 🆕 使用分页组件 */}
+        {/* 使用分页组件 */}
         <PaginatedAnalysis pages={textPages} />
       </View>
     );
@@ -81,24 +85,25 @@ const Quarterly10QDetail: React.FC<Quarterly10QDetailProps> = ({ filing }) => {
 
   return (
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
-      {/* 10-Q Header - 简约设计 */}
-      <View style={styles.header}>
-        <View style={styles.headerContent}>
-          <View style={styles.headerIcon}>
-            <Icon name="insert-chart" size={28} color={colors.white} />
-          </View>
-          <View style={styles.headerTextContainer}>
-            <Text style={styles.headerTitle}>Quarterly Report</Text>
-            <Text style={styles.headerSubtitle}>{getQuarter()} Financial Results</Text>
-            <View style={styles.filedTimeContainer}>
-              <Icon name="schedule" size={14} color={colors.white + '80'} />
-              <Text style={styles.filedTimeText}>Filed {formatFilingTime()}</Text>
-            </View>
-          </View>
-        </View>
+      {/* 配图区域 */}
+      <View style={styles.coverImageContainer}>
+        <Image
+          source={FILING_COVER_IMAGES['10-Q']}
+          style={styles.coverImage}
+          resizeMode="cover"
+        />
       </View>
 
-      {/* 新增：公司信息卡片 */}
+      {/* 报告标题区域 - 配图下方 */}
+      <View style={styles.reportTitleSection}>
+        <View style={styles.filingDateBadge}>
+          <Text style={styles.filingDateText}>{formatFilingTime()}</Text>
+        </View>
+        <Text style={styles.reportTitle}>Quarterly Report</Text>
+        <Text style={styles.reportSubtitle}>{getQuarter()} Financial Results</Text>
+      </View>
+
+      {/* 公司信息卡片 */}
       <View style={styles.contentContainer}>
         <CompanyInfoCard 
           company={filing.company}
@@ -130,52 +135,48 @@ const styles = StyleSheet.create({
     backgroundColor: colors.gray50,
   },
   
-  // Header - 简约设计
-  header: {
-    backgroundColor: colors.filing10Q,
-    paddingTop: spacing.xxl,
-    paddingBottom: spacing.xl,
+  // 配图区域 - 有外边距和圆角
+  coverImageContainer: {
+    marginHorizontal: spacing.md,
+    marginTop: spacing.md,
+    borderRadius: borderRadius.lg,
+    overflow: 'hidden',
+    backgroundColor: colors.gray100,
+  },
+  coverImage: {
+    width: '100%',
+    height: 200,
+  },
+  
+  // 报告标题区域
+  reportTitleSection: {
     paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+    backgroundColor: colors.white,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.gray100,
   },
-  headerContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  filingDateBadge: {
+    backgroundColor: colors.gray200,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xxs,
+    borderRadius: borderRadius.sm,
+    alignSelf: 'flex-start',
+    marginBottom: spacing.xs,
   },
-  headerIcon: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: colors.white + '20',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: spacing.md,
+  filingDateText: {
+    fontSize: typography.fontSize.sm,
+    color: colors.textSecondary,
   },
-  headerTextContainer: {
-    flex: 1,
-  },
-  headerTitle: {
+  reportTitle: {
     fontSize: typography.fontSize.xl,
     fontWeight: typography.fontWeight.bold,
-    color: colors.white,
-    letterSpacing: 0.3,
-    fontFamily: typography.fontFamily.serif,
+    color: colors.gray900,
+    marginBottom: spacing.xxs,
   },
-  headerSubtitle: {
-    fontSize: typography.fontSize.sm,
-    color: colors.white + '90',
-    marginTop: 2,
-    fontFamily: typography.fontFamily.serif,
-  },
-  filedTimeContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: spacing.xs,
-  },
-  filedTimeText: {
-    fontSize: typography.fontSize.sm,
-    color: colors.white + '80',
-    marginLeft: spacing.xs,
-    fontFamily: typography.fontFamily.serif,
+  reportSubtitle: {
+    fontSize: typography.fontSize.md,
+    color: colors.textSecondary,
   },
   
   // Content Container
@@ -183,7 +184,7 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.md,
   },
 
-  // Unified Analysis Section - 唯一的内容区域（现在包含分页）
+  // Unified Analysis Section - 橙色标题 + 星星图标
   unifiedSection: {
     backgroundColor: colors.background,
     marginBottom: spacing.md,
@@ -201,8 +202,7 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 20,
     fontWeight: '700',
-    color: colors.gray900,
-    marginLeft: spacing.sm,
+    color: colors.primary,  // 橙色
     flex: 1,
     letterSpacing: -0.5,
     fontFamily: typography.fontFamily.serif,
@@ -210,7 +210,7 @@ const styles = StyleSheet.create({
   unifiedBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.primary + '10',
+    backgroundColor: colors.primary + '15',
     paddingHorizontal: spacing.sm,
     paddingVertical: spacing.xs,
     borderRadius: borderRadius.sm,

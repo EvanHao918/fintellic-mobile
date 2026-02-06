@@ -11,6 +11,7 @@ import {
   Platform,
   Alert,
   FlatList,
+  Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
@@ -28,6 +29,7 @@ import CompanyInfoCard from '../components/filing-details/CompanyInfoCard';
 import UpgradePromptModal from '../components/UpgradePromptModal';
 import { getFilingDetailComponent } from '../components/filing-details';
 import { useAddToHistory } from '../hooks/useHistory';
+import { BRAND_IMAGES } from '../constants/brand';
 
 // Route types
 type FilingDetailScreenRouteProp = RouteProp<RootStackParamList, 'FilingDetail'>;
@@ -312,13 +314,17 @@ export default function FilingDetailScreen() {
   if (!filing && showUpgradeModal) {
     return (
       <SafeAreaView style={styles.container} edges={['bottom']}>
-        {/* Header */}
+        {/* Header - 白色背景 */}
         <View style={styles.header}>
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-            <Icon name="arrow-back" size={24} color={colors.text} />
+            <Icon name="arrow-back" size={24} color={colors.gray800} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Filing Details</Text>
-          <View style={styles.headerRight} />
+          <Image 
+            source={BRAND_IMAGES.HEADER_LOGO}
+            style={styles.headerLogo}
+            resizeMode="contain"
+          />
         </View>
 
         {/* Loading placeholder while modal shows */}
@@ -352,13 +358,17 @@ export default function FilingDetailScreen() {
   if (ENABLE_DIFFERENTIATED_DISPLAY && filing) {
     return (
       <SafeAreaView style={styles.container} edges={['bottom']}>
-        {/* Header */}
+        {/* Header - 白色背景 */}
         <View style={styles.header}>
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-            <Icon name="arrow-back" size={24} color={colors.text} />
+            <Icon name="arrow-back" size={24} color={colors.gray800} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Filing Details</Text>
-          <View style={styles.headerRight} />
+          <Image 
+            source={BRAND_IMAGES.HEADER_LOGO}
+            style={styles.headerLogo}
+            resizeMode="contain"
+          />
         </View>
 
         {/* Differentiated Content */}
@@ -553,10 +563,10 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.md,
-    paddingTop: Platform.OS === 'ios' ? 50 : spacing.md,  // ✅ 添加顶部安全区域
-    backgroundColor: '#F5F5DC',
+    paddingTop: Platform.OS === 'ios' ? 50 : spacing.md,
+    backgroundColor: colors.white,
     borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    borderBottomColor: colors.gray200,
   },
   backButton: {
     padding: spacing.xs,
@@ -564,7 +574,11 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: typography.fontSize.lg,
     fontWeight: typography.fontWeight.semibold,
-    color: colors.text,
+    color: colors.gray900,
+  },
+  headerLogo: {
+    width: 32,
+    height: 32,
   },
   headerRight: {
     width: 40,

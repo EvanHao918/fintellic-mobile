@@ -401,10 +401,11 @@ export default function LoginScreen() {
   return (
     <View style={styles.container}>
       <LinearGradient
-        colors={currentGradientColors}
+        colors={['#FFFFFF', '#FFFFFF', currentGradientColors[1], currentGradientColors[2]]}
         style={styles.gradientContainer}
         start={{ x: 0.5, y: 0 }}
         end={{ x: 0.5, y: 1 }}
+        locations={[0, 0.5, 0.75, 1]}
       >
         <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
           <KeyboardAvoidingView
@@ -701,22 +702,24 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
   },
   slideIcon: {
-    width: 120,
-    height: 120,
+    width: 140,
+    height: 140,
     marginBottom: spacing.md,
   },
   slideTitle: {
-    fontSize: typography.fontSize.xxl,
+    fontSize: typography.fontSize.xl,
     fontWeight: typography.fontWeight.regular,
     color: '#000',
     textAlign: 'center',
+    fontFamily: 'Futura',
   },
   slideTitleBold: {
-    fontSize: typography.fontSize.xxl,
+    fontSize: typography.fontSize.xl,
     fontWeight: typography.fontWeight.bold,
     color: '#000',
     textAlign: 'center',
-    marginBottom: spacing.sm,
+    marginBottom: spacing.xs,
+    fontFamily: 'Futura',
   },
   slideSubtitle: {
     fontSize: typography.fontSize.base,
