@@ -16,6 +16,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.hermespeed.app",
+      "buildNumber": "8",
       "config": {
         "usesNonExemptEncryption": false
       },
