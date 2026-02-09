@@ -257,7 +257,7 @@ export default function FilingCard({
             
             {/* 小标题/摘要 */}
             {subtext ? (
-              <Text style={styles.subtext} numberOfLines={3}>{subtext}</Text>
+              <Text style={styles.subtext}>{subtext}</Text>
             ) : null}
 
             {/* Keywords + Date Row */}
@@ -551,15 +551,17 @@ const styles = StyleSheet.create({
     color: colors.gray900,
     lineHeight: typography.fontSize.base * 1.35,
     marginBottom: spacing.xs,
+    fontFamily: 'Times New Roman',
   },
   
   // Subtext - 小标题/摘要
   subtext: {
-    fontSize: typography.fontSize.sm,
+    fontSize: typography.fontSize.xs,
     fontWeight: typography.fontWeight.regular,
     color: colors.gray600,
-    lineHeight: typography.fontSize.sm * 1.5,
+    lineHeight: typography.fontSize.xs * 1.5,
     marginBottom: spacing.sm,
+    fontFamily: 'Times New Roman',
   },
   
   // Meta Row - Keywords + Date

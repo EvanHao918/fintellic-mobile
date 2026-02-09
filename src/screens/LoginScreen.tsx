@@ -634,19 +634,7 @@ export default function LoginScreen() {
               </View>
             </Animated.View>
 
-            {/* Footer */}
-            <View style={styles.footer}>
-              <Text style={styles.footerText}>
-                By {isLoginMode ? 'signing in' : 'creating an account'}, you agree to our{' '}
-                <Text style={styles.linkText} onPress={() => navigation.navigate('TermsOfService')}>
-                  Terms of Service
-                </Text>
-                {' and '}
-                <Text style={styles.linkText} onPress={() => navigation.navigate('PrivacyPolicy')}>
-                  Privacy Policy
-                </Text>
-              </Text>
-            </View>
+
           </KeyboardAvoidingView>
         </SafeAreaView>
       </LinearGradient>
@@ -882,20 +870,4 @@ const styles = StyleSheet.create({
     color: colors.primary,
   },
 
-  // Footer
-  footer: {
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.xxs,
-    paddingBottom: spacing.xs,
-  },
-  footerText: {
-    fontSize: typography.fontSize.xs,
-    color: '#444',
-    textAlign: 'center',
-    lineHeight: typography.fontSize.xs * 1.6,
-  },
-  linkText: {
-    color: colors.primary,
-    fontWeight: typography.fontWeight.semibold,
-  },
 });
