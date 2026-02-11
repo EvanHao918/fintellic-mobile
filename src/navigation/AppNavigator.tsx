@@ -15,6 +15,7 @@ import CompanyFilingsScreen from '../screens/CompanyFilingsScreen';
 import SubscriptionScreen from '../screens/SubscriptionScreen';
 import { RootStackParamList } from '../types';
 import NotificationService from '../services/NotificationService';
+import SingularService from '../services/SingularService';
 import { getOnboardingStatus } from '../store/slices/authSlice';
 
 const Stack = createStackNavigator<RootStackParamList>();
@@ -38,6 +39,19 @@ export default function AppNavigator() {
   const user = useSelector((state: RootState) => state.auth.user);
   const navigationRef = useRef<NavigationContainerRef<RootStackParamList>>(null);
   const [isCheckingOnboarding, setIsCheckingOnboarding] = useState(true);
+
+  // 🆕 Initialize Singular SDK on app start
+  useEffect(() => {
+    const initializeSingular = async () => {
+      try {
+        await SingularService.init();
+      } catch (error) {
+        console.error('Failed to initialize Singular SDK:', error);
+      }
+    };
+    
+    initializeSingular();
+  }, []);
 
   // 登录后获取 onboarding 状态
   useEffect(() => {

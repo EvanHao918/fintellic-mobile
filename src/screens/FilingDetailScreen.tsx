@@ -30,6 +30,7 @@ import UpgradePromptModal from '../components/UpgradePromptModal';
 import { getFilingDetailComponent } from '../components/filing-details';
 import { useAddToHistory } from '../hooks/useHistory';
 import { BRAND_IMAGES } from '../constants/brand';
+import SingularService from '../services/SingularService';
 
 // Route types
 type FilingDetailScreenRouteProp = RouteProp<RootStackParamList, 'FilingDetail'>;
@@ -115,6 +116,13 @@ export default function FilingDetailScreen() {
       const filingData = await getFilingById(filingId.toString());
       setFiling(filingData);
       
+      // Track ViewContent event
+      SingularService.trackViewContent({
+        filingId: filingId.toString(),
+        companyName: filingData.company?.name || 'Unknown',
+        formType: filingData.form_type
+      });
+      
       // 🆕 如果有公司ticker，加载公司信息
       if (filingData?.company?.ticker) {
         await loadCompanyInfo(filingData.company.ticker);
@@ -138,6 +146,12 @@ export default function FilingDetailScreen() {
       if (error.isLimitError) {
         setLimitInfo(error.limitInfo);
         setShowUpgradeModal(true);
+        
+        // Track PaywallHit event
+        SingularService.trackPaywallHit({
+          viewsToday: error.limitInfo?.views_today || 0,
+          dailyLimit: error.limitInfo?.daily_limit || 3
+        });
       } else {
         Alert.alert('Error', 'Failed to load filing details');
       }

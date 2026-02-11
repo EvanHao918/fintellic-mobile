@@ -32,6 +32,7 @@ import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RootStackParamList } from '../types';
 import { BRAND_IMAGES, BRAND_NAME, BRAND_TAGLINES, ONBOARDING_SLIDES } from '../constants/brand';
+import SingularService from '../services/SingularService';
 
 const { colors, typography, spacing, borderRadius, shadows } = themeConfig;
 const { width } = Dimensions.get('window');
@@ -170,6 +171,12 @@ export default function LoginScreen() {
     try {
       console.log('📤 Sending Google token to backend...');
       const result = await dispatch(googleSignIn({ accessToken })).unwrap();
+      
+      // Track Signup event if this is a new user
+      if (result.is_new_user) {
+        SingularService.trackSignup('google');
+      }
+      
       console.log('✅ Google sign in complete:', result);
     } catch (error: any) {
       console.error('❌ Google sign in error:', error);
@@ -303,6 +310,10 @@ export default function LoginScreen() {
           password, 
           username: username.trim() 
         })).unwrap();
+        
+        // Track Signup event
+        SingularService.trackSignup('email');
+        
         Alert.alert('Registration Successful', `Your account has been created. Welcome to ${BRAND_NAME}!`);
       }
     } catch (err: any) {
@@ -353,13 +364,18 @@ export default function LoginScreen() {
         fullName = parts.length > 0 ? parts.join(' ') : undefined;
       }
 
-      await dispatch(appleSignIn({
+      const result = await dispatch(appleSignIn({
         identityToken: credential.identityToken!,
         authorizationCode: credential.authorizationCode || undefined,
         fullName,
         givenName: credential.fullName?.givenName || undefined,
         familyName: credential.fullName?.familyName || undefined,
       })).unwrap();
+
+      // Track Signup event if this is a new user
+      if (result.is_new_user) {
+        SingularService.trackSignup('apple');
+      }
 
       console.log('Apple Sign In successful');
     } catch (error: any) {

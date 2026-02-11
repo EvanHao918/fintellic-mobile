@@ -22,6 +22,7 @@ import RNIap, {
 } from 'react-native-iap';
 import { SubscriptionType, ALLSIGHT_PRODUCT_CONFIG } from '../types/subscription';
 import apiClient from '../api/client';
+import SingularService from './SingularService';
 
 class IAPService {
   private purchaseUpdateSubscription: EmitterSubscription | null = null;
@@ -381,6 +382,32 @@ class IAPService {
       };
 
       const response = await apiClient.post(endpoint, data);
+      
+      // Track Subscription event if verification succeeds
+      if (response.success === true) {
+        // Extract price from product with type guards
+        const product = this.products.find(p => p.productId === purchase.productId);
+        let price = 0;
+        let currency = 'USD';
+        
+        if (product) {
+          // iOS uses Product type which has price and currency
+          if ('price' in product) {
+            price = parseFloat(product.price);
+          }
+          if ('currency' in product) {
+            currency = product.currency;
+          }
+        }
+        
+        SingularService.trackSubscription({
+          productId: purchase.productId,
+          price: price,
+          currency: currency,
+          platform: Platform.OS as 'ios' | 'android'
+        });
+      }
+      
       return response.success === true;
     } catch (error) {
       console.error(`Verification failed (attempt ${retryCount + 1}):`, error);
