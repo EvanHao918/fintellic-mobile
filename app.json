@@ -88,15 +88,7 @@
         }
       ],
       "react-native-iap",
-      "expo-apple-authentication",
-      [
-        "expo-build-properties",
-        {
-          "ios": {
-            "useFrameworks": "static"
-          }
-        }
-      ]
+      "expo-apple-authentication"
     ],
     "extra": {
       "eas": {
