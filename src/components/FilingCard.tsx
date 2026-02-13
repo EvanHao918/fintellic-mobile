@@ -26,12 +26,39 @@ import themeConfig from '../theme';
 const { colors, typography, spacing, borderRadius, shadows, filingTypes, sentiments } = themeConfig;
 
 // 配图映射：根据 filing 类型显示对应图片
-// ⚠️ 确保图片文件存在于 src/assets/images/ 目录
-const FILING_COVER_IMAGES: { [key: string]: any } = {
-  '10-K': require('../assets/images/card_10k.png'),
-  '10-Q': require('../assets/images/card_10q.png'),
-  '8-K': require('../assets/images/card_8k.png'),
-  'S-1': require('../assets/images/card_s1.png'),
+// 每种类型可以有1-2张图：_1.png (主图，必须) 和 _2.png (副图，可选)
+// 使用filing ID的伪随机，确保同一filing始终显示相同的图（不会每次刷新都变）
+const FILING_COVER_IMAGES: { [key: string]: { primary: any; secondary?: any } } = {
+  '10-K': {
+    primary: require('../assets/images/card_10k_1.png'),
+    secondary: require('../assets/images/card_10k_2.png'),  // 如果没有副图可以注释掉
+  },
+  '10-Q': {
+    primary: require('../assets/images/card_10q_1.png'),
+    secondary: require('../assets/images/card_10q_2.png'),
+  },
+  '8-K': {
+    primary: require('../assets/images/card_8k_1.png'),
+    secondary: require('../assets/images/card_8k_2.png'),
+  },
+  'S-1': {
+    primary: require('../assets/images/card_s1_1.png'),
+    secondary: require('../assets/images/card_s1_2.png'),
+  },
+};
+
+// 伪随机选择图片：基于filing ID决定显示主图还是副图（约20%显示副图）
+// 同一个filing每次都显示相同的图片，不会因为刷新而改变
+const getFilingCoverImage = (filingType: string, filingId: number) => {
+  const images = FILING_COVER_IMAGES[filingType];
+  if (!images || !images.primary) return null;
+  
+  // 如果没有副图，直接返回主图
+  if (!images.secondary) return images.primary;
+  
+  // 使用filing ID的模运算实现伪随机：每5个filing中约1个显示副图
+  const useSecondary = (filingId % 5) === 0;  // ID能被5整除时显示副图（20%概率）
+  return useSecondary ? images.secondary : images.primary;
 };
 
 interface FilingCardProps {
@@ -208,11 +235,11 @@ export default function FilingCard({
       >
         <View style={styles.card}>
 
-          {/* Cover Image - 根据 filing 类型显示对应配图 */}
+          {/* Cover Image - 根据 filing 类型显示对应配图（伪随机主副图） */}
           {FILING_COVER_IMAGES[filing.form_type] && (
             <View style={styles.coverImageContainer}>
               <Image
-                source={FILING_COVER_IMAGES[filing.form_type]}
+                source={getFilingCoverImage(filing.form_type, filing.id)}
                 style={styles.coverImage}
                 resizeMode="cover"
               />
@@ -334,7 +361,7 @@ const styles = StyleSheet.create({
   },
   coverImage: {
     width: '100%',
-    height: 140,
+    height: 180,  // 增加高度，给图片更多空间
     borderRadius: borderRadius.lg,  // 四角圆角
   },
   
@@ -556,10 +583,10 @@ const styles = StyleSheet.create({
   
   // Subtext - 小标题/摘要
   subtext: {
-    fontSize: typography.fontSize.xs,
+    fontSize: typography.fontSize.sm,
     fontWeight: typography.fontWeight.regular,
     color: colors.gray600,
-    lineHeight: typography.fontSize.xs * 1.5,
+    lineHeight: typography.fontSize.sm * 1.5,
     marginBottom: spacing.sm,
     fontFamily: 'Times New Roman',
   },
