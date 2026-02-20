@@ -171,7 +171,7 @@ export default function NotificationScreen({}: NotificationScreenProps) {
     <View style={[styles.settingRow, disabled && styles.disabledRow]}>
       <View style={styles.settingLeft}>
         <View style={styles.iconContainer}>
-          <Icon name={iconName} size={24} color={disabled ? colors.gray400 : colors.primary} />
+          <Icon name={iconName} size={24} color={disabled ? colors.gray400 : colors.gray500} />
         </View>
         <View style={styles.settingText}>
           <Text style={[styles.settingTitle, disabled && styles.disabledText]}>
@@ -186,8 +186,8 @@ export default function NotificationScreen({}: NotificationScreenProps) {
         value={value}
         onValueChange={onToggle}
         disabled={disabled}
-        trackColor={{ false: colors.gray300, true: colors.primary + '40' }}
-        thumbColor={value ? colors.primary : colors.gray400}
+        trackColor={{ false: '#E5E7EB', true: '#10B981' }}
+        thumbColor={'#FFFFFF'}
       />
     </View>
   );
@@ -279,7 +279,7 @@ export default function NotificationScreen({}: NotificationScreenProps) {
       >
         {/* Main Settings Section */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>NOTIFICATION SETTINGS</Text>
+          <Text style={styles.sectionTitle}>Notification Preferences</Text>
           
           {renderSettingItem(
             'Push Notifications',
@@ -287,7 +287,7 @@ export default function NotificationScreen({}: NotificationScreenProps) {
             settings.notification_enabled,
             () => updateSetting('notification_enabled', !settings.notification_enabled),
             false,
-            'notifications'
+            'notifications-none'
           )}
 
           {renderSettingItem(
@@ -296,33 +296,30 @@ export default function NotificationScreen({}: NotificationScreenProps) {
             settings.watchlist_only,
             () => updateSetting('watchlist_only', !settings.watchlist_only),
             !settings.notification_enabled,
-            'star'
+            'bookmark-border'
           )}
         </View>
 
         {/* Watchlist Status Card */}
         <View style={styles.watchlistCard}>
-          <View style={styles.watchlistInfo}>
-            <Icon name="bookmark" size={24} color={colors.primary} />
-            <View style={styles.watchlistText}>
-              <Text style={styles.watchlistTitle}>
-                {watchlistLoading ? (
-                  <View style={styles.loadingRow}>
-                    <ActivityIndicator size="small" color={colors.primary} />
-                    <Text style={[styles.watchlistTitle, { marginLeft: 8 }]}>
-                      Loading watchlist...
-                    </Text>
-                  </View>
-                ) : (
-                  `Following ${watchlistCount} companies`
-                )}
-              </Text>
-              <Text style={styles.watchlistDescription}>
-                {settings.watchlist_only 
-                  ? 'Only receiving notifications for these companies'
-                  : 'Receiving notifications for all companies'}
-              </Text>
-            </View>
+          <View style={styles.watchlistText}>
+            <Text style={styles.watchlistTitle}>
+              {watchlistLoading ? (
+                <View style={styles.loadingRow}>
+                  <ActivityIndicator size="small" color={colors.primary} />
+                  <Text style={[styles.watchlistTitle, { marginLeft: 8 }]}>
+                    Loading watchlist...
+                  </Text>
+                </View>
+              ) : (
+                `Following ${watchlistCount} companies`
+              )}
+            </Text>
+            <Text style={styles.watchlistDescription}>
+              {settings.watchlist_only 
+                ? 'Only receiving notifications for these companies'
+                : 'Receiving notifications for all companies'}
+            </Text>
           </View>
           <TouchableOpacity 
             style={styles.manageButton}
@@ -335,7 +332,7 @@ export default function NotificationScreen({}: NotificationScreenProps) {
 
         {/* Filing Types Section */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>FILING TYPES</Text>
+          <Text style={styles.sectionTitleCenter}>FILING TYPES</Text>
           
           {renderSettingItem(
             'Annual Reports (10-K)',
@@ -351,15 +348,15 @@ export default function NotificationScreen({}: NotificationScreenProps) {
             settings.filing_10q,
             () => updateSetting('filing_10q', !settings.filing_10q),
             !settings.notification_enabled,
-            'event-note'
+            'description'
           )}
           {renderSettingItem(
             'Current Reports (8-K)',
-            'Major events and announcements',
+            'Major events',
             settings.filing_8k,
             () => updateSetting('filing_8k', !settings.filing_8k),
             !settings.notification_enabled,
-            'warning'
+            'description'
           )}
           {renderSettingItem(
             'IPO Filings (S-1)',
@@ -367,42 +364,7 @@ export default function NotificationScreen({}: NotificationScreenProps) {
             settings.filing_s1,
             () => updateSetting('filing_s1', !settings.filing_s1),
             !settings.notification_enabled,
-            'launch'
-          )}
-        </View>
-
-        {/* Notification History Section */}
-        <View style={styles.section}>
-          <View style={styles.historyHeader}>
-            <Text style={styles.sectionTitle}>RECENT NOTIFICATIONS</Text>
-            {loading.history && (
-              <ActivityIndicator size="small" color={colors.primary} />
-            )}
-          </View>
-          
-          {errors.history && (
-            <View style={styles.errorBanner}>
-              <Icon name="warning" size={16} color={colors.warning} />
-              <Text style={styles.errorBannerText}>Failed to load notification history</Text>
-            </View>
-          )}
-          
-          {history.length > 0 ? (
-            <View style={styles.historyList}>
-              {history.slice(0, 10).map((item, index) => (
-                <React.Fragment key={item.id || index}>
-                  {renderHistoryItem({ item })}
-                </React.Fragment>
-              ))}
-            </View>
-          ) : (
-            <View style={styles.emptyHistory}>
-              <Icon name="notifications-none" size={48} color={colors.gray300} />
-              <Text style={styles.emptyHistoryText}>No notifications yet</Text>
-              <Text style={styles.emptyHistoryDescription}>
-                You'll see your notification history here
-              </Text>
-            </View>
+            'description'
           )}
         </View>
 
@@ -411,7 +373,7 @@ export default function NotificationScreen({}: NotificationScreenProps) {
           style={styles.settingsButton}
           onPress={openNotificationSettings}
         >
-          <Icon name="settings" size={20} color={colors.primary} />
+          <Icon name="settings" size={20} color="#111827" />
           <Text style={styles.settingsButtonText}>Open Device Settings</Text>
         </TouchableOpacity>
 
@@ -434,7 +396,7 @@ export default function NotificationScreen({}: NotificationScreenProps) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: '#FFFFFF',
   },
   scrollView: {
     flex: 1,
@@ -476,21 +438,31 @@ const styles = StyleSheet.create({
     fontWeight: typography.fontWeight.semibold,
   },
   section: {
-    marginBottom: spacing.xl,
+    marginBottom: spacing.lg,
   },
   sectionTitle: {
     fontSize: typography.fontSize.sm,
     fontWeight: typography.fontWeight.bold,
-    color: colors.textSecondary,
+    color: '#111827',
     marginBottom: spacing.md,
     marginHorizontal: spacing.md,
     letterSpacing: 0.5,
+    textAlign: 'center',
+  },
+  sectionTitleCenter: {
+    fontSize: typography.fontSize.sm,
+    fontWeight: typography.fontWeight.bold,
+    color: '#111827',
+    marginBottom: spacing.md,
+    marginHorizontal: spacing.md,
+    letterSpacing: 0.5,
+    textAlign: 'center',
   },
   settingRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: colors.white,
+    backgroundColor: '#F3F4F6',
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.md,
     marginHorizontal: spacing.md,
@@ -516,8 +488,8 @@ const styles = StyleSheet.create({
   },
   settingTitle: {
     fontSize: typography.fontSize.base,
-    fontWeight: typography.fontWeight.medium,
-    color: colors.text,
+    fontWeight: typography.fontWeight.semibold,
+    color: '#111827',
     marginBottom: 2,
   },
   settingDescription: {
@@ -528,22 +500,17 @@ const styles = StyleSheet.create({
     color: colors.gray400,
   },
   watchlistCard: {
-    backgroundColor: colors.white,
+    backgroundColor: '#FFF7ED',
     marginHorizontal: spacing.md,
     marginBottom: spacing.lg,
-    padding: spacing.md,
-    borderRadius: borderRadius.lg,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: borderRadius.md,
     borderWidth: 1,
-    borderColor: colors.primary + '20',
-  },
-  watchlistInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: spacing.sm,
+    borderColor: '#F97316',
   },
   watchlistText: {
-    flex: 1,
-    marginLeft: spacing.sm,
+    marginBottom: spacing.xs,
   },
   watchlistTitle: {
     fontSize: typography.fontSize.base,
@@ -562,7 +529,7 @@ const styles = StyleSheet.create({
   manageButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    alignSelf: 'flex-end',
+    alignSelf: 'flex-start',
     paddingVertical: spacing.xs,
   },
   manageButtonText: {
@@ -580,10 +547,10 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.md,
     borderRadius: borderRadius.md,
     borderWidth: 1,
-    borderColor: colors.primary,
+    borderColor: '#111827',
   },
   settingsButtonText: {
-    color: colors.primary,
+    color: '#111827',
     fontSize: typography.fontSize.base,
     fontWeight: typography.fontWeight.medium,
     marginLeft: spacing.sm,

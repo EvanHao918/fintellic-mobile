@@ -215,14 +215,14 @@ export const selectCurrentMonthlyPrice = (state: { subscription: SubscriptionSta
  * 获取当前年付价格
  */
 export const selectCurrentYearlyPrice = (state: { subscription: SubscriptionState }) => {
-  return state.subscription.pricingInfo?.yearly_price || 352.80;
+  return (state.subscription.pricingInfo as any)?.yearly_price || 352.80;
 };
 
 /**
  * 获取年付节省百分比
  */
 export const selectYearlySavingsPercentage = (state: { subscription: SubscriptionState }) => {
-  return state.subscription.pricingInfo?.yearly_savings_percentage || 40;
+  return (state.subscription.pricingInfo as any)?.yearly_savings_percentage || 40;
 };
 
 /**

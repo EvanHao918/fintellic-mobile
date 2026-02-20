@@ -4,6 +4,7 @@ import { View, Text, StyleSheet, TouchableOpacity, Platform, Image } from 'react
 import { createDrawerNavigator, DrawerContentScrollView, DrawerItemList, DrawerContentComponentProps } from '@react-navigation/drawer';
 import { createStackNavigator } from '@react-navigation/stack';
 import { Icon } from 'react-native-elements';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useNavigation } from '@react-navigation/native';
 import { useSelector, useDispatch } from 'react-redux';
 import { RootState } from '../store';
@@ -153,13 +154,6 @@ function CustomDrawerContent(props: DrawerContentComponentProps) {
         </View>
       </View>
 
-      {/* Tagline */}
-      <View style={styles.taglineContainer}>
-        <Text style={styles.taglineText}>
-          They chase the noise,{'\n'}you track the source.
-        </Text>
-      </View>
-
       {/* Custom Menu Items */}
       <View style={styles.menuContainer}>
         {/* Home 项 - 自定义渲染 */}
@@ -173,7 +167,7 @@ function CustomDrawerContent(props: DrawerContentComponentProps) {
                 name="home"
                 type="material"
                 size={24}
-                color={isHomeActive ? colors.brown : colors.brownLight}
+                color={isHomeActive ? colors.primary : colors.gray700}
               />
               <Text style={[
                 styles.drawerItemLabel,
@@ -190,7 +184,7 @@ function CustomDrawerContent(props: DrawerContentComponentProps) {
                 name={isHomeExpanded ? "expand-less" : "expand-more"}
                 type="material"
                 size={24}
-                color={isHomeActive ? colors.brown : colors.brownLight}
+                color={isHomeActive ? colors.primary : colors.gray700}
               />
             </TouchableOpacity>
           </TouchableOpacity>
@@ -244,7 +238,7 @@ function CustomDrawerContent(props: DrawerContentComponentProps) {
           switch (route.name) {
             case 'Calendar':
               iconName = 'calendar-today';
-              label = 'Calendar';
+              label = 'Earnings Calendar';
               break;
             case 'Watchlist':
               iconName = 'star';
@@ -274,7 +268,7 @@ function CustomDrawerContent(props: DrawerContentComponentProps) {
                 name={iconName}
                 type="material"
                 size={24}
-                color={isFocused ? colors.brown : colors.brownLight}
+                color={isFocused ? colors.primary : colors.gray700}
               />
               <Text style={[
                 styles.drawerItemLabel,
@@ -404,23 +398,23 @@ export default function DrawerNavigator() {
 const styles = StyleSheet.create({
   drawerContainer: {
     flex: 1,
-    backgroundColor: colors.beige,
+    backgroundColor: colors.white,
   },
   drawerHeader: {
     padding: spacing.lg,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
-    alignItems: 'flex-start',
+    alignItems: 'center',
   },
   drawerLogo: {
-    height: 120,
-    width: 220,
+    width: 100,
+    height: 100,
     marginBottom: spacing.md,
-    alignSelf: 'flex-start',
   },
   userName: {
-    fontSize: typography.fontSize.md,
-    fontFamily: typography.fontFamily.medium,
+    fontSize: typography.fontSize.xl,
+    fontFamily: typography.fontFamily.bold,
+    fontWeight: '700',
     color: colors.text,
     marginBottom: spacing.xs,
   },
@@ -434,27 +428,6 @@ const styles = StyleSheet.create({
     fontFamily: typography.fontFamily.regular,
     color: colors.textSecondary,
     marginLeft: spacing.xs,
-  },
-  taglineContainer: {
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
-    marginTop: spacing.sm,
-    marginBottom: spacing.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  taglineText: {
-    fontSize: typography.fontSize.lg,  // Increased from md to lg
-    fontWeight: '600',
-    fontStyle: 'italic',
-    fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif',
-    color: colors.gray700,
-    letterSpacing: 0.3,
-    textAlign: 'center',
-    lineHeight: typography.fontSize.lg * 1.5,
-    textShadowColor: 'rgba(55, 65, 81, 0.15)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 2,
   },
   menuContainer: {
     flex: 1,
@@ -477,11 +450,12 @@ const styles = StyleSheet.create({
   drawerItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: spacing.md,
+    paddingVertical: spacing.lg,
     paddingHorizontal: spacing.lg,
   },
   drawerItemActive: {
-    backgroundColor: colors.brown + '15',
+    backgroundColor: colors.primary + '15',
+    borderRadius: borderRadius.md,
   },
   drawerItemLeft: {
     flexDirection: 'row',
@@ -491,24 +465,25 @@ const styles = StyleSheet.create({
   drawerItemLabel: {
     fontSize: typography.fontSize.md,
     fontFamily: typography.fontFamily.medium,
-    color: colors.brownLight,
+    fontStyle: 'italic',
+    color: colors.gray700,
     marginLeft: spacing.md,
-    textShadowColor: 'rgba(0, 0, 0, 0.3)',
+    textShadowColor: 'rgba(0, 0, 0, 0.2)',
     textShadowOffset: { width: 1, height: 1 },
     textShadowRadius: 2,
   },
   drawerItemLabelActive: {
-    color: colors.brown,
+    color: colors.primary,
   },
   expandButton: {
     padding: spacing.xs,
   },
   // 子菜单样式
   subMenu: {
-    backgroundColor: colors.beige,
+    backgroundColor: colors.white,
     paddingLeft: spacing.xl + spacing.lg,
     borderLeftWidth: 2,
-    borderLeftColor: colors.brown + '30',
+    borderLeftColor: colors.primary + '30',
     marginLeft: spacing.lg,
     paddingVertical: spacing.xs,
   },
@@ -520,7 +495,7 @@ const styles = StyleSheet.create({
     paddingLeft: spacing.lg,
   },
   subMenuItemActive: {
-    backgroundColor: colors.brown + '10',
+    backgroundColor: colors.primary + '10',
   },
   // 彩色标签样式 - 与 FilingCard 保持一致
   filingTypeBadge: {

@@ -1,122 +1,201 @@
-// src/services/SingularService.ts
-import { Singular, SingularConfig } from 'singular-react-native';
-import { Platform } from 'react-native';
+/**
+ * Singular Analytics Service
+ * Tracks key user events for marketing attribution and optimization
+ * 
+ * Events tracked:
+ * - Signup: User registration (email, Apple, Google)
+ * - ViewContent: User views a filing
+ * - PaywallHit: User hits the 2 free filings/day limit
+ * - Subscription: User subscribes ($19.99/month)
+ */
 
-// Singular SDK 配置
-const SINGULAR_SDK_KEY = 'all_sight_app_d1fe4376';
-const SINGULAR_SDK_SECRET = ''; // Singular 不需要 secret
+import { Platform } from 'react-native';
+import { Singular, SingularConfig } from 'singular-react-native';
+
+// Singular API keys (get these from Singular dashboard)
+const SINGULAR_API_KEY = Platform.select({
+  ios: 'YOUR_IOS_API_KEY', // Replace with your iOS API key
+  android: 'YOUR_ANDROID_API_KEY', // Replace with your Android API key
+}) || '';
+
+const SINGULAR_SECRET_KEY = Platform.select({
+  ios: 'YOUR_IOS_SECRET_KEY', // Replace with your iOS secret key
+  android: 'YOUR_ANDROID_SECRET_KEY', // Replace with your Android secret key
+}) || '';
+
+// Enable debug logging in development
+const DEBUG_MODE = __DEV__;
 
 class SingularService {
-  private static instance: SingularService;
-  private isInitialized = false;
-
-  private constructor() {}
-
-  public static getInstance(): SingularService {
-    if (!SingularService.instance) {
-      SingularService.instance = new SingularService();
-    }
-    return SingularService.instance;
-  }
+  private isInitialized: boolean = false;
 
   /**
-   * 初始化 Singular SDK
+   * Initialize Singular SDK
+   * Call this in App.tsx when the app starts
    */
-  public async init(): Promise<void> {
-    if (this.isInitialized) {
-      console.log('✅ Singular SDK already initialized');
-      return;
-    }
-
+  async init(): Promise<void> {
     try {
-      console.log('🚀 Initializing Singular SDK...');
+      if (this.isInitialized) {
+        if (DEBUG_MODE) console.log('[Singular] Already initialized');
+        return;
+      }
 
+      // Initialize Singular SDK with new API
       const config = new SingularConfig(
-        SINGULAR_SDK_KEY,
-        SINGULAR_SDK_SECRET
+        SINGULAR_API_KEY,
+        SINGULAR_SECRET_KEY
       );
 
-      // 可选配置
-      config.withLoggingEnabled(); // 开发时启用日志
-      
-      // 初始化 SDK
+      // Enable logging in development
+      if (DEBUG_MODE) {
+        config.withLoggingEnabled();
+      }
+
       Singular.init(config);
-
+      
       this.isInitialized = true;
-      console.log('✅ Singular SDK initialized successfully');
-
+      if (DEBUG_MODE) console.log('[Singular] ✅ Initialized successfully');
     } catch (error) {
-      console.error('❌ Singular SDK initialization failed:', error);
-      throw error;
+      console.error('[Singular] ❌ Initialization failed:', error);
     }
   }
 
   /**
-   * Event 1: Signup（用户注册）
+   * Track Signup event
+   * Called when user successfully registers (email, Apple, or Google)
+   * @param method - 'email' | 'apple' | 'google'
    */
-  public trackSignup(method: 'email' | 'apple' | 'google'): void {
+  trackSignup(method: 'email' | 'apple' | 'google'): void {
     try {
-      Singular.event(`Signup_${method}`);
-      console.log('📊 Singular Event: Signup', { method });
+      if (!this.isInitialized) {
+        console.warn('[Singular] SDK not initialized, skipping Signup event');
+        return;
+      }
+
+      const eventData: Record<string, string | number | boolean> = {
+        registration_method: method,
+      };
+
+      Singular.eventWithArgs('Signup', eventData);
+
+      if (DEBUG_MODE) {
+        console.log('[Singular] 📝 Signup event tracked:', eventData);
+      }
     } catch (error) {
-      console.error('❌ Singular trackSignup failed:', error);
+      console.error('[Singular] Error tracking Signup:', error);
     }
   }
 
   /**
-   * Event 2: ViewContent（查看 Filing 详情）
+   * Track ViewContent event
+   * Called when user opens a filing detail page
    */
-  public trackViewContent(params: {
+  trackViewContent(params: {
     filingId: string;
     companyName: string;
     formType: string;
   }): void {
     try {
-      Singular.event(`ViewContent_${params.formType}`);
-      console.log('📊 Singular Event: ViewContent', params);
+      if (!this.isInitialized) {
+        console.warn('[Singular] SDK not initialized, skipping ViewContent event');
+        return;
+      }
+
+      const eventData: Record<string, string | number | boolean> = {
+        filing_id: params.filingId,
+        company_name: params.companyName,
+        form_type: params.formType,
+      };
+
+      Singular.eventWithArgs('ViewContent', eventData);
+
+      if (DEBUG_MODE) {
+        console.log('[Singular] 👀 ViewContent event tracked:', eventData);
+      }
     } catch (error) {
-      console.error('❌ Singular trackViewContent failed:', error);
+      console.error('[Singular] Error tracking ViewContent:', error);
     }
   }
 
   /**
-   * Event 3: PaywallHit（触发付费墙）
+   * Track PaywallHit event
+   * Called when free user tries to view 3rd filing and hits the daily limit
    */
-  public trackPaywallHit(params: {
+  trackPaywallHit(params: {
     viewsToday: number;
     dailyLimit: number;
   }): void {
     try {
-      Singular.event('PaywallHit');
-      console.log('📊 Singular Event: PaywallHit', params);
+      if (!this.isInitialized) {
+        console.warn('[Singular] SDK not initialized, skipping PaywallHit event');
+        return;
+      }
+
+      const eventData: Record<string, string | number | boolean> = {
+        views_today: params.viewsToday,
+        daily_limit: params.dailyLimit,
+      };
+
+      Singular.eventWithArgs('PaywallHit', eventData);
+
+      if (DEBUG_MODE) {
+        console.log('[Singular] 🚫 PaywallHit event tracked:', eventData);
+      }
     } catch (error) {
-      console.error('❌ Singular trackPaywallHit failed:', error);
+      console.error('[Singular] Error tracking PaywallHit:', error);
     }
   }
 
   /**
-   * Event 4: Subscription（订阅成功）
+   * Track Subscription revenue event
+   * Called when user successfully completes subscription purchase
    */
-  public trackSubscription(params: {
+  trackSubscription(params: {
     productId: string;
     price: number;
     currency: string;
     platform: 'ios' | 'android';
   }): void {
     try {
-      Singular.event(`Subscription_${params.platform}`);
-      console.log('📊 Singular Event: Subscription', params);
+      if (!this.isInitialized) {
+        console.warn('[Singular] SDK not initialized, skipping Subscription event');
+        return;
+      }
+
+      const additionalData: Record<string, string | number | boolean> = {
+        product_id: params.productId,
+        platform: params.platform,
+      };
+
+      // Track custom revenue event with event name
+      Singular.customRevenueWithArgs(
+        'Subscription',
+        params.currency,
+        params.price,
+        additionalData
+      );
+
+      if (DEBUG_MODE) {
+        console.log('[Singular] 💰 Subscription event tracked:', {
+          productId: params.productId,
+          price: params.price,
+          currency: params.currency,
+          platform: params.platform,
+        });
+      }
     } catch (error) {
-      console.error('❌ Singular trackSubscription failed:', error);
+      console.error('[Singular] Error tracking Subscription:', error);
     }
   }
 
   /**
-   * 检查 SDK 是否已初始化
+   * Check if Singular is initialized
    */
-  public isReady(): boolean {
+  isReady(): boolean {
     return this.isInitialized;
   }
 }
 
-export default SingularService.getInstance();
+// Export singleton instance
+const singularService = new SingularService();
+export default singularService;

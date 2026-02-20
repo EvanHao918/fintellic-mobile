@@ -1,7 +1,6 @@
 import axios, { AxiosInstance } from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { API_BASE_URL, STORAGE_KEYS } from '../utils/constants';
-import { Platform } from 'react-native';
 
 interface LimitError {
   isLimitError: boolean;
@@ -27,17 +26,8 @@ class ApiClient {
     this.client.interceptors.request.use(
       async (config) => {
         try {
-          // For web platform, try localStorage first
-          let token = null;
-          
-          if (Platform.OS === 'web') {
-            // Web platform - use localStorage directly
-            token = localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN);
-            console.log('Web platform - Token from localStorage:', token ? 'exists' : 'not found');
-          } else {
-            // Mobile platform - use AsyncStorage
-            token = await AsyncStorage.getItem(STORAGE_KEYS.AUTH_TOKEN);
-          }
+          // Use AsyncStorage for all platforms
+          const token = await AsyncStorage.getItem(STORAGE_KEYS.AUTH_TOKEN);
           
           if (token) {
             config.headers.Authorization = `Bearer ${token}`;
@@ -97,15 +87,10 @@ class ApiClient {
         
         if (error.response?.status === 401) {
           // Clear auth data on 401
-          if (Platform.OS === 'web') {
-            localStorage.removeItem(STORAGE_KEYS.AUTH_TOKEN);
-            localStorage.removeItem(STORAGE_KEYS.USER_INFO);
-          } else {
-            await AsyncStorage.multiRemove([
-              STORAGE_KEYS.AUTH_TOKEN,
-              STORAGE_KEYS.USER_INFO,
-            ]);
-          }
+          await AsyncStorage.multiRemove([
+            STORAGE_KEYS.AUTH_TOKEN,
+            STORAGE_KEYS.USER_INFO,
+          ]);
           
           // You might want to dispatch a logout action here
           // or navigate to login screen

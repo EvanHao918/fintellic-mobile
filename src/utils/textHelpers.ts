@@ -2,30 +2,44 @@
 /**
  * Minimalist Text Processing for AI-Generated Filing Analysis
  * 
- * SUPPORTED MARKUP (aligned with ai_processor.py v3.0):
+ * SUPPORTED MARKUP (aligned with ai_processor.py v13):
  * 
  * STRUCTURAL MARKUP:
- * - ### SECTION X: → Level 1 heading (largest, uppercase)
+ * - ### SECTION X: → Level 1 heading with icon (largest, uppercase)
  * - ## Subheader → Level 2 heading (medium, bold)
  * - --- → Horizontal separator line
+ * - [BLOCK: Title] ... [/BLOCK] → Content module card (S-1 pilot)
  * 
- * INLINE EMPHASIS (three types):
+ * INLINE EMPHASIS:
  * - **text** → Yellow highlight (numbers, metrics)
  * - __text__ → Bold text (key concepts)
- * - *text* → Italic text (cautionary terms)
+ * - ▲X% → Green upward trend
+ * - ▼X% → Red downward trend
+ * - [DOC: ...] → Gray citation (de-emphasized)
  * 
  * DESIGN PHILOSOPHY:
  * - Clean visual hierarchy for retail investors
  * - Simple & Fast: Minimal regex operations
  * - Professional appearance without emoji clutter
  * 
- * Version: 4.0 - Unified markup system with three inline emphasis types
- * Last updated: 2025-11-19
+ * Version: 6.0 - Content modules support for S-1
+ * Last updated: 2025-02-20
  */
 
 import React from 'react';
-import { Text, View, StyleSheet } from 'react-native';
+import { Text, View, StyleSheet, Image } from 'react-native';
 import { colors, typography, spacing } from '../theme';
+
+// Section title icons mapping
+const SECTION_ICONS: { [key: string]: any } = {
+  // 10-K sections
+  'ANNUAL REVIEW': require('../assets/images/icon_annual_review.png'),
+  'STRATEGIC DIRECTION': require('../assets/images/icon_strategic_direction.png'),
+  'INVESTMENT PERSPECTIVE': require('../assets/images/icon_investment_perspective.png'),
+  // S-1 sections
+  'IPO SNAPSHOT': require('../assets/images/icon_ipo_snapshot.png'),
+  'INVESTMENT ANALYSIS': require('../assets/images/icon_investment_analysis.png'),
+};
 
 // ==================== UTILITY FUNCTIONS ====================
 
@@ -217,19 +231,19 @@ const parseLineType = (line: string): ParsedLine => {
 
 /**
  * Parse inline markup in paragraph text
- * Priority order: __bold__ > *italic* > **highlight**
+ * Supported: **highlight**, __bold__, ▲trend up, ▼trend down, [DOC: citation]
  */
 interface InlineSegment {
-  type: 'plain' | 'highlight' | 'bold' | 'italic';
+  type: 'plain' | 'highlight' | 'bold' | 'trendUp' | 'trendDown' | 'citation';
   content: string;
 }
 
 const parseInlineMarkup = (text: string): InlineSegment[] => {
   const segments: InlineSegment[] = [];
   
-  // Combined pattern to match all three types in priority order
-  // Priority: __bold__ > *italic* > **highlight**
-  const pattern = /__([^_]+)__|(?<!\*)\*(?!\*)([^*]+?)(?<!\*)\*(?!\*)|(\*\*)([^*]+?)\*\*/g;
+  // Combined pattern to match all types
+  // Order: __bold__ > **highlight** > ▲...% > ▼...% > [DOC:...] / [FMP] / [CALC:...] / [number]
+  const pattern = /__([^_]+)__|\*\*([^*]+?)\*\*|(▲[\d.]+%?)|(▼[\d.]+%?)|(\[DOC:[^\]]+\]|\[FMP\]|\[CALC:[^\]]+\]|\[\d+\])/g;
   
   let lastIndex = 0;
   let match;
@@ -251,16 +265,28 @@ const parseInlineMarkup = (text: string): InlineSegment[] => {
         content: match[1]
       });
     } else if (match[2] !== undefined) {
-      // *italic*
-      segments.push({
-        type: 'italic',
-        content: match[2]
-      });
-    } else if (match[4] !== undefined) {
       // **highlight**
       segments.push({
         type: 'highlight',
+        content: match[2]
+      });
+    } else if (match[3] !== undefined) {
+      // ▲X% trend up
+      segments.push({
+        type: 'trendUp',
+        content: match[3]
+      });
+    } else if (match[4] !== undefined) {
+      // ▼X% trend down
+      segments.push({
+        type: 'trendDown',
         content: match[4]
+      });
+    } else if (match[5] !== undefined) {
+      // [DOC:...] or [FMP] or [CALC:...] or [number] citation
+      segments.push({
+        type: 'citation',
+        content: match[5]
       });
     }
     
@@ -281,17 +307,39 @@ const parseInlineMarkup = (text: string): InlineSegment[] => {
 // ==================== RENDERING FUNCTIONS ====================
 
 /**
+ * Get section icon based on title content
+ */
+const getSectionIcon = (content: string): any | null => {
+  const upperContent = content.toUpperCase();
+  for (const [key, icon] of Object.entries(SECTION_ICONS)) {
+    if (upperContent.includes(key)) {
+      return icon;
+    }
+  }
+  return null;
+};
+
+/**
  * Render a single line based on its type
  */
-const renderLine = (parsed: ParsedLine, index: number): React.ReactElement => {
-  const key = `line-${index}`;
+const renderLine = (parsed: ParsedLine, index: number | string): React.ReactElement => {
+  const key = typeof index === 'string' ? index : `line-${index}`;
   
   switch (parsed.type) {
     case 'section-title':
+      const icon = getSectionIcon(parsed.content);
       return React.createElement(
-        Text,
-        { key, style: styles.sectionTitle },
-        parsed.content
+        View,
+        { key, style: styles.sectionTitleContainer },
+        icon && React.createElement(
+          Image,
+          { source: icon, style: styles.sectionIcon, resizeMode: 'contain' }
+        ),
+        React.createElement(
+          Text,
+          { style: styles.sectionTitle },
+          parsed.content
+        )
       );
     
     case 'subheader':
@@ -331,10 +379,22 @@ const renderParagraph = (text: string, key: string): React.ReactElement => {
         { key: segKey, style: styles.boldText },
         segment.content
       );
-    } else if (segment.type === 'italic') {
+    } else if (segment.type === 'trendUp') {
       return React.createElement(
         Text,
-        { key: segKey, style: styles.italicText },
+        { key: segKey, style: styles.trendUp },
+        segment.content
+      );
+    } else if (segment.type === 'trendDown') {
+      return React.createElement(
+        Text,
+        { key: segKey, style: styles.trendDown },
+        segment.content
+      );
+    } else if (segment.type === 'citation') {
+      return React.createElement(
+        Text,
+        { key: segKey, style: styles.citation },
         segment.content
       );
     } else {
@@ -354,7 +414,106 @@ const renderParagraph = (text: string, key: string): React.ReactElement => {
 };
 
 /**
- * Main rendering function: parse and render enhanced text
+ * Parse and extract BLOCK sections from text
+ * Returns array of { type: 'block' | 'content', title?: string, content: string }
+ */
+interface ContentSection {
+  type: 'block' | 'content';
+  title?: string;
+  content: string;
+}
+
+const parseContentBlocks = (text: string): ContentSection[] => {
+  const sections: ContentSection[] = [];
+  const blockPattern = /\[BLOCK:\s*([^\]]+)\]([\s\S]*?)\[\/BLOCK\]/g;
+  
+  let lastIndex = 0;
+  let match;
+  
+  while ((match = blockPattern.exec(text)) !== null) {
+    // Content before this block
+    if (match.index > lastIndex) {
+      const beforeContent = text.substring(lastIndex, match.index).trim();
+      if (beforeContent) {
+        sections.push({ type: 'content', content: beforeContent });
+      }
+    }
+    
+    // The block itself
+    sections.push({
+      type: 'block',
+      title: match[1].trim(),
+      content: match[2].trim()
+    });
+    
+    lastIndex = match.index + match[0].length;
+  }
+  
+  // Remaining content after last block
+  if (lastIndex < text.length) {
+    const remainingContent = text.substring(lastIndex).trim();
+    if (remainingContent) {
+      sections.push({ type: 'content', content: remainingContent });
+    }
+  }
+  
+  // If no blocks found, return entire text as content
+  if (sections.length === 0) {
+    sections.push({ type: 'content', content: text });
+  }
+  
+  return sections;
+};
+
+/**
+ * Render lines within a section (block or regular content)
+ */
+const renderContentLines = (content: string, keyPrefix: string): React.ReactElement[] => {
+  const lines = content.split('\n');
+  const elements: React.ReactElement[] = [];
+  
+  lines.forEach((line, index) => {
+    if (line.trim().length === 0) return;
+    
+    const parsed = parseLineType(line);
+    const element = renderLine(parsed, `${keyPrefix}-${index}`);
+    elements.push(element);
+  });
+  
+  return elements;
+};
+
+/**
+ * Render a BLOCK as a card component
+ */
+const renderBlock = (section: ContentSection, index: number): React.ReactElement => {
+  const key = `block-${index}`;
+  const contentElements = renderContentLines(section.content, key);
+  
+  return React.createElement(
+    View,
+    { key, style: styles.blockContainer },
+    // Block title
+    section.title && React.createElement(
+      View,
+      { style: styles.blockHeader },
+      React.createElement(
+        Text,
+        { style: styles.blockTitle },
+        section.title
+      )
+    ),
+    // Block content
+    React.createElement(
+      View,
+      { style: styles.blockContent },
+      ...contentElements
+    )
+  );
+};
+
+/**
+ * Main rendering function: parse and render enhanced text with BLOCK support
  */
 export const renderEnhancedText = (
   text: string,
@@ -362,16 +521,19 @@ export const renderEnhancedText = (
 ): React.ReactElement[] => {
   if (!text) return [];
   
-  // Split by lines (preserve single newlines for bullets)
-  const lines = text.split('\n');
+  // First, parse content blocks
+  const sections = parseContentBlocks(text);
   const elements: React.ReactElement[] = [];
   
-  lines.forEach((line, index) => {
-    if (line.trim().length === 0) return; // Skip empty lines
-    
-    const parsed = parseLineType(line);
-    const element = renderLine(parsed, index);
-    elements.push(element);
+  sections.forEach((section, sectionIndex) => {
+    if (section.type === 'block') {
+      // Render as card
+      elements.push(renderBlock(section, sectionIndex));
+    } else {
+      // Render as regular content
+      const contentElements = renderContentLines(section.content, `content-${sectionIndex}`);
+      elements.push(...contentElements);
+    }
   });
   
   return elements;
@@ -417,6 +579,21 @@ export const getDisplayAnalysis = (filing: any): string => {
 // ==================== STYLES ====================
 
 const styles = StyleSheet.create({
+  // Level 1: Section Title Container (with icon)
+  sectionTitleContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 32,
+    marginBottom: 16,
+  },
+  
+  // Section Icon
+  sectionIcon: {
+    width: 24,
+    height: 24,
+    marginRight: 10,
+  },
+  
   // Level 1: Section Title (largest, no bold, uppercase)
   sectionTitle: {
     fontSize: 22,
@@ -424,9 +601,8 @@ const styles = StyleSheet.create({
     color: '#1a1a1a',
     textTransform: 'uppercase',
     letterSpacing: 1,
-    marginTop: 32,
-    marginBottom: 16,
     fontFamily: typography.fontFamily.serif,
+    flex: 1,
   },
   
   // Level 2: Subheader (medium, bold, no emoji)
@@ -484,12 +660,61 @@ const styles = StyleSheet.create({
     fontFamily: typography.fontFamily.serif,
   },
   
-  // Inline emphasis: Italic text (cautionary terms)
-  italicText: {
+  // Trend up: Green (▲X%)
+  trendUp: {
     fontSize: typography.fontSize.base,
-    fontStyle: 'italic',
-    color: '#666',
+    fontWeight: '600',
+    color: '#10B981',  // Green
     fontFamily: typography.fontFamily.serif,
+  },
+  
+  // Trend down: Red (▼X%)
+  trendDown: {
+    fontSize: typography.fontSize.base,
+    fontWeight: '600',
+    color: '#EF4444',  // Red
+    fontFamily: typography.fontFamily.serif,
+  },
+  
+  // Citation: Gray de-emphasized text
+  citation: {
+    fontSize: typography.fontSize.sm,
+    fontWeight: '400',
+    color: '#9CA3AF',  // Gray
+    fontFamily: typography.fontFamily.serif,
+  },
+  
+  // Content Block: Card container for modular content
+  blockContainer: {
+    backgroundColor: '#F9FAFB',  // Light gray background
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    marginVertical: 12,
+    overflow: 'hidden',
+  },
+  
+  // Block header
+  blockHeader: {
+    backgroundColor: '#F3F4F6',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+  },
+  
+  // Block title
+  blockTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#374151',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  
+  // Block content
+  blockContent: {
+    padding: 16,
   },
 });
 

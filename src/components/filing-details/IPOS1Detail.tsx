@@ -16,9 +16,20 @@ import CompanyInfoCard from './CompanyInfoCard';
 import PaginatedAnalysis from './PaginatedAnalysis';
 import { Filing } from '../../types';
 
-// 详情页专用配图
-const FILING_COVER_IMAGES: { [key: string]: any } = {
-  'S-1': require('../../assets/images/detail_s1.png'),
+// 详情页专用配图 - 随机显示3个之一
+const FILING_COVER_IMAGES = [
+  require('../../assets/images/detail_cover_1.png'),
+  require('../../assets/images/detail_cover_2.png'),
+  require('../../assets/images/detail_cover_3.png'),
+];
+
+// 根据 filingId 生成稳定的随机索引（同一个 filing 每次显示同一张图）
+const getRandomCoverImage = (filingId?: string | number) => {
+  if (filingId) {
+    const hash = String(filingId).split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+    return FILING_COVER_IMAGES[hash % FILING_COVER_IMAGES.length];
+  }
+  return FILING_COVER_IMAGES[Math.floor(Math.random() * FILING_COVER_IMAGES.length)];
 };
 
 interface IPOS1DetailProps {
@@ -78,7 +89,7 @@ const IPOS1Detail: React.FC<IPOS1DetailProps> = ({ filing }) => {
       {/* 配图区域 */}
       <View style={styles.coverImageContainer}>
         <Image
-          source={FILING_COVER_IMAGES['S-1']}
+          source={getRandomCoverImage(filing.id)}
           style={styles.coverImage}
           resizeMode="cover"
         />

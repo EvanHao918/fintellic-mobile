@@ -20,7 +20,7 @@ export const BRAND_IMAGES = {
   HEADER_LOGO: require('../assets/images/onboarding_logo.png'),
   
   // Onboarding assets - NEW
-  ONBOARDING_LOGO: require('../assets/images/onboarding_logo.png'),
+  ONBOARDING_LOGO: require('../assets/images/AllSight_Logo.png'),
   ONBOARDING_STAR: require('../assets/images/onboarding_star.png'),
   ONBOARDING_CHECKLIST: require('../assets/images/onboarding_checklist.png'),
   ONBOARDING_ARROW: require('../assets/images/onboarding_arrow.png'),
@@ -50,8 +50,8 @@ export const ONBOARDING_SLIDES = [
   {
     id: 2,
     image: 'ONBOARDING_CHECKLIST',
-    title: 'No headlines. No opinions.',
-    titleBold: 'Just understanding.',
+    title: 'Accuracy, Credibility',
+    titleBold: 'Under Pressure.',
     subtitle: 'Complex disclosures translated into clear, decision-ready insights.',
     gradientColors: ['#FFFFFF', '#D1FAE5', '#10B981'] as const, // white to green gradient
   },

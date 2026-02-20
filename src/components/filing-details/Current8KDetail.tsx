@@ -16,9 +16,20 @@ import CompanyInfoCard from './CompanyInfoCard';
 import PaginatedAnalysis from './PaginatedAnalysis';
 import { Filing } from '../../types';
 
-// 详情页专用配图
-const FILING_COVER_IMAGES: { [key: string]: any } = {
-  '8-K': require('../../assets/images/detail_8k.png'),
+// 详情页专用配图 - 随机显示3个之一
+const FILING_COVER_IMAGES = [
+  require('../../assets/images/detail_cover_1.png'),
+  require('../../assets/images/detail_cover_2.png'),
+  require('../../assets/images/detail_cover_3.png'),
+];
+
+// 根据 filingId 生成稳定的随机索引（同一个 filing 每次显示同一张图）
+const getRandomCoverImage = (filingId?: string | number) => {
+  if (filingId) {
+    const hash = String(filingId).split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+    return FILING_COVER_IMAGES[hash % FILING_COVER_IMAGES.length];
+  }
+  return FILING_COVER_IMAGES[Math.floor(Math.random() * FILING_COVER_IMAGES.length)];
 };
 
 interface Current8KDetailProps {
@@ -72,7 +83,7 @@ const Current8KDetail: React.FC<Current8KDetailProps> = ({ filing }) => {
       {/* 配图区域 */}
       <View style={styles.coverImageContainer}>
         <Image
-          source={FILING_COVER_IMAGES['8-K']}
+          source={getRandomCoverImage(filing.id)}
           style={styles.coverImage}
           resizeMode="cover"
         />

@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   Alert,
   RefreshControl,
+  Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Icon, Avatar } from 'react-native-elements';
@@ -153,34 +154,34 @@ export default function ProfileScreen() {
     {
       id: 'privacy',
       title: 'Privacy Policy',
-      icon: 'security',
-      iconType: 'material',
+      icon: 'shield',
+      iconType: 'feather',
       action: () => navigation.navigate('PrivacyPolicy'),
       hasArrow: true,
     },
     {
       id: 'terms',
       title: 'Terms of Service',
-      icon: 'description',
-      iconType: 'material',
+      icon: 'file-text',
+      iconType: 'feather',
       action: () => navigation.navigate('TermsOfService'),
       hasArrow: true,
     },
     {
       id: 'support',
       title: 'Support',
-      icon: 'help',
-      iconType: 'material',
-      action: () => Alert.alert('Support', 'Contact support@fintellic.com'),
+      icon: 'help-circle',
+      iconType: 'feather',
+      action: () => Alert.alert('Support', 'Contact support@allsight.app'),
       hasArrow: true,
     },
     {
       id: 'about',
-      title: 'About HermeSpeed',
+      title: 'About HermesSpeed',
       subtitle: `Version 1.0.0`,
       icon: 'info',
-      iconType: 'material',
-      action: () => Alert.alert('HermeSpeed', 'AI-powered financial intelligence platform.'),
+      iconType: 'feather',
+      action: () => Alert.alert('HermesSpeed', 'AI-powered financial intelligence platform.'),
       hasArrow: true,
     },
   ];
@@ -188,12 +189,12 @@ export default function ProfileScreen() {
   const dangerSettings: SettingItem[] = [
     {
       id: 'logout',
-      title: 'Logout',
-      icon: 'logout',
-      iconType: 'material',
+      title: 'Log out',
+      icon: 'log-out',
+      iconType: 'feather',
       action: handleLogout,
-      danger: true,
-      hasArrow: true,
+      danger: false,
+      hasArrow: false,
     },
   ];
 
@@ -258,27 +259,47 @@ export default function ProfileScreen() {
       >
         {/* Profile Header */}
         <View style={styles.profileHeader}>
-          <Avatar
-            size={80}
-            rounded
-            title={user?.full_name?.charAt(0).toUpperCase() || 'U'}
-            containerStyle={styles.avatar}
-            titleStyle={styles.avatarText}
-          />
-          <Text style={styles.userName}>{user?.full_name || 'User'}</Text>
-          <Text style={styles.userEmail}>{user?.email}</Text>
-          
-          <View style={styles.membershipBadge}>
-            {isProUser ? (
-              <>
-                <Icon name="star" type="material" size={16} color={colors.warning} />
-                <Text style={styles.membershipText}>Pro Member</Text>
-              </>
-            ) : (
-              <Text style={styles.membershipText}>Free Member</Text>
-            )}
+          <View style={styles.profileHeaderContent}>
+            <View style={styles.profileHeaderLeft}>
+              <Text style={styles.userName}>{user?.full_name || 'User'}</Text>
+              <Text style={styles.userEmail}>{user?.email}</Text>
+              <View style={styles.membershipBadge}>
+                {isProUser ? (
+                  <>
+                    <Icon name="star" type="material" size={14} color={colors.warning} />
+                    <Text style={styles.membershipText}>Pro Member</Text>
+                  </>
+                ) : (
+                  <Text style={styles.membershipText}>Free Member</Text>
+                )}
+              </View>
+            </View>
+            <Avatar
+              size={64}
+              rounded
+              title={user?.full_name?.charAt(0).toUpperCase() || 'U'}
+              containerStyle={styles.avatar}
+              titleStyle={styles.avatarText}
+            />
           </View>
         </View>
+
+        {/* Upgrade to Pro Card */}
+        <TouchableOpacity 
+          style={styles.upgradeCard}
+          onPress={() => navigation.navigate('Subscription')}
+        >
+          <View style={styles.upgradeLeft}>
+            <Image source={require('../assets/images/rocket_icon.png')} style={styles.rocketIcon} />
+            <View style={styles.upgradeText}>
+              <Text style={styles.upgradeTitle}>
+                {isProUser ? 'Manage Subscription' : 'Upgrade to Pro'}
+              </Text>
+              <Text style={styles.upgradeSubtitle}>{getSubscriptionSubtitle()}</Text>
+            </View>
+          </View>
+          <Icon name="chevron-right" type="material" size={24} color="#9CA3AF" />
+        </TouchableOpacity>
 
         {/* User Stats */}
         <View style={styles.statsContainer}>
@@ -298,10 +319,16 @@ export default function ProfileScreen() {
           </View>
         </View>
 
-        {/* Settings Sections */}
-        {renderSection('Account', accountSettings)}
-        {renderSection('App', appSettings)}
-        {renderSection('', dangerSettings)}
+        {/* Settings List */}
+        <View style={styles.settingsList}>
+          {appSettings.map(renderSettingItem)}
+        </View>
+
+        {/* Logout */}
+        <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
+          <Icon name="log-out" type="feather" size={20} color="#111827" />
+          <Text style={styles.logoutText}>Log out</Text>
+        </TouchableOpacity>
 
         {/* Bottom padding */}
         <View style={{ height: spacing.xxxl }} />
@@ -313,56 +340,94 @@ export default function ProfileScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: '#FFFFFF',
   },
   profileHeader: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.lg,
+    backgroundColor: '#FFFFFF',
+  },
+  profileHeaderContent: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: spacing.xl,
-    backgroundColor: colors.white,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+  },
+  profileHeaderLeft: {
+    flex: 1,
   },
   avatar: {
-    backgroundColor: colors.primary,
-    marginBottom: spacing.md,
+    backgroundColor: '#FF5700',
   },
   avatarText: {
-    fontSize: typography.fontSize.xxl,
+    fontSize: typography.fontSize.xl,
     fontWeight: typography.fontWeight.bold,
   },
   userName: {
     fontSize: typography.fontSize.xl,
-    fontWeight: typography.fontWeight.semibold,
-    color: colors.text,
+    fontWeight: typography.fontWeight.bold,
+    color: '#111827',
     marginBottom: spacing.xs,
   },
   userEmail: {
     fontSize: typography.fontSize.sm,
-    color: colors.textSecondary,
+    color: '#6B7280',
     marginBottom: spacing.sm,
   },
   membershipBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.primaryLight,
-    paddingHorizontal: spacing.md,
+    backgroundColor: '#F3F4F6',
+    paddingHorizontal: spacing.sm,
     paddingVertical: spacing.xs,
-    borderRadius: borderRadius.full,
-    marginTop: spacing.sm,
+    borderRadius: borderRadius.sm,
+    alignSelf: 'flex-start',
   },
   membershipText: {
-    fontSize: typography.fontSize.sm,
+    fontSize: typography.fontSize.xs,
     fontWeight: typography.fontWeight.medium,
-    color: colors.primary,
+    color: '#374151',
     marginLeft: spacing.xs,
+  },
+  upgradeCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#FFF7ED',
+    marginHorizontal: spacing.md,
+    marginTop: spacing.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.md,
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    borderColor: '#F97316',
+  },
+  upgradeLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  rocketIcon: {
+    width: 20,
+    height: 20,
+  },
+  upgradeText: {
+    marginLeft: spacing.sm,
+  },
+  upgradeTitle: {
+    fontSize: typography.fontSize.base,
+    fontWeight: typography.fontWeight.semibold,
+    color: '#F97316',
+  },
+  upgradeSubtitle: {
+    fontSize: typography.fontSize.sm,
+    color: '#9CA3AF',
+    marginTop: 2,
   },
   statsContainer: {
     flexDirection: 'row',
-    backgroundColor: colors.white,
     paddingVertical: spacing.lg,
+    paddingHorizontal: spacing.md,
     marginTop: spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
   },
   statItem: {
     flex: 1,
@@ -371,17 +436,87 @@ const styles = StyleSheet.create({
   statValue: {
     fontSize: typography.fontSize.xxl,
     fontWeight: typography.fontWeight.bold,
-    color: colors.text,
+    color: '#111827',
     marginBottom: spacing.xs,
   },
   statLabel: {
     fontSize: typography.fontSize.sm,
-    color: colors.textSecondary,
+    color: '#6B7280',
   },
   statDivider: {
     width: 1,
-    backgroundColor: colors.border,
+    backgroundColor: '#E5E7EB',
     marginVertical: spacing.sm,
+  },
+  settingsList: {
+    backgroundColor: '#FFFFFF',
+    marginHorizontal: spacing.md,
+    marginTop: spacing.md,
+    borderRadius: borderRadius.lg,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: '#F3F4F6',
+  },
+  settingItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.md,
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+  },
+  settingItemLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  settingItemText: {
+    marginLeft: spacing.md,
+    flex: 1,
+  },
+  settingItemTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  settingItemTitle: {
+    fontSize: typography.fontSize.base,
+    fontWeight: typography.fontWeight.medium,
+    color: '#111827',
+  },
+  settingItemSubtitle: {
+    fontSize: typography.fontSize.sm,
+    color: '#6B7280',
+    marginTop: 2,
+  },
+  badge: {
+    backgroundColor: colors.warning + '20',
+    paddingHorizontal: spacing.xs,
+    paddingVertical: 2,
+    borderRadius: borderRadius.sm,
+    marginLeft: spacing.xs,
+  },
+  badgeText: {
+    fontSize: typography.fontSize.xs,
+    color: colors.warning,
+    fontWeight: typography.fontWeight.semibold,
+  },
+  dangerText: {
+    color: colors.error,
+  },
+  logoutButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginHorizontal: spacing.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.lg,
+    marginTop: spacing.sm,
+  },
+  logoutText: {
+    fontSize: typography.fontSize.base,
+    color: '#111827',
+    marginLeft: spacing.md,
   },
   section: {
     marginTop: spacing.lg,
@@ -399,52 +534,5 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderBottomWidth: 1,
     borderColor: colors.border,
-  },
-  settingItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.md,
-    backgroundColor: colors.white,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  settingItemLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-  },
-  settingItemText: {
-    marginLeft: spacing.md,
-    flex: 1,
-  },
-  settingItemTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  settingItemTitle: {
-    fontSize: typography.fontSize.base,
-    color: colors.text,
-  },
-  settingItemSubtitle: {
-    fontSize: typography.fontSize.sm,
-    color: colors.textSecondary,
-    marginTop: 2,
-  },
-  badge: {
-    backgroundColor: colors.warning + '20',
-    paddingHorizontal: spacing.xs,
-    paddingVertical: 2,
-    borderRadius: borderRadius.sm,
-    marginLeft: spacing.xs,
-  },
-  badgeText: {
-    fontSize: typography.fontSize.xs,
-    color: colors.warning,
-    fontWeight: typography.fontWeight.semibold,
-  },
-  dangerText: {
-    color: colors.error,
   },
 });

@@ -428,6 +428,11 @@ export default function LoginScreen() {
             behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
             style={styles.keyboardView}
           >
+            <ScrollView 
+              contentContainerStyle={styles.scrollContent}
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+            >
             {/* ==================== TOP: Logo ==================== */}
             <View style={styles.logoContainer}>
               <Image
@@ -435,8 +440,6 @@ export default function LoginScreen() {
                 style={styles.logoImage}
                 resizeMode="contain"
               />
-              <Text style={styles.brandName}>{BRAND_NAME.toUpperCase()}</Text>
-              <Text style={styles.brandTagline}>{BRAND_TAGLINES.MAIN}</Text>
             </View>
 
             {/* ==================== CAROUSEL: Horizontal ScrollView ==================== */}
@@ -649,7 +652,7 @@ export default function LoginScreen() {
                 </TouchableOpacity>
               </View>
             </Animated.View>
-
+            </ScrollView>
 
           </KeyboardAvoidingView>
         </SafeAreaView>
@@ -672,17 +675,19 @@ const styles = StyleSheet.create({
   keyboardView: {
     flex: 1,
   },
+  scrollContent: {
+    flexGrow: 1,
+  },
 
   // ==================== LOGO ====================
   logoContainer: {
     alignItems: 'center',
-    paddingTop: spacing.md,
-    paddingBottom: spacing.sm,
+    paddingTop: spacing.lg,
+    paddingBottom: spacing.md,
   },
   logoImage: {
-    width: 60,
-    height: 60,
-    marginBottom: spacing.xs,
+    width: 100,
+    height: 100,
   },
   brandName: {
     fontSize: typography.fontSize.xl,

@@ -7,11 +7,14 @@ import {
   TouchableOpacity,
   Dimensions,
   ScrollView,
+  Image,
 } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { colors, typography, spacing, borderRadius, shadows } from '../theme';
+import { BRAND_IMAGES } from '../constants/brand';
 
 type RootStackParamList = {
   Subscription: undefined;
@@ -50,7 +53,13 @@ export default function UpgradePromptModal({
       onRequestClose={onClose}
     >
       <View style={styles.modalOverlay}>
-        <View style={styles.modalContent}>
+        <LinearGradient
+          colors={['#FFFFFF', '#FFFFFF', '#D1FAE5', '#10B981']}
+          locations={[0, 0.5, 0.8, 1]}
+          start={{ x: 0.5, y: 0 }}
+          end={{ x: 0.5, y: 1 }}
+          style={styles.modalContent}
+        >
           {/* 关闭按钮 */}
           <TouchableOpacity style={styles.closeButton} onPress={onClose}>
             <Icon name="close" size={28} color={colors.text} />
@@ -63,7 +72,11 @@ export default function UpgradePromptModal({
             {/* Header Section - Emphasize Speed Advantage */}
             <View style={styles.headerSection}>
               <View style={styles.iconContainer}>
-                <Icon name="flash-on" size={50} color={colors.primary} />
+                <Image 
+                  source={BRAND_IMAGES.LOGO_FULL}
+                  style={styles.headerLogo}
+                  resizeMode="contain"
+                />
               </View>
               <Text style={styles.title}>Daily Limit Reached</Text>
               <Text style={styles.subtitle}>
@@ -73,7 +86,7 @@ export default function UpgradePromptModal({
 
             {/* Core Value Proposition - Unified Features */}
             <View style={styles.valueSection}>
-              <Text style={styles.sectionTitle}>Why HermeSpeed</Text>
+              <Text style={styles.sectionTitle}>Why AllSight</Text>
               
               <View style={styles.valueItem}>
                 <View style={styles.valueIconWrapper}>
@@ -164,7 +177,7 @@ export default function UpgradePromptModal({
               Limit resets daily at midnight EST
             </Text>
           </ScrollView>
-        </View>
+        </LinearGradient>
       </View>
     </Modal>
   );
@@ -188,7 +201,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: spacing.lg,
-    paddingTop: spacing.xl + 20,
+    paddingTop: spacing.md,
   },
   closeButton: {
     position: 'absolute',
@@ -208,13 +221,13 @@ const styles = StyleSheet.create({
     marginBottom: spacing.xl,
   },
   iconContainer: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: colors.primary + '10',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: spacing.md,
+  },
+  headerLogo: {
+    width: 70,
+    height: 70,
   },
   title: {
     fontSize: typography.fontSize.xl,

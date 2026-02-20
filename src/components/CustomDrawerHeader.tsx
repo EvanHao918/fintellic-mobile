@@ -145,69 +145,76 @@ export const CustomDrawerHeader: React.FC<CustomDrawerHeaderProps> = ({
             </TouchableOpacity>
           )}
           
-          {/* 中间：搜索框 */}
+          {/* 中间：搜索框 - 渐变边框 */}
           <View style={styles.searchContainer}>
-            <View style={styles.searchInputWrapper}>
-              <TextInput
-                style={styles.searchInput}
-                placeholder="Search ticker..."
-                placeholderTextColor={colors.gray400}
-                value={searchQuery}
-                onChangeText={handleSearchChange}
-                autoCapitalize="characters"
-                autoCorrect={false}
-                returnKeyType="search"
-                onFocus={handleSearchFocus}
-                onBlur={handleSearchBlur}
-                onSubmitEditing={() => {
-                  if (searchQuery.trim()) {
-                    performSearch(searchQuery);
-                  }
-                }}
-                autoComplete="off"
-                textContentType="none"
-                keyboardType="default"
-                importantForAutofill="no"
-                {...(Platform.OS === 'web' && {
-                  autoComplete: 'off',
-                  'data-form-type': 'search',
-                  'data-autofill': 'false',
-                  name: 'ticker-search',
-                  role: 'searchbox',
-                  'aria-label': 'Search company ticker',
-                })}
-              />
-              {isSearching && (
-                <ActivityIndicator 
-                  size="small" 
-                  color={colors.primary} 
-                  style={styles.searchLoading}
-                />
-              )}
-              {searchQuery.length > 0 && !isSearching && (
-                <TouchableOpacity
-                  onPress={() => {
-                    setSearchQuery('');
-                    setSearchResults([]);
-                    setShowResults(false);
+            <LinearGradient
+              colors={['#FDE8E8', '#F59E0B']}
+              start={{ x: 0, y: 0.5 }}
+              end={{ x: 1, y: 0.5 }}
+              style={styles.searchGradientBorder}
+            >
+              <View style={styles.searchInputWrapper}>
+                <TextInput
+                  style={styles.searchInput}
+                  placeholder="Search anything..."
+                  placeholderTextColor={colors.gray400}
+                  value={searchQuery}
+                  onChangeText={handleSearchChange}
+                  autoCapitalize="characters"
+                  autoCorrect={false}
+                  returnKeyType="search"
+                  onFocus={handleSearchFocus}
+                  onBlur={handleSearchBlur}
+                  onSubmitEditing={() => {
+                    if (searchQuery.trim()) {
+                      performSearch(searchQuery);
+                    }
                   }}
-                  style={styles.clearButton}
+                  autoComplete="off"
+                  textContentType="none"
+                  keyboardType="default"
+                  importantForAutofill="no"
+                  {...(Platform.OS === 'web' && {
+                    autoComplete: 'off',
+                    'data-form-type': 'search',
+                    'data-autofill': 'false',
+                    name: 'ticker-search',
+                    role: 'searchbox',
+                    'aria-label': 'Search company ticker',
+                  })}
+                />
+                {isSearching && (
+                  <ActivityIndicator 
+                    size="small" 
+                    color={colors.primary} 
+                    style={styles.searchLoading}
+                  />
+                )}
+                {searchQuery.length > 0 && !isSearching && (
+                  <TouchableOpacity
+                    onPress={() => {
+                      setSearchQuery('');
+                      setSearchResults([]);
+                      setShowResults(false);
+                    }}
+                    style={styles.clearButton}
+                  >
+                    <Icon name="close" type="material" color={colors.gray400} size={18} />
+                  </TouchableOpacity>
+                )}
+                {/* 搜索图标 */}
+                <TouchableOpacity
+                  style={styles.searchIconButton}
+                  onPress={() => {
+                    if (searchQuery.trim()) {
+                      performSearch(searchQuery);
+                    }
+                  }}
                 >
-                  <Icon name="close" type="material" color={colors.gray400} size={18} />
+                  <Icon name="search" type="material" color={colors.primary} size={22} />
                 </TouchableOpacity>
-              )}
-              {/* 搜索图标 */}
-              <TouchableOpacity
-                style={styles.searchIconButton}
-                onPress={() => {
-                  if (searchQuery.trim()) {
-                    performSearch(searchQuery);
-                  }
-                }}
-              >
-                <Icon name="search" type="material" color={colors.primary} size={22} />
-              </TouchableOpacity>
-            </View>
+              </View>
+            </LinearGradient>
           </View>
           
           {/* 右侧：Logo */}
@@ -328,16 +335,18 @@ const styles = StyleSheet.create({
     flex: 1,
     marginHorizontal: spacing.sm,
   },
+  searchGradientBorder: {
+    borderRadius: borderRadius.lg,
+    padding: 1.5,  // 边框宽度
+  },
   searchInputWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: colors.white,
-    borderRadius: borderRadius.lg,
-    borderWidth: 1.5,
-    borderColor: colors.primary,  // 橙色边框
+    borderRadius: borderRadius.lg - 1,  // 稍微小一点以适应外层
     paddingLeft: spacing.md,
     paddingRight: spacing.sm,
-    height: 40,
+    height: 37,  // 减去边框宽度
   },
   searchInput: {
     flex: 1,

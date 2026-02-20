@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   RefreshControl,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Icon } from 'react-native-elements';
@@ -43,6 +44,7 @@ export default function CalendarScreen() {
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [watchlist, setWatchlist] = useState<string[]>([]);
+  const [activeTab, setActiveTab] = useState<'watchlist' | 'all'>('watchlist');
   
   const user = useSelector((state: RootState) => state.auth.user);
 
@@ -205,12 +207,60 @@ export default function CalendarScreen() {
     setRefreshing(false);
   };
 
+  // 添加到 watchlist
+  const addToWatchlist = async (ticker: string) => {
+    try {
+      await apiClient.post(`/watchlist/${ticker}`);
+      // 更新本地 watchlist 状态
+      setWatchlist(prev => [...prev, ticker]);
+      // 同步到 AsyncStorage
+      const updatedWatchlist = [...watchlist, ticker];
+      await AsyncStorage.setItem('@fintellic_watchlist', JSON.stringify(updatedWatchlist));
+    } catch (error: any) {
+      Alert.alert('Error', error.message || 'Failed to add to watchlist');
+    }
+  };
+
   const onDayPress = (day: DateData) => {
     setSelectedDate(day.dateString);
   };
 
   const getSelectedDateEarnings = () => {
     return earningsData.find(day => day.date === selectedDate);
+  };
+
+  // 获取某天的 BMO/AMC 数量统计
+  const getDayStats = (date: string) => {
+    const dayData = earningsData.find(day => day.date === date);
+    if (!dayData) return { bmo: 0, amc: 0 };
+    
+    const bmo = dayData.companies.filter(c => c.time?.toUpperCase() === 'BMO').length;
+    const amc = dayData.companies.filter(c => c.time?.toUpperCase() === 'AMC').length;
+    return { bmo, amc };
+  };
+
+  // 检查日期是否是今天
+  const isToday = (dateString: string) => {
+    const today = new Date().toISOString().split('T')[0];
+    return dateString === today;
+  };
+
+  // 获取筛选后的公司列表
+  const getFilteredCompanies = () => {
+    const dayData = getSelectedDateEarnings();
+    if (!dayData) return [];
+    
+    if (activeTab === 'watchlist') {
+      return dayData.companies.filter(c => watchlist.includes(c.ticker));
+    }
+    return dayData.companies;
+  };
+
+  // 获取 watchlist 中的公司数量
+  const getWatchlistCount = () => {
+    const dayData = getSelectedDateEarnings();
+    if (!dayData) return 0;
+    return dayData.companies.filter(c => watchlist.includes(c.ticker)).length;
   };
 
   const formatSelectedDate = (dateString: string) => {
@@ -229,32 +279,44 @@ export default function CalendarScreen() {
     const isWatchlisted = watchlist.includes(company.ticker);
     
     return (
-      <View key={company.ticker} style={styles.earningItem}>
-        <View style={styles.earningItemLeft}>
-          <Text style={styles.ticker}>{company.ticker}</Text>
-          <Text style={styles.companyName}>{company.name}</Text>
-          {(company.eps_estimate || company.revenue_estimate) && (
-            <View style={styles.estimates}>
-              {company.eps_estimate && (
-                <Text style={styles.estimateText}>
-                  EPS Est: ${company.eps_estimate}
+      <View key={company.ticker} style={[
+        styles.earningItem,
+        isWatchlisted && styles.earningItemWatchlisted,
+      ]}>
+        <View style={styles.earningItemContent}>
+          {/* 第一行：Ticker + 公司名 */}
+          <View style={styles.earningItemRow}>
+            <View style={styles.earningItemLeft}>
+              <Text style={styles.ticker}>{company.ticker}</Text>
+              <Text style={styles.companyName}>{company.name}</Text>
+            </View>
+            
+            {/* 右侧：标签 + 按钮 */}
+            <View style={styles.earningItemRight}>
+              <View style={[
+                styles.timeTagFilled,
+                company.time?.toUpperCase() === 'BMO' ? styles.timeTagFilledBmo : styles.timeTagFilledAmc
+              ]}>
+                <Text style={styles.timeTagFilledText}>
+                  {company.time?.toLowerCase()}
                 </Text>
-              )}
-              {company.revenue_estimate && (
-                <Text style={styles.estimateText}>
-                  Rev Est: ${company.revenue_estimate}B
-                </Text>
+              </View>
+              
+              {isWatchlisted ? (
+                <View style={styles.watchlistedBadge}>
+                  <Icon name="bookmark" type="material" size={16} color={colors.primary} />
+                </View>
+              ) : (
+                <TouchableOpacity 
+                  style={styles.remindMeButton} 
+                  onPress={() => addToWatchlist(company.ticker)}
+                >
+                  <Icon name="notifications-none" type="material" size={14} color={colors.primary} />
+                  <Text style={styles.remindMeText}>Remind me</Text>
+                </TouchableOpacity>
               )}
             </View>
-          )}
-        </View>
-        <View style={styles.earningItemRight}>
-          <View style={[styles.timeBadge, getTimeStyle(company.time)]}>
-            <Text style={styles.timeText}>{company.time}</Text>
           </View>
-          {isWatchlisted && (
-            <Icon name="star" type="material" size={20} color={colors.warning} />
-          )}
         </View>
       </View>
     );
@@ -273,6 +335,61 @@ export default function CalendarScreen() {
       default:
         return { backgroundColor: colors.textSecondary };
     }
+  };
+
+  // 自定义日历日期组件
+  const CustomDayComponent = ({ date, state, marking }: any) => {
+    const dateString = date.dateString;
+    const stats = getDayStats(dateString);
+    const isCurrentDay = isToday(dateString);
+    const isSelected = dateString === selectedDate;
+    const hasEvents = stats.bmo > 0 || stats.amc > 0;
+    const isDisabled = state === 'disabled';
+    
+    return (
+      <View style={styles.dayWrapper}>
+        <TouchableOpacity
+          style={[
+            styles.dayContainer,
+            isSelected && styles.dayContainerSelected,
+          ]}
+          onPress={() => setSelectedDate(dateString)}
+          disabled={isDisabled}
+        >
+        <View style={[
+          styles.dayNumberContainer,
+          isCurrentDay && styles.todayCircle,
+          isSelected && !isCurrentDay && styles.selectedCircle,
+        ]}>
+          <Text style={[
+            styles.dayNumber,
+            isDisabled && styles.dayNumberDisabled,
+            isCurrentDay && styles.todayText,
+            isSelected && !isCurrentDay && styles.selectedText,
+          ]}>
+            {date.day}
+          </Text>
+        </View>
+        
+        {hasEvents && !isDisabled && (
+          <View style={styles.dayBadges}>
+            {stats.bmo > 0 && (
+              <View style={styles.bmoBadgeFilled}>
+                <Text style={styles.badgeTextBmo}>bmo</Text>
+                <Text style={styles.badgeCountBmo}>{stats.bmo}</Text>
+              </View>
+            )}
+            {stats.amc > 0 && (
+              <View style={styles.amcBadgeFilled}>
+                <Text style={styles.badgeTextAmc}>amc</Text>
+                <Text style={styles.badgeCountAmc}>{stats.amc}</Text>
+              </View>
+            )}
+          </View>
+        )}
+      </TouchableOpacity>
+      </View>
+    );
   };
 
   if (isLoading) {
@@ -311,40 +428,20 @@ export default function CalendarScreen() {
           <Calendar
             current={selectedDate}
             onDayPress={onDayPress}
-            markedDates={markedDates}
-            markingType={'custom'}
+            dayComponent={CustomDayComponent}
             theme={{
               backgroundColor: colors.white,
               calendarBackground: colors.white,
               textSectionTitleColor: colors.textSecondary,
-              selectedDayBackgroundColor: colors.primary,
-              selectedDayTextColor: colors.white,
-              todayTextColor: colors.primary,
-              dayTextColor: colors.text,
-              textDisabledColor: colors.gray300,
-              dotColor: colors.primary,
-              selectedDotColor: colors.white,
               arrowColor: colors.primary,
               monthTextColor: colors.text,
-              textDayFontFamily: typography.fontFamily.regular,
               textMonthFontFamily: typography.fontFamily.semibold,
               textDayHeaderFontFamily: typography.fontFamily.medium,
-              textDayFontSize: 14,
               textMonthFontSize: 16,
               textDayHeaderFontSize: 12,
             }}
             style={styles.calendar}
           />
-          {/* Overlay grid lines */}
-          <View style={styles.gridOverlay} pointerEvents="none">
-            {[...Array(6)].map((_, rowIndex) => (
-              <View key={`row-${rowIndex}`} style={styles.gridRow}>
-                {[...Array(7)].map((_, colIndex) => (
-                  <View key={`cell-${rowIndex}-${colIndex}`} style={styles.gridCell} />
-                ))}
-              </View>
-            ))}
-          </View>
         </View>
 
         {/* Selected Date Earnings */}
@@ -355,12 +452,52 @@ export default function CalendarScreen() {
           
           {selectedEarnings && selectedEarnings.companies.length > 0 ? (
             <>
-              <Text style={styles.earningsCount}>
-                {selectedEarnings.companies.length} companies reporting
-              </Text>
+              {/* Tab 切换 */}
+              <View style={styles.tabContainer}>
+                <TouchableOpacity
+                  style={[styles.tab, activeTab === 'watchlist' && styles.tabActive]}
+                  onPress={() => setActiveTab('watchlist')}
+                >
+                  <Icon 
+                    name="bookmark" 
+                    type="material" 
+                    size={16} 
+                    color={activeTab === 'watchlist' ? colors.primary : colors.primary} 
+                  />
+                  <Text style={[styles.tabText, activeTab === 'watchlist' && styles.tabTextActive]}>
+                    My Watchlist
+                  </Text>
+                  <Text style={[styles.tabCount, activeTab === 'watchlist' && styles.tabCountActive]}>
+                    {getWatchlistCount()}
+                  </Text>
+                </TouchableOpacity>
+                
+                <TouchableOpacity
+                  style={[styles.tab, activeTab === 'all' && styles.tabActive]}
+                  onPress={() => setActiveTab('all')}
+                >
+                  <Text style={[styles.tabText, activeTab === 'all' && styles.tabTextActive]}>
+                    All Companies
+                  </Text>
+                  <Text style={[styles.tabCount, activeTab === 'all' && styles.tabCountActive]}>
+                    {selectedEarnings.companies.length}
+                  </Text>
+                </TouchableOpacity>
+              </View>
               
+              {/* 公司列表 */}
               <View style={styles.earningsList}>
-                {selectedEarnings.companies.map(renderEarningItem)}
+                {getFilteredCompanies().length > 0 ? (
+                  getFilteredCompanies().map(renderEarningItem)
+                ) : (
+                  <View style={styles.noWatchlistContainer}>
+                    <Text style={styles.noWatchlistText}>
+                      {activeTab === 'watchlist' 
+                        ? 'No watchlist companies reporting this day'
+                        : 'No companies reporting this day'}
+                    </Text>
+                  </View>
+                )}
               </View>
             </>
           ) : (
@@ -378,22 +515,25 @@ export default function CalendarScreen() {
           )}
         </View>
 
-        {/* Legend */}
-        <View style={styles.legend}>
-          <Text style={styles.legendTitle}>Time Legend</Text>
-          <View style={styles.legendItems}>
-            <View style={styles.legendItem}>
-              <View style={[styles.legendDot, { backgroundColor: '#2563EB' }]} />
-              <Text style={styles.legendText}>BMO - Before Market Open</Text>
+        {/* Legend - 横向固定底栏 */}
+        <View style={styles.legendBar}>
+          <View style={styles.legendBarItem}>
+            <View style={styles.legendBmoBadge}>
+              <Text style={styles.legendBadgeText}>bmo</Text>
             </View>
-            <View style={styles.legendItem}>
-              <View style={[styles.legendDot, { backgroundColor: '#10B981' }]} />
-              <Text style={styles.legendText}>AMC - After Market Close</Text>
+            <Text style={styles.legendBarText}>Before market{'\n'}open</Text>
+          </View>
+          
+          <View style={styles.legendBarItem}>
+            <View style={styles.legendAmcBadge}>
+              <Text style={styles.legendBadgeText}>amc</Text>
             </View>
-            <View style={styles.legendItem}>
-              <Icon name="star" type="material" size={16} color={colors.warning} />
-              <Text style={styles.legendText}>In your watchlist</Text>
-            </View>
+            <Text style={styles.legendBarText}>After market{'\n'}close</Text>
+          </View>
+          
+          <View style={styles.legendBarItem}>
+            <Icon name="bookmark" type="material" size={20} color={colors.primary} />
+            <Text style={styles.legendBarText}>In my{'\n'}watchlist</Text>
           </View>
         </View>
       </ScrollView>
@@ -404,7 +544,7 @@ export default function CalendarScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.beige, // 🎨 Changed to beige background
+    backgroundColor: '#F9FAFB',
   },
   loadingContainer: {
     flex: 1,
@@ -420,18 +560,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.lg,
     paddingBottom: spacing.sm,
-    backgroundColor: colors.beige,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
-    elevation: 3,
-    zIndex: 10,
+    backgroundColor: '#F9FAFB',
   },
   headerTitle: {
     fontSize: typography.fontSize.xl,
     fontFamily: typography.fontFamily.bold,
-    fontStyle: 'italic',
     color: colors.text,
   },
   headerSubtitle: {
@@ -445,7 +578,6 @@ const styles = StyleSheet.create({
     marginTop: spacing.xs,
     fontStyle: 'italic',
   },
-  // 🎨 NEW: Calendar wrapper with border and shadow
   calendarWrapper: {
     marginHorizontal: spacing.md,
     marginTop: spacing.sm,
@@ -455,30 +587,139 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     overflow: 'hidden',
     ...shadows.md,
-    position: 'relative',
   },
-  // 🎨 NEW: Calendar styling
   calendar: {
     borderRadius: borderRadius.lg,
     paddingBottom: spacing.sm,
   },
-  // 🎨 NEW: Grid overlay
-  gridOverlay: {
-    position: 'absolute',
-    top: 110, // Adjust based on header height
-    left: 0,
-    right: 0,
-    bottom: 0,
+  
+  // 自定义日历日期样式
+  dayWrapper: {
+    borderWidth: 0.5,
+    borderColor: '#E5E7EB',
   },
-  gridRow: {
+  dayContainer: {
+    width: 44,
+    minHeight: 60,
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+    paddingTop: 4,
+    backgroundColor: 'transparent',
+  },
+  dayContainerSelected: {
+    backgroundColor: '#F3F4F6',
+  },
+  dayNumberContainer: {
+    width: 28,
+    height: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 14,
+  },
+  todayCircle: {
+    backgroundColor: '#F97316',
+  },
+  selectedCircle: {
+    backgroundColor: colors.primary,
+  },
+  dayNumber: {
+    fontSize: 14,
+    fontFamily: typography.fontFamily.medium,
+    color: colors.text,
+  },
+  dayNumberDisabled: {
+    color: colors.gray300,
+  },
+  todayText: {
+    color: colors.white,
+    fontFamily: typography.fontFamily.bold,
+  },
+  selectedText: {
+    color: colors.white,
+    fontFamily: typography.fontFamily.bold,
+  },
+  dayBadges: {
+    flexDirection: 'column',
+    alignItems: 'center',
+    marginTop: 2,
+    gap: 2,
+  },
+  bmoBadgeFilled: {
     flexDirection: 'row',
-    height: 48, // Approximate height of each week row
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#2563EB',
+    borderRadius: 4,
+    paddingHorizontal: 4,
+    paddingVertical: 2,
+    minWidth: 36,
   },
-  gridCell: {
-    flex: 1,
-    borderWidth: 0.3,
-    borderColor: colors.gray200,
+  amcBadgeFilled: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#10B981',
+    borderRadius: 4,
+    paddingHorizontal: 4,
+    paddingVertical: 2,
+    minWidth: 36,
   },
+  badgeTextBmo: {
+    fontSize: 8,
+    fontFamily: typography.fontFamily.medium,
+    color: '#FFFFFF',
+  },
+  badgeCountBmo: {
+    fontSize: 8,
+    fontFamily: typography.fontFamily.bold,
+    color: '#FFFFFF',
+    marginLeft: 4,
+  },
+  badgeTextAmc: {
+    fontSize: 8,
+    fontFamily: typography.fontFamily.medium,
+    color: '#FFFFFF',
+  },
+  badgeCountAmc: {
+    fontSize: 8,
+    fontFamily: typography.fontFamily.bold,
+    color: '#FFFFFF',
+    marginLeft: 4,
+  },
+  
+  // Tab 切换样式
+  tabContainer: {
+    flexDirection: 'row',
+    marginBottom: spacing.md,
+    gap: spacing.md,
+  },
+  tab: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: spacing.xs,
+    gap: spacing.xs,
+  },
+  tabActive: {
+    borderBottomWidth: 2,
+    borderBottomColor: colors.primary,
+  },
+  tabText: {
+    fontSize: typography.fontSize.sm,
+    fontFamily: typography.fontFamily.medium,
+    color: colors.textSecondary,
+  },
+  tabTextActive: {
+    color: colors.text,
+  },
+  tabCount: {
+    fontSize: typography.fontSize.sm,
+    fontFamily: typography.fontFamily.medium,
+    color: colors.textSecondary,
+  },
+  tabCountActive: {
+    color: colors.primary,
+  },
+
   selectedDateContainer: {
     padding: spacing.lg,
     backgroundColor: colors.white,
@@ -493,38 +734,44 @@ const styles = StyleSheet.create({
     fontSize: typography.fontSize.lg,
     fontFamily: typography.fontFamily.semibold,
     color: colors.text,
-    marginBottom: spacing.sm,
-  },
-  earningsCount: {
-    fontSize: typography.fontSize.sm,
-    color: colors.textSecondary,
     marginBottom: spacing.md,
   },
   earningsList: {
     gap: spacing.sm,
   },
+  
+  // 公司卡片新样式
   earningItem: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: spacing.md,
-    backgroundColor: colors.backgroundSecondary,
+    backgroundColor: colors.white,
     borderRadius: borderRadius.md,
     marginBottom: spacing.sm,
     borderWidth: 1,
     borderColor: colors.gray200,
+    borderLeftWidth: 4,
+    borderLeftColor: colors.gray300,
+    overflow: 'hidden',
+  },
+  earningItemWatchlisted: {
+    borderLeftColor: colors.primary,
+  },
+  earningItemContent: {
+    padding: spacing.md,
+  },
+  earningItemRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
   },
   earningItemLeft: {
     flex: 1,
   },
   earningItemRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
+    alignItems: 'flex-end',
+    gap: spacing.xs,
   },
   ticker: {
-    fontSize: typography.fontSize.md,
-    fontFamily: typography.fontFamily.semibold,
+    fontSize: typography.fontSize.lg,
+    fontFamily: typography.fontFamily.bold,
     color: colors.text,
   },
   companyName: {
@@ -532,24 +779,53 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     marginTop: spacing.xxs,
   },
-  estimates: {
-    flexDirection: 'row',
-    gap: spacing.sm,
-    marginTop: spacing.xs,
-  },
-  estimateText: {
-    fontSize: typography.fontSize.xs,
-    color: colors.primary,
-  },
-  timeBadge: {
+  
+  // Time tag 填充样式
+  timeTagFilled: {
     paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xxs,
+    paddingVertical: 3,
     borderRadius: borderRadius.sm,
   },
-  timeText: {
+  timeTagFilledBmo: {
+    backgroundColor: '#2563EB',
+  },
+  timeTagFilledAmc: {
+    backgroundColor: '#10B981',
+  },
+  timeTagFilledText: {
     fontSize: typography.fontSize.xs,
-    color: colors.white,
+    fontFamily: typography.fontFamily.semibold,
+    color: '#FFFFFF',
+  },
+  
+  // Remind me 按钮
+  remindMeButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+    borderRadius: borderRadius.sm,
+    borderWidth: 1,
+    borderColor: colors.primary,
+    gap: 4,
+  },
+  remindMeText: {
+    fontSize: typography.fontSize.xs,
     fontFamily: typography.fontFamily.medium,
+    color: colors.primary,
+  },
+  watchlistedBadge: {
+    padding: spacing.xs,
+  },
+  
+  noWatchlistContainer: {
+    alignItems: 'center',
+    padding: spacing.lg,
+  },
+  noWatchlistText: {
+    fontSize: typography.fontSize.sm,
+    color: colors.textSecondary,
+    textAlign: 'center',
   },
   noEarningsContainer: {
     alignItems: 'center',
@@ -561,38 +837,47 @@ const styles = StyleSheet.create({
     marginTop: spacing.md,
     textAlign: 'center',
   },
-  legend: {
-    padding: spacing.lg,
+  
+  // Legend 横向底栏样式
+  legendBar: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    alignItems: 'center',
     backgroundColor: colors.white,
     marginTop: spacing.md,
     marginHorizontal: spacing.md,
     marginBottom: spacing.lg,
+    paddingVertical: spacing.md,
     borderRadius: borderRadius.lg,
     borderWidth: 1,
     borderColor: colors.border,
     ...shadows.sm,
   },
-  legendTitle: {
-    fontSize: typography.fontSize.md,
-    fontFamily: typography.fontFamily.semibold,
-    color: colors.text,
-    marginBottom: spacing.md,
-  },
-  legendItems: {
-    gap: spacing.sm,
-  },
-  legendItem: {
-    flexDirection: 'row',
+  legendBarItem: {
     alignItems: 'center',
-    gap: spacing.sm,
+    gap: spacing.xs,
   },
-  legendDot: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
+  legendBmoBadge: {
+    backgroundColor: '#2563EB',
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 4,
+    borderRadius: borderRadius.sm,
   },
-  legendText: {
-    fontSize: typography.fontSize.sm,
+  legendAmcBadge: {
+    backgroundColor: '#10B981',
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 4,
+    borderRadius: borderRadius.sm,
+  },
+  legendBadgeText: {
+    fontSize: typography.fontSize.xs,
+    fontFamily: typography.fontFamily.bold,
+    color: colors.white,
+  },
+  legendBarText: {
+    fontSize: typography.fontSize.xs,
     color: colors.textSecondary,
+    textAlign: 'center',
+    lineHeight: 14,
   },
 });
