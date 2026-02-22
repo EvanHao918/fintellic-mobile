@@ -206,6 +206,10 @@ export interface Filing {
   unified_analysis?: string;
   unified_feed_summary?: string;
   analysis_version?: 'v1' | 'v2';
+  
+  // Share-specific fields (AI-generated)
+  share_metrics?: string;  // e.g., "▲Revenue +8% | ▲EPS $6.42 | ▼China -12%"
+  share_hook?: string;     // e.g., "Did Apple just signal the end of iPhone growth?"
   smart_markup_data?: SmartMarkupData;
   analyst_expectations?: {
     revenue_estimate?: {

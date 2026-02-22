@@ -31,6 +31,7 @@ import { getFilingDetailComponent } from '../components/filing-details';
 import { useAddToHistory } from '../hooks/useHistory';
 import { BRAND_IMAGES } from '../constants/brand';
 import SingularService from '../services/SingularService';
+import ShareService from '../services/ShareService';
 
 // Route types
 type FilingDetailScreenRouteProp = RouteProp<RootStackParamList, 'FilingDetail'>;
@@ -378,11 +379,22 @@ export default function FilingDetailScreen() {
             <Icon name="arrow-back" size={24} color={colors.gray800} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Filing Details</Text>
-          <Image 
-            source={BRAND_IMAGES.HEADER_LOGO}
-            style={styles.headerLogo}
-            resizeMode="contain"
-          />
+          <View style={styles.headerRight}>
+            <TouchableOpacity 
+              style={styles.shareButtonHeader}
+              onPress={() => {
+                ShareService.trackShareIntent(filing, 'detail');
+                ShareService.shareFiling(filing);
+              }}
+            >
+              <Icon name="share" size={22} color={colors.gray800} />
+            </TouchableOpacity>
+            <Image 
+              source={BRAND_IMAGES.HEADER_LOGO}
+              style={styles.headerLogo}
+              resizeMode="contain"
+            />
+          </View>
         </View>
 
         {/* Differentiated Content */}
@@ -595,7 +607,12 @@ const styles = StyleSheet.create({
     height: 32,
   },
   headerRight: {
-    width: 40,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  shareButtonHeader: {
+    padding: spacing.xs,
   },
   section: {
     backgroundColor: colors.white,

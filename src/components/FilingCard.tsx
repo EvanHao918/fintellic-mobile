@@ -21,6 +21,7 @@ import { Text, Icon } from 'react-native-elements';
 import { Filing } from '../types';
 import { VotingModule, StatsDisplay } from './interactions';
 import { getDisplaySummary } from '../utils/textHelpers';
+import ShareService from '../services/ShareService';
 import themeConfig from '../theme';
 
 const { colors, typography, spacing, borderRadius, shadows, filingTypes, sentiments } = themeConfig;
@@ -259,21 +260,34 @@ export default function FilingCard({
               <Text style={styles.timestampText}>{formatDate(filing)}</Text>
             </View>
             
-            {/* 第二行：公司全名 + 指数标签 */}
+            {/* 第二行：公司全名 + 指数标签 + 分享按钮 */}
             <View style={styles.companySecondRow}>
-              <Text style={styles.companyName} numberOfLines={1}>
-                {filing.company_name}
-              </Text>
-              {filing.company?.is_sp500 && (
-                <View style={styles.indexBadgeOutline}>
-                  <Text style={styles.indexBadgeOutlineText}>S&P 500</Text>
-                </View>
-              )}
-              {filing.company?.is_nasdaq100 && (
-                <View style={[styles.indexBadgeOutline, styles.nasdaqBadgeOutline]}>
-                  <Text style={[styles.indexBadgeOutlineText, styles.nasdaqBadgeOutlineText]}>NASDAQ</Text>
-                </View>
-              )}
+              <View style={styles.companyNameWithBadges}>
+                <Text style={styles.companyName} numberOfLines={1}>
+                  {filing.company_name}
+                </Text>
+                {filing.company?.is_sp500 && (
+                  <View style={styles.indexBadgeOutline}>
+                    <Text style={styles.indexBadgeOutlineText}>S&P 500</Text>
+                  </View>
+                )}
+                {filing.company?.is_nasdaq100 && (
+                  <View style={[styles.indexBadgeOutline, styles.nasdaqBadgeOutline]}>
+                    <Text style={[styles.indexBadgeOutlineText, styles.nasdaqBadgeOutlineText]}>NASDAQ</Text>
+                  </View>
+                )}
+              </View>
+              <TouchableOpacity 
+                style={styles.shareButton}
+                onPress={(e) => {
+                  e.stopPropagation();
+                  ShareService.trackShareIntent(filing, 'card');
+                  ShareService.shareFiling(filing);
+                }}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
+                <Icon name="share" type="material" size={20} color="#10B981" />
+              </TouchableOpacity>
             </View>
           </View>
 
@@ -385,8 +399,18 @@ const styles = StyleSheet.create({
   companySecondRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  companyNameWithBadges: {
+    flexDirection: 'row',
+    alignItems: 'center',
     flexWrap: 'wrap',
     gap: spacing.xs,
+    flex: 1,
+  },
+  shareButton: {
+    padding: spacing.xs,
+    marginLeft: spacing.sm,
   },
   companyLeftSection: {
     flex: 1,
