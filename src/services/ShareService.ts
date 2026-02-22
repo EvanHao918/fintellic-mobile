@@ -62,12 +62,20 @@ export const generateShareContent = (filing: Filing): { title: string; message: 
 // 埋点辅助函数
 const trackShareEvent = (eventName: string, data: Record<string, string | number | boolean>): void => {
   try {
-    Singular.eventWithArgs(eventName, data);
-    if (DEBUG_MODE) {
-      console.log(`[Share] 📊 ${eventName} tracked:`, data);
+    // Singular SDK 在 Web/Expo 开发环境可能不可用
+    if (Singular && typeof Singular.eventWithArgs === 'function') {
+      Singular.eventWithArgs(eventName, data);
+      if (DEBUG_MODE) {
+        console.log(`[Share] 📊 ${eventName} tracked:`, data);
+      }
+    } else if (DEBUG_MODE) {
+      console.log(`[Share] 📊 ${eventName} (Singular unavailable):`, data);
     }
   } catch (error) {
-    console.error(`[Share] Error tracking ${eventName}:`, error);
+    // 静默处理，不影响分享功能
+    if (DEBUG_MODE) {
+      console.log(`[Share] Singular tracking skipped:`, eventName);
+    }
   }
 };
 
