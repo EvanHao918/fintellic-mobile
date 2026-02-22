@@ -16,20 +16,38 @@ src/
 │       ├── AllSight_text.png
 │       ├── AppIcon.png
 │       ├── card_10k.png
+│       ├── card_10k_1.png
+│       ├── card_10k_2.png
 │       ├── card_10q.png
+│       ├── card_10q_1.png
+│       ├── card_10q_2.png
 │       ├── card_8k.png
+│       ├── card_8k_1.png
+│       ├── card_8k_2.png
 │       ├── card_s1.png
+│       ├── card_s1_1.png
+│       ├── card_s1_2.png
 │       ├── detail_10k.png
 │       ├── detail_10q.png
 │       ├── detail_8k.png
+│       ├── detail_cover_1.png
+│       ├── detail_cover_2.png
+│       ├── detail_cover_3.png
 │       ├── detail_s1.png
+│       ├── icon_annual_review.png
+│       ├── icon_investment_analysis.png
+│       ├── icon_investment_perspective.png
+│       ├── icon_ipo_snapshot.png
+│       ├── icon_strategic_direction.png
 │       ├── insightflash_icon.png
 │       ├── insightflash_logo.png
 │       ├── insightflash_text.png
 │       ├── onboarding_arrow.png
 │       ├── onboarding_checklist.png
 │       ├── onboarding_logo.png
-│       └── onboarding_star.png
+│       ├── onboarding_star.png
+│       ├── rocket_icon.png
+│       └── watchlist_empty.png
 ├── components
 │   ├── CommentItem.tsx
 │   ├── CustomDrawerHeader.tsx
@@ -87,7 +105,9 @@ src/
 │   └── WatchlistScreen.tsx
 ├── services
 │   ├── IAPService.ts
-│   └── NotificationService.ts
+│   ├── NotificationService.ts
+│   ├── SingularService 2.ts
+│   └── SingularService.ts
 ├── store
 │   ├── index.ts
 │   └── slices
@@ -111,4 +131,4 @@ src/
     ├── storage.ts
     └── textHelpers.ts
 
-18 directories, 94 files
+18 directories, 114 files

@@ -361,8 +361,8 @@ const styles = StyleSheet.create({
   },
   coverImage: {
     width: '100%',
-    height: 180,  // 增加高度，给图片更多空间
-    borderRadius: borderRadius.lg,  // 四角圆角
+    height: 180,
+    borderRadius: borderRadius.lg,
   },
   
   // Company Info Section - 新布局
