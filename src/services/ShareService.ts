@@ -7,7 +7,7 @@ import { Filing } from '../types';
 import { Singular } from 'singular-react-native';
 
 // 分享链接基础 URL
-const SHARE_BASE_URL = 'https://allsight.up.railway.app/r';
+const SHARE_BASE_URL = 'https://allsight.up.railway.app/api/v1/r';
 
 // 开发模式日志
 const DEBUG_MODE = __DEV__;
