@@ -36,6 +36,9 @@ const SECTION_ICONS: { [key: string]: any } = {
   'ANNUAL REVIEW': require('../assets/images/icon_annual_review.png'),
   'STRATEGIC DIRECTION': require('../assets/images/icon_strategic_direction.png'),
   'INVESTMENT PERSPECTIVE': require('../assets/images/icon_investment_perspective.png'),
+  // 10-Q sections
+  'FACT CLARITY': require('../assets/images/icon_fact_clarity.png'),
+  'MARKET PERSPECTIVE': require('../assets/images/icon_market_perspective.png'),
   // S-1 sections
   'IPO SNAPSHOT': require('../assets/images/icon_ipo_snapshot.png'),
   'INVESTMENT ANALYSIS': require('../assets/images/icon_investment_analysis.png'),

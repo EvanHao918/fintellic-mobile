@@ -177,11 +177,11 @@ export default function ProfileScreen() {
     },
     {
       id: 'about',
-      title: 'About HermesSpeed',
+      title: 'About AllSight',
       subtitle: `Version 1.0.0`,
       icon: 'info',
       iconType: 'feather',
-      action: () => Alert.alert('HermesSpeed', 'AI-powered financial intelligence platform.'),
+      action: () => Alert.alert('AllSight', 'AI-powered financial intelligence platform.'),
       hasArrow: true,
     },
   ];
