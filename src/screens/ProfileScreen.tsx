@@ -15,7 +15,7 @@ import { useDispatch, useSelector } from 'react-redux';
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RootState, AppDispatch } from '../store';
-import { logout, refreshUserInfo } from '../store/slices/authSlice';
+import { logout, refreshUserInfo, deleteAccount } from '../store/slices/authSlice';
 import { fetchCurrentSubscription } from '../store/slices/subscriptionSlice';
 import { colors, typography, spacing, borderRadius } from '../theme';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -113,6 +113,42 @@ export default function ProfileScreen() {
           style: 'destructive',
           onPress: () => {
             dispatch(logout() as any);
+          },
+        },
+      ]
+    );
+  };
+
+  // Handle delete account
+  const handleDeleteAccount = () => {
+    Alert.alert(
+      'Delete Account',
+      'Are you sure you want to delete your account? This action cannot be undone. All your data, including watchlists and reading history, will be permanently removed.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: () => {
+            // Second confirmation
+            Alert.alert(
+              'Confirm Deletion',
+              'This is your final confirmation. Your account will be permanently deleted.',
+              [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                  text: 'Delete Forever',
+                  style: 'destructive',
+                  onPress: async () => {
+                    try {
+                      await dispatch(deleteAccount() as any).unwrap();
+                    } catch (error) {
+                      Alert.alert('Error', 'Failed to delete account. Please try again.');
+                    }
+                  },
+                },
+              ]
+            );
           },
         },
       ]
@@ -330,6 +366,12 @@ export default function ProfileScreen() {
           <Text style={styles.logoutText}>Log out</Text>
         </TouchableOpacity>
 
+        {/* Delete Account */}
+        <TouchableOpacity style={styles.deleteAccountButton} onPress={handleDeleteAccount}>
+          <Icon name="trash-2" type="feather" size={20} color={colors.error} />
+          <Text style={styles.deleteAccountText}>Delete Account</Text>
+        </TouchableOpacity>
+
         {/* Bottom padding */}
         <View style={{ height: spacing.xxxl }} />
       </ScrollView>
@@ -516,6 +558,19 @@ const styles = StyleSheet.create({
   logoutText: {
     fontSize: typography.fontSize.base,
     color: '#111827',
+    marginLeft: spacing.md,
+  },
+  deleteAccountButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginHorizontal: spacing.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.lg,
+    marginTop: spacing.xs,
+  },
+  deleteAccountText: {
+    fontSize: typography.fontSize.base,
+    color: colors.error,
     marginLeft: spacing.md,
   },
   section: {

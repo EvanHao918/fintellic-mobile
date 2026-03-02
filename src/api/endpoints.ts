@@ -218,6 +218,11 @@ export const userAPI = {
     const response = await apiClient.get<PricingInfo>('/users/me/pricing');
     return response;
   },
+
+  deleteAccount: async () => {
+    const response = await apiClient.delete<{ message: string }>('/users/me');
+    return response;
+  },
 };
 
 // 订阅专用端点

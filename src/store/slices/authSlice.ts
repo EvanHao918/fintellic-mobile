@@ -203,6 +203,29 @@ export const logout = createAsyncThunk('auth/logout', async () => {
   }
 });
 
+// Delete account async thunk
+export const deleteAccount = createAsyncThunk('auth/deleteAccount', async () => {
+  try {
+    // Call delete account API
+    await apiClient.delete('/users/me');
+    console.log('Account deletion successful');
+  } catch (error) {
+    console.error('Delete account API error:', error);
+    throw error;
+  } finally {
+    // Clear stored data (same as logout)
+    await AsyncStorage.multiRemove([
+      STORAGE_KEYS.AUTH_TOKEN,
+      STORAGE_KEYS.REFRESH_TOKEN,
+      STORAGE_KEYS.USER_INFO,
+      '@is_early_bird',
+    ]);
+    
+    // Clear the auth token from API client
+    apiClient.removeAuthToken();
+  }
+});
+
 // Load stored auth - 更新以处理订阅信息
 export const loadStoredAuth = createAsyncThunk(
   'auth/loadStoredAuth',
@@ -552,6 +575,25 @@ const authSlice = createSlice({
         state.refreshToken = null;
         state.isAuthenticated = false;
         state.error = null;
+      });
+
+    // Delete account cases
+    builder
+      .addCase(deleteAccount.pending, (state) => {
+        state.isLoading = true;
+        state.error = null;
+      })
+      .addCase(deleteAccount.fulfilled, (state) => {
+        state.user = null;
+        state.token = null;
+        state.refreshToken = null;
+        state.isAuthenticated = false;
+        state.isLoading = false;
+        state.error = null;
+      })
+      .addCase(deleteAccount.rejected, (state, action) => {
+        state.isLoading = false;
+        state.error = action.error.message || 'Failed to delete account';
       });
 
     // Load stored auth cases
