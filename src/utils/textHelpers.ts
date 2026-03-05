@@ -681,12 +681,15 @@ export const renderEnhancedText = (
 ): React.ReactElement[] => {
   if (!text) return [];
   
+  // Strip bare backtick fences (``` lines) that models sometimes emit
+  const cleanedText = text.replace(/^`{3,}.*$/gm, '').trim();
+  
   // Check if text contains new :::BLOCK / :::SIGNAL markers
-  const hasThesisBlocks = /:::BLOCK|:::SIGNAL/.test(text);
+  const hasThesisBlocks = /:::BLOCK|:::SIGNAL/.test(cleanedText);
   
   if (hasThesisBlocks) {
     // New system: parse thesis blocks
-    const blocks = parseThesisBlocks(text);
+    const blocks = parseThesisBlocks(cleanedText);
     const elements: React.ReactElement[] = [];
     let cardIndex = 0;
     
@@ -714,7 +717,7 @@ export const renderEnhancedText = (
   }
   
   // Legacy system: parse [BLOCK:] content blocks (S-1)
-  const sections = parseContentBlocks(text);
+  const sections = parseContentBlocks(cleanedText);
   const elements: React.ReactElement[] = [];
   
   sections.forEach((section, sectionIndex) => {
