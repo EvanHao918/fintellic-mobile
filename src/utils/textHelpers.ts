@@ -2,13 +2,19 @@
 /**
  * Minimalist Text Processing for AI-Generated Filing Analysis
  * 
- * SUPPORTED MARKUP (aligned with ai_processor.py v13):
+ * SUPPORTED MARKUP (aligned with ai_processor.py v14):
  * 
  * STRUCTURAL MARKUP:
  * - ### SECTION X: → Level 1 heading with icon (largest, uppercase)
  * - ## Subheader → Level 2 heading (medium, bold)
  * - --- → Horizontal separator line
- * - [BLOCK: Title] ... [/BLOCK] → Content module card (S-1 pilot)
+ * - [BLOCK: Title] ... [/BLOCK] → Content module card (S-1 pilot, preserved)
+ * 
+ * NEW MARKUP (8K / 10Q / 10K Section 2):
+ * - :::BLOCK ... :::END → Thesis-driven card with random pastel background
+ *   - ##THESIS [emoji] [title] → Card header (emoji + title)
+ *   - ##SIGNAL_POINT [text] → Observation row at card bottom
+ * - :::SIGNAL ... :::END → Key Takeaway plain block (no card, flat on page)
  * 
  * INLINE EMPHASIS:
  * - **text** → Yellow highlight (numbers, metrics)
@@ -22,8 +28,8 @@
  * - Simple & Fast: Minimal regex operations
  * - Professional appearance without emoji clutter
  * 
- * Version: 6.0 - Content modules support for S-1
- * Last updated: 2025-02-20
+ * Version: 7.0 - Thesis block + Signal support for 8K/10Q/10K
+ * Last updated: 2026-03-05
  */
 
 import React from 'react';
@@ -42,6 +48,23 @@ const SECTION_ICONS: { [key: string]: any } = {
   // S-1 sections
   'IPO SNAPSHOT': require('../assets/images/icon_ipo_snapshot.png'),
   'INVESTMENT ANALYSIS': require('../assets/images/icon_investment_analysis.png'),
+};
+
+// Pastel color pool for :::BLOCK cards
+const BLOCK_PASTEL_COLORS = [
+  '#FEF3C7',  // 淡黄
+  '#DBEAFE',  // 淡蓝
+  '#D1FAE5',  // 淡绿
+  '#EDE9FE',  // 淡紫
+  '#FFE4E6',  // 淡粉
+  '#E0F2FE',  // 淡天蓝
+  '#FEE2E2',  // 淡红
+  '#F3F4F6',  // 淡灰
+];
+
+// Deterministic color pick based on block index so color is stable across re-renders
+const getBlockColor = (index: number): string => {
+  return BLOCK_PASTEL_COLORS[index % BLOCK_PASTEL_COLORS.length];
 };
 
 // ==================== UTILITY FUNCTIONS ====================
@@ -136,12 +159,14 @@ export const smartPaginateText = (
     
     const isSectionBreak = /^---+/.test(para.trim());
     const isMajorHeading = /^### SECTION \d+:/i.test(para.trim());
+    const isBlockStart = /^:::BLOCK/.test(para.trim());
+    const isSignalStart = /^:::SIGNAL/.test(para.trim());
     
     if (nextLength > charsPerPage && currentPage) {
-      if (isSectionBreak || isMajorHeading) {
+      if (isSectionBreak || isMajorHeading || isBlockStart || isSignalStart) {
         pages.push(currentPage.trim());
         currentPage = para;
-        console.log(`  [Pagination] Split before section at ${nextLength} chars`);
+        console.log(`  [Pagination] Split before section/block at ${nextLength} chars`);
       } else if (nextLength > charsPerPage * 1.5) {
         pages.push(currentPage.trim());
         currentPage = para;
@@ -417,7 +442,7 @@ const renderParagraph = (text: string, key: string): React.ReactElement => {
 };
 
 /**
- * Parse and extract BLOCK sections from text
+ * Parse and extract BLOCK sections from text (legacy S-1 [BLOCK:] system)
  * Returns array of { type: 'block' | 'content', title?: string, content: string }
  */
 interface ContentSection {
@@ -468,6 +493,137 @@ const parseContentBlocks = (text: string): ContentSection[] => {
   return sections;
 };
 
+// ==================== NEW :::BLOCK / :::SIGNAL SYSTEM ====================
+
+interface ThesisBlock {
+  type: 'thesis' | 'signal' | 'content';
+  thesis?: string;       // ##THESIS line content (emoji + title)
+  body?: string;         // paragraphs between ##THESIS and ##SIGNAL_POINT
+  signalPoint?: string;  // ##SIGNAL_POINT line content
+  content?: string;      // plain content (non-block)
+}
+
+/**
+ * Parse text into thesis blocks, signal blocks, and plain content
+ */
+const parseThesisBlocks = (text: string): ThesisBlock[] => {
+  const results: ThesisBlock[] = [];
+  
+  // Split on :::BLOCK and :::SIGNAL markers
+  const blockPattern = /:::BLOCK([\s\S]*?):::END|:::SIGNAL([\s\S]*?):::END/g;
+  let lastIndex = 0;
+  let match;
+  let blockIndex = 0;
+  
+  while ((match = blockPattern.exec(text)) !== null) {
+    // Plain content before this block
+    if (match.index > lastIndex) {
+      const before = text.substring(lastIndex, match.index).trim();
+      if (before) {
+        results.push({ type: 'content', content: before });
+      }
+    }
+    
+    const isThesisBlock = match[1] !== undefined;
+    const blockContent = (isThesisBlock ? match[1] : match[2]).trim();
+    
+    if (isThesisBlock) {
+      // Parse ##THESIS, body, ##SIGNAL_POINT
+      const thesisMatch = blockContent.match(/^##THESIS\s+(.+)/m);
+      const signalMatch = blockContent.match(/##SIGNAL_POINT\s+(.+)/m);
+      
+      let body = blockContent;
+      if (thesisMatch) {
+        body = body.replace(/^##THESIS\s+.+/m, '').trim();
+      }
+      if (signalMatch) {
+        body = body.replace(/##SIGNAL_POINT\s+.+/m, '').trim();
+      }
+      
+      results.push({
+        type: 'thesis',
+        thesis: thesisMatch ? thesisMatch[1].trim() : '',
+        body: body,
+        signalPoint: signalMatch ? signalMatch[1].trim() : undefined,
+      });
+      blockIndex++;
+    } else {
+      // :::SIGNAL — plain content block
+      results.push({ type: 'signal', content: blockContent });
+    }
+    
+    lastIndex = match.index + match[0].length;
+  }
+  
+  // Remaining plain content
+  if (lastIndex < text.length) {
+    const remaining = text.substring(lastIndex).trim();
+    if (remaining) {
+      results.push({ type: 'content', content: remaining });
+    }
+  }
+  
+  if (results.length === 0) {
+    results.push({ type: 'content', content: text });
+  }
+  
+  return results;
+};
+
+/**
+ * Render a :::BLOCK thesis card with pastel background
+ */
+const renderThesisCard = (block: ThesisBlock, cardIndex: number): React.ReactElement => {
+  const key = `thesis-${cardIndex}`;
+  const bgColor = getBlockColor(cardIndex);
+  const bodyElements = block.body ? renderContentLines(block.body, `${key}-body`) : [];
+  
+  return React.createElement(
+    View,
+    { key, style: [styles.thesisCard, { backgroundColor: bgColor }] },
+    // Thesis header row
+    block.thesis ? React.createElement(
+      View,
+      { style: styles.thesisHeader },
+      React.createElement(
+        Text,
+        { style: styles.thesisTitle },
+        block.thesis
+      )
+    ) : null,
+    // Body content
+    bodyElements.length > 0 ? React.createElement(
+      View,
+      { style: styles.thesisBody },
+      ...bodyElements
+    ) : null,
+    // Signal point row
+    block.signalPoint ? React.createElement(
+      View,
+      { style: styles.signalPointRow },
+      React.createElement(
+        Text,
+        { style: styles.signalPointText },
+        block.signalPoint
+      )
+    ) : null
+  );
+};
+
+/**
+ * Render a :::SIGNAL block — plain on the page, no card
+ */
+const renderSignalBlock = (block: ThesisBlock, index: number): React.ReactElement => {
+  const key = `signal-${index}`;
+  const contentElements = block.content ? renderContentLines(block.content, key) : [];
+  
+  return React.createElement(
+    View,
+    { key, style: styles.signalContainer },
+    ...contentElements
+  );
+};
+
 /**
  * Render lines within a section (block or regular content)
  */
@@ -487,7 +643,7 @@ const renderContentLines = (content: string, keyPrefix: string): React.ReactElem
 };
 
 /**
- * Render a BLOCK as a card component
+ * Render a legacy [BLOCK:] card component (S-1)
  */
 const renderBlock = (section: ContentSection, index: number): React.ReactElement => {
   const key = `block-${index}`;
@@ -516,7 +672,8 @@ const renderBlock = (section: ContentSection, index: number): React.ReactElement
 };
 
 /**
- * Main rendering function: parse and render enhanced text with BLOCK support
+ * Main rendering function: parse and render enhanced text
+ * Supports :::BLOCK/:::SIGNAL (new), [BLOCK:] (S-1 legacy), and plain text
  */
 export const renderEnhancedText = (
   text: string,
@@ -524,16 +681,46 @@ export const renderEnhancedText = (
 ): React.ReactElement[] => {
   if (!text) return [];
   
-  // First, parse content blocks
+  // Check if text contains new :::BLOCK / :::SIGNAL markers
+  const hasThesisBlocks = /:::BLOCK|:::SIGNAL/.test(text);
+  
+  if (hasThesisBlocks) {
+    // New system: parse thesis blocks
+    const blocks = parseThesisBlocks(text);
+    const elements: React.ReactElement[] = [];
+    let cardIndex = 0;
+    
+    blocks.forEach((block, i) => {
+      if (block.type === 'thesis') {
+        elements.push(renderThesisCard(block, cardIndex));
+        cardIndex++;
+      } else if (block.type === 'signal') {
+        elements.push(renderSignalBlock(block, i));
+      } else {
+        // Plain content — use legacy content rendering
+        const contentSections = parseContentBlocks(block.content || '');
+        contentSections.forEach((section, si) => {
+          if (section.type === 'block') {
+            elements.push(renderBlock(section, i * 100 + si));
+          } else {
+            const contentElements = renderContentLines(section.content, `content-${i}-${si}`);
+            elements.push(...contentElements);
+          }
+        });
+      }
+    });
+    
+    return elements;
+  }
+  
+  // Legacy system: parse [BLOCK:] content blocks (S-1)
   const sections = parseContentBlocks(text);
   const elements: React.ReactElement[] = [];
   
   sections.forEach((section, sectionIndex) => {
     if (section.type === 'block') {
-      // Render as card
       elements.push(renderBlock(section, sectionIndex));
     } else {
-      // Render as regular content
       const contentElements = renderContentLines(section.content, `content-${sectionIndex}`);
       elements.push(...contentElements);
     }
@@ -687,9 +874,9 @@ const styles = StyleSheet.create({
     fontFamily: typography.fontFamily.serif,
   },
   
-  // Content Block: Card container for modular content
+  // Content Block: Card container for legacy S-1 [BLOCK:] system
   blockContainer: {
-    backgroundColor: '#F9FAFB',  // Light gray background
+    backgroundColor: '#F9FAFB',
     borderRadius: 12,
     borderWidth: 1,
     borderColor: '#E5E7EB',
@@ -697,7 +884,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   
-  // Block header
+  // Block header (legacy)
   blockHeader: {
     backgroundColor: '#F3F4F6',
     paddingHorizontal: 16,
@@ -706,7 +893,7 @@ const styles = StyleSheet.create({
     borderBottomColor: '#E5E7EB',
   },
   
-  // Block title
+  // Block title (legacy)
   blockTitle: {
     fontSize: 14,
     fontWeight: '600',
@@ -715,9 +902,64 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
   
-  // Block content
+  // Block content (legacy)
   blockContent: {
     padding: 16,
+  },
+
+  // ==================== NEW THESIS CARD STYLES ====================
+
+  // :::BLOCK thesis card — pastel background set dynamically
+  thesisCard: {
+    borderRadius: 12,
+    marginVertical: 10,
+    overflow: 'hidden',
+  },
+
+  // Thesis header row: emoji + title
+  thesisHeader: {
+    paddingHorizontal: 16,
+    paddingTop: 14,
+    paddingBottom: 10,
+  },
+
+  thesisTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#1a1a1a',
+    lineHeight: 22,
+    fontFamily: typography.fontFamily.serif,
+  },
+
+  // Body content area
+  thesisBody: {
+    paddingHorizontal: 16,
+    paddingBottom: 10,
+  },
+
+  // Signal point row — bottom of card, subtle separator
+  signalPointRow: {
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(0,0,0,0.08)',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+  },
+
+  signalPointText: {
+    fontSize: typography.fontSize.sm,
+    fontWeight: '600',
+    color: '#374151',
+    lineHeight: 20,
+    fontFamily: typography.fontFamily.serif,
+  },
+
+  // :::SIGNAL plain block — no card, flat on page
+  signalContainer: {
+    marginTop: 20,
+    marginBottom: 8,
+    paddingTop: 16,
+    borderTopWidth: 2,
+    borderTopColor: colors.gray900,
   },
 });
 

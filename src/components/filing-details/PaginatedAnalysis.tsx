@@ -196,10 +196,7 @@ const styles = StyleSheet.create({
   paperContainer: {
     flex: 1,
     backgroundColor: colors.white,
-    marginHorizontal: spacing.md,
-    borderRadius: borderRadius.lg,
-    borderWidth: 1,
-    borderColor: colors.gray200 || '#E5E7EB',
+    borderRadius: 0,
     ...Platform.select({
       ios: {
         shadowColor: colors.black,
@@ -244,8 +241,7 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: colors.border,
     backgroundColor: colors.gray50 || colors.backgroundSecondary,
-    borderBottomLeftRadius: borderRadius.lg,
-    borderBottomRightRadius: borderRadius.lg,
+
   },
   
   // 🆕 页码中央区域
