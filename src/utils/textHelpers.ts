@@ -145,54 +145,85 @@ export const smartPaginateText = (
     console.log(`[Pagination] Content too short (${text.length} chars), skipping pagination`);
     return [text];
   }
+
+  // ── Step 1: Tokenize into atomic units ──────────────────────────────
+  // :::BLOCK...:::END and :::SIGNAL...:::END are treated as single indivisible tokens.
+  // Everything else is split on double newlines as before.
   
-  const paragraphs = text.split('\n\n').filter(p => p.trim().length > 0);
-  
-  if (paragraphs.length === 0) return [text];
-  
-  const pages: string[] = [];
-  let currentPage = '';
-  
-  for (let i = 0; i < paragraphs.length; i++) {
-    const para = paragraphs[i];
-    const nextLength = currentPage.length + (currentPage ? 2 : 0) + para.length;
-    
-    const isSectionBreak = /^---+/.test(para.trim());
-    const isMajorHeading = /^### SECTION \d+:/i.test(para.trim());
-    const isBlockStart = /^:::BLOCK/.test(para.trim());
-    const isSignalStart = /^:::SIGNAL/.test(para.trim());
-    
-    if (nextLength > charsPerPage && currentPage) {
-      if (isSectionBreak || isMajorHeading || isBlockStart || isSignalStart) {
-        pages.push(currentPage.trim());
-        currentPage = para;
-        console.log(`  [Pagination] Split before section/block at ${nextLength} chars`);
-      } else if (nextLength > charsPerPage * 1.5) {
-        pages.push(currentPage.trim());
-        currentPage = para;
-        console.log(`  [Pagination] Force split at ${nextLength} chars (too long)`);
-      } else {
-        currentPage += '\n\n' + para;
-      }
-    } else {
-      currentPage += (currentPage ? '\n\n' : '') + para;
-    }
+  interface Token {
+    content: string;
+    atomic: boolean; // true = never split mid-token
   }
   
+  const tokens: Token[] = [];
+  const blockPattern = /:::(?:BLOCK|SIGNAL)[\s\S]*?:::END/g;
+  let lastIndex = 0;
+  let match;
+  
+  while ((match = blockPattern.exec(text)) !== null) {
+    // Plain text before this block
+    if (match.index > lastIndex) {
+      const before = text.substring(lastIndex, match.index);
+      const paras = before.split('\n\n').filter(p => p.trim().length > 0);
+      paras.forEach(p => tokens.push({ content: p, atomic: false }));
+    }
+    // The block itself — atomic
+    tokens.push({ content: match[0], atomic: true });
+    lastIndex = match.index + match[0].length;
+  }
+  
+  // Remaining plain text after last block
+  if (lastIndex < text.length) {
+    const remaining = text.substring(lastIndex);
+    const paras = remaining.split('\n\n').filter(p => p.trim().length > 0);
+    paras.forEach(p => tokens.push({ content: p, atomic: false }));
+  }
+  
+  if (tokens.length === 0) return [text];
+
+  // ── Step 2: Pack tokens into pages ──────────────────────────────────
+  const pages: string[] = [];
+  let currentPage = '';
+
+  for (const token of tokens) {
+    const separator = currentPage ? '\n\n' : '';
+    const nextLength = currentPage.length + separator.length + token.content.length;
+
+    const isSectionBreak = /^---+/.test(token.content.trim());
+    const isMajorHeading = /^### SECTION \d+:/i.test(token.content.trim());
+    const isBlockUnit = token.atomic;
+
+    if (nextLength > charsPerPage && currentPage) {
+      if (isSectionBreak || isMajorHeading || isBlockUnit) {
+        // Always start a new page before these
+        pages.push(currentPage.trim());
+        currentPage = token.content;
+        console.log(`  [Pagination] Split before block/section at ${nextLength} chars`);
+      } else if (nextLength > charsPerPage * 1.5) {
+        // Force split for very long plain paragraphs
+        pages.push(currentPage.trim());
+        currentPage = token.content;
+        console.log(`  [Pagination] Force split at ${nextLength} chars`);
+      } else {
+        currentPage += '\n\n' + token.content;
+      }
+    } else {
+      currentPage += separator + token.content;
+    }
+  }
+
   if (currentPage.trim()) {
     pages.push(currentPage.trim());
   }
-  
-  if (pages.length === 0) {
-    return [text];
-  }
-  
+
+  if (pages.length === 0) return [text];
+
   console.log(`✅ [Pagination] Split ${text.length} chars into ${pages.length} pages:`);
   pages.forEach((page, idx) => {
     const wordCount = page.split(/\s+/).length;
     console.log(`   Page ${idx + 1}: ${page.length} chars, ~${wordCount} words`);
   });
-  
+
   return pages;
 };
 
@@ -604,7 +635,7 @@ const renderThesisCard = (block: ThesisBlock, cardIndex: number): React.ReactEle
       React.createElement(
         Text,
         { style: styles.signalPointText },
-        block.signalPoint
+        '🔑 ' + block.signalPoint
       )
     ) : null
   );
@@ -652,28 +683,235 @@ const renderBlock = (section: ContentSection, index: number): React.ReactElement
   return React.createElement(
     View,
     { key, style: styles.blockContainer },
-    // Block title
     section.title && React.createElement(
       View,
       { style: styles.blockHeader },
-      React.createElement(
-        Text,
-        { style: styles.blockTitle },
-        section.title
-      )
+      React.createElement(Text, { style: styles.blockTitle }, section.title)
     ),
-    // Block content
+    React.createElement(View, { style: styles.blockContent }, ...contentElements)
+  );
+};
+
+// ==================== IPO SNAPSHOT + SCORECARD SYSTEM ====================
+
+const SCORECARD_DIMENSIONS = [
+  { key: 'GROWTH',    emoji: '📈', label: 'Growth' },
+  { key: 'FINANCIAL', emoji: '💰', label: 'Financial Health' },
+  { key: 'BACKING',   emoji: '🏦', label: 'Institutional Backing' },
+  { key: 'MOAT',      emoji: '🛡️', label: 'Competitive Moat' },
+  { key: 'VALUATION', emoji: '🔢', label: 'Valuation' },
+  { key: 'CAPITAL',   emoji: '🏗️', label: 'Capital Structure' },
+];
+
+interface SnapshotField {
+  label: string;
+  value: string;
+  warn?: boolean;
+}
+
+interface ScorecardDimension {
+  key: string;
+  emoji: string;
+  label: string;
+  score: number;
+  verdict: string;
+  detail: string;
+}
+
+interface ScorecardData {
+  dimensions: ScorecardDimension[];
+  overall: { signal: string; text: string };
+}
+
+const parseSnapshotBlock = (content: string): SnapshotField[] => {
+  const fields: SnapshotField[] = [];
+  const labelMap: Record<string, string> = {
+    COMPANY: 'Company',
+    TYPE: 'IPO Type',
+    RAISE: 'Raise',
+    UNDERWRITERS: 'Underwriters',
+    PROCEEDS: 'Use of Proceeds',
+    FINANCIALS: 'Financials',
+  };
+  
+  content.split('\n').forEach(line => {
+    const match = line.match(/^([A-Z_]+):\s*(.+)$/);
+    if (!match) return;
+    const [, key, value] = match;
+    if (!labelMap[key]) return;
+    fields.push({
+      label: labelMap[key],
+      value: value.replace('WARN', '').trim(),
+      warn: value.includes('WARN'),
+    });
+  });
+  
+  return fields;
+};
+
+const parseScorecardBlock = (content: string): ScorecardData => {
+  const dimensions: ScorecardDimension[] = [];
+  let overall = { signal: 'MIXED', text: '' };
+  
+  content.split('\n').forEach(line => {
+    const overallMatch = line.match(/^OVERALL:(STRONG|MIXED|WEAK)\|(.+)$/);
+    if (overallMatch) {
+      overall = { signal: overallMatch[1], text: overallMatch[2].trim() };
+      return;
+    }
+    
+    const dimMatch = line.match(/^([A-Z_]+):(\d)\|([^|]+)\|(.+)$/);
+    if (!dimMatch) return;
+    const [, key, scoreStr, verdict, detail] = dimMatch;
+    const dimDef = SCORECARD_DIMENSIONS.find(d => d.key === key);
+    if (!dimDef) return;
+    
+    dimensions.push({
+      key,
+      emoji: dimDef.emoji,
+      label: dimDef.label,
+      score: parseInt(scoreStr),
+      verdict: verdict.trim(),
+      detail: detail.trim(),
+    });
+  });
+  
+  // Ensure all 6 dimensions present in correct order
+  const ordered = SCORECARD_DIMENSIONS.map(def => {
+    return dimensions.find(d => d.key === def.key) || {
+      key: def.key, emoji: def.emoji, label: def.label,
+      score: 3, verdict: '[NO_DATA]', detail: '[NO_DATA]',
+    };
+  });
+  
+  return { dimensions: ordered, overall };
+};
+
+const renderSnapshotBlock = (content: string, key: string): React.ReactElement => {
+  const fields = parseSnapshotBlock(content);
+  
+  return React.createElement(
+    View,
+    { key, style: styles.snapshotContainer },
+    ...fields.map((field, i) =>
+      React.createElement(
+        View,
+        { key: `snap-${i}`, style: styles.snapshotRow },
+        React.createElement(Text, { style: styles.snapshotLabel }, field.label),
+        React.createElement(
+          View,
+          { style: styles.snapshotValueContainer },
+          React.createElement(
+            Text,
+            { style: [styles.snapshotValue, field.warn && styles.snapshotValueWarn] },
+            field.value + (field.warn ? ' ⚠️' : '')
+          )
+        )
+      )
+    )
+  );
+};
+
+// Scorecard uses React state for expand/collapse — rendered as a special component
+// We export a flag so the Detail component can detect and render it natively
+export const SCORECARD_MARKER = ':::SCORECARD_PARSED:::';
+
+export const extractScorecardData = (text: string): ScorecardData | null => {
+  const match = text.match(/:::SCORECARD([\s\S]*?):::END/);
+  if (!match) return null;
+  return parseScorecardBlock(match[1].trim());
+};
+
+export const extractSnapshotFields = (text: string): SnapshotField[] | null => {
+  const match = text.match(/:::SNAPSHOT([\s\S]*?):::END/);
+  if (!match) return null;
+  return parseSnapshotBlock(match[1].trim());
+};
+
+const renderScorecardStatic = (content: string, key: string): React.ReactElement => {
+  const data = parseScorecardBlock(content);
+  const signalColors: Record<string, string> = {
+    STRONG: '#16A34A',
+    MIXED:  '#CA8A04',
+    WEAK:   '#DC2626',
+  };
+  const signalColor = signalColors[data.overall.signal] || '#6B7280';
+
+  const dimElements = data.dimensions.map((dim, i) => {
+    const segments = Array.from({ length: 5 });
+    const barColor = dim.score >= 4 ? '#16A34A' : dim.score >= 3 ? '#CA8A04' : '#DC2626';
+    
+    return React.createElement(
+      View,
+      { key: `dim-${i}`, style: styles.scoreDimRow },
+      // Header: emoji + label + score
+      React.createElement(
+        View,
+        { style: styles.scoreDimHeader },
+        React.createElement(
+          Text,
+          { style: styles.scoreDimLabel },
+          `${dim.emoji} ${dim.label}`
+        ),
+        React.createElement(
+          Text,
+          { style: styles.scoreDimScore },
+          `${dim.score}/5`
+        )
+      ),
+      // Segmented bar
+      React.createElement(
+        View,
+        { style: styles.scoreBarContainer },
+        ...segments.map((_, si) =>
+          React.createElement(View, {
+            key: si,
+            style: [styles.scoreBarSegment, { backgroundColor: si < dim.score ? barColor : '#E5E7EB' }]
+          })
+        )
+      ),
+      // Verdict
+      React.createElement(Text, { style: styles.scoreDimVerdict }, dim.verdict),
+      // Detail
+      React.createElement(
+        View,
+        { style: [styles.scoreDimDetail, { borderLeftColor: barColor + '66' }] },
+        React.createElement(Text, { style: styles.scoreDimDetailText }, dim.detail)
+      )
+    );
+  });
+
+  return React.createElement(
+    View,
+    { key, style: styles.scorecardContainer },
+    ...dimElements,
+    // Overall signal
     React.createElement(
       View,
-      { style: styles.blockContent },
-      ...contentElements
+      { style: [styles.overallSignalContainer, { borderLeftColor: signalColor, backgroundColor: signalColor + '0D' }] },
+      React.createElement(
+        Text,
+        { style: [styles.overallSignalLabel, { color: signalColor }] },
+        `${data.overall.signal} SIGNAL`
+      ),
+      React.createElement(
+        Text,
+        { style: styles.overallSignalText },
+        data.overall.text
+      )
+    ),
+    // Disclaimer
+    React.createElement(
+      Text,
+      { style: styles.ipoDisclaimer },
+      'FOR INFORMATIONAL PURPOSES ONLY · NOT INVESTMENT ADVICE'
     )
   );
 };
 
 /**
  * Main rendering function: parse and render enhanced text
- * Supports :::BLOCK/:::SIGNAL (new), [BLOCK:] (S-1 legacy), and plain text
+ * Supports :::SNAPSHOT/:::SCORECARD (S-1), :::BLOCK/:::SIGNAL (8K/10Q/10K), [BLOCK:] (legacy)
  */
 export const renderEnhancedText = (
   text: string,
@@ -684,11 +922,54 @@ export const renderEnhancedText = (
   // Strip bare backtick fences (``` lines) that models sometimes emit
   const cleanedText = text.replace(/^`{3,}.*$/gm, '').trim();
   
-  // Check if text contains new :::BLOCK / :::SIGNAL markers
+  // Check for IPO-specific markers first
+  const hasIPOBlocks = /:::SNAPSHOT|:::SCORECARD/.test(cleanedText);
+  
+  if (hasIPOBlocks) {
+    const elements: React.ReactElement[] = [];
+    const ipoPattern = /:::(?:SNAPSHOT|SCORECARD)([\s\S]*?):::END/g;
+    let lastIndex = 0;
+    let match;
+    let ipoIndex = 0;
+    
+    while ((match = ipoPattern.exec(cleanedText)) !== null) {
+      // Plain content before this block
+      if (match.index > lastIndex) {
+        const before = cleanedText.substring(lastIndex, match.index).trim();
+        if (before) {
+          renderContentLines(before, `ipo-pre-${ipoIndex}`).forEach(el => elements.push(el));
+        }
+      }
+      
+      const isSnapshot = match[0].startsWith(':::SNAPSHOT');
+      const blockContent = match[1].trim();
+      const key = `ipo-${ipoIndex}`;
+      
+      if (isSnapshot) {
+        elements.push(renderSnapshotBlock(blockContent, key));
+      } else {
+        elements.push(renderScorecardStatic(blockContent, key));
+      }
+      
+      ipoIndex++;
+      lastIndex = match.index + match[0].length;
+    }
+    
+    // Remaining content
+    if (lastIndex < cleanedText.length) {
+      const remaining = cleanedText.substring(lastIndex).trim();
+      if (remaining) {
+        renderContentLines(remaining, 'ipo-post').forEach(el => elements.push(el));
+      }
+    }
+    
+    return elements;
+  }
+  
+  // Check if text contains :::BLOCK / :::SIGNAL markers (8K/10Q/10K)
   const hasThesisBlocks = /:::BLOCK|:::SIGNAL/.test(cleanedText);
   
   if (hasThesisBlocks) {
-    // New system: parse thesis blocks
     const blocks = parseThesisBlocks(cleanedText);
     const elements: React.ReactElement[] = [];
     let cardIndex = 0;
@@ -700,14 +981,12 @@ export const renderEnhancedText = (
       } else if (block.type === 'signal') {
         elements.push(renderSignalBlock(block, i));
       } else {
-        // Plain content — use legacy content rendering
         const contentSections = parseContentBlocks(block.content || '');
         contentSections.forEach((section, si) => {
           if (section.type === 'block') {
             elements.push(renderBlock(section, i * 100 + si));
           } else {
-            const contentElements = renderContentLines(section.content, `content-${i}-${si}`);
-            elements.push(...contentElements);
+            renderContentLines(section.content, `content-${i}-${si}`).forEach(el => elements.push(el));
           }
         });
       }
@@ -716,7 +995,7 @@ export const renderEnhancedText = (
     return elements;
   }
   
-  // Legacy system: parse [BLOCK:] content blocks (S-1)
+  // Legacy system: parse [BLOCK:] content blocks
   const sections = parseContentBlocks(cleanedText);
   const elements: React.ReactElement[] = [];
   
@@ -724,8 +1003,7 @@ export const renderEnhancedText = (
     if (section.type === 'block') {
       elements.push(renderBlock(section, sectionIndex));
     } else {
-      const contentElements = renderContentLines(section.content, `content-${sectionIndex}`);
-      elements.push(...contentElements);
+      renderContentLines(section.content, `content-${sectionIndex}`).forEach(el => elements.push(el));
     }
   });
   
@@ -924,6 +1202,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 14,
     paddingBottom: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(0,0,0,0.08)',
   },
 
   thesisTitle: {
@@ -963,6 +1243,145 @@ const styles = StyleSheet.create({
     paddingTop: 16,
     borderTopWidth: 2,
     borderTopColor: colors.gray900,
+  },
+
+  // ==================== IPO SNAPSHOT STYLES ====================
+
+  snapshotContainer: {
+    marginVertical: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    overflow: 'hidden',
+  },
+
+  snapshotRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+  },
+
+  snapshotLabel: {
+    width: 110,
+    fontSize: 10,
+    fontFamily: 'Courier New',
+    color: '#9CA3AF',
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
+    paddingTop: 2,
+  },
+
+  snapshotValueContainer: {
+    flex: 1,
+  },
+
+  snapshotValue: {
+    fontSize: typography.fontSize.sm,
+    fontFamily: typography.fontFamily.serif,
+    color: '#1F2937',
+    lineHeight: 20,
+  },
+
+  snapshotValueWarn: {
+    color: '#B45309',
+  },
+
+  // ==================== IPO SCORECARD STYLES ====================
+
+  scorecardContainer: {
+    marginVertical: 12,
+  },
+
+  scoreDimRow: {
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+  },
+
+  scoreDimHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 7,
+  },
+
+  scoreDimLabel: {
+    fontSize: 12,
+    fontFamily: 'Courier New',
+    color: '#374151',
+    letterSpacing: 0.3,
+  },
+
+  scoreDimScore: {
+    fontSize: 10,
+    fontFamily: 'Courier New',
+    color: '#9CA3AF',
+  },
+
+  scoreBarContainer: {
+    flexDirection: 'row',
+    gap: 3,
+    height: 4,
+    marginBottom: 8,
+  },
+
+  scoreBarSegment: {
+    flex: 1,
+    borderRadius: 2,
+  },
+
+  scoreDimVerdict: {
+    fontSize: typography.fontSize.sm,
+    fontFamily: typography.fontFamily.serif,
+    color: '#6B7280',
+    lineHeight: 20,
+    marginBottom: 8,
+  },
+
+  scoreDimDetail: {
+    borderLeftWidth: 2,
+    paddingLeft: 10,
+  },
+
+  scoreDimDetailText: {
+    fontSize: typography.fontSize.sm,
+    fontFamily: typography.fontFamily.serif,
+    color: '#4B5563',
+    lineHeight: 22,
+  },
+
+  overallSignalContainer: {
+    marginTop: 20,
+    borderLeftWidth: 3,
+    borderRadius: 6,
+    padding: 16,
+  },
+
+  overallSignalLabel: {
+    fontSize: 9,
+    fontFamily: 'Courier New',
+    letterSpacing: 1.5,
+    textTransform: 'uppercase',
+    marginBottom: 8,
+  },
+
+  overallSignalText: {
+    fontSize: typography.fontSize.sm,
+    fontFamily: typography.fontFamily.serif,
+    color: '#374151',
+    lineHeight: 22,
+  },
+
+  ipoDisclaimer: {
+    marginTop: 16,
+    fontSize: 8,
+    fontFamily: 'Courier New',
+    color: '#D1D5DB',
+    letterSpacing: 1,
+    textAlign: 'center',
   },
 });
 
