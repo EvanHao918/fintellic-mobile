@@ -692,6 +692,72 @@ const renderBlock = (section: ContentSection, index: number): React.ReactElement
   );
 };
 
+// ==================== :::TABLE + :::PULSE SYSTEM ====================
+
+interface TableRow {
+  leftTop: string;
+  leftSub: string;
+  right: string;
+}
+
+const parseTableBlock = (content: string): TableRow[] => {
+  const rows: TableRow[] = [];
+  content.split('\n').forEach(line => {
+    const metricMatch = line.match(/^METRIC:\s*(.+?)\s*\|\s*([^|]*)\s*\|\|\s*(.+)$/);
+    const labelMatch = line.match(/^([^:|\n]+):\s*\|\s*([^|]*)\s*\|\|\s*(.+)$/);
+    const match = metricMatch || labelMatch;
+    if (!match) return;
+    rows.push({
+      leftTop: match[1].trim(),
+      leftSub: match[2].replace(/\[?DOC:\s*/, '').replace(/\]/, '').trim(),
+      right: match[3].trim(),
+    });
+  });
+  return rows;
+};
+
+const renderTableBlock = (content: string, key: string): React.ReactElement => {
+  const rows = parseTableBlock(content);
+  if (rows.length === 0) return React.createElement(View, { key });
+
+  return React.createElement(
+    View,
+    { key, style: styles.tableContainer },
+    ...rows.map((row, i) =>
+      React.createElement(
+        View,
+        {
+          key: `row-${i}`,
+          style: [
+            styles.tableRow,
+            i < rows.length - 1 && { borderBottomWidth: 1, borderBottomColor: '#F3F4F6' }
+          ]
+        },
+        React.createElement(
+          View,
+          { style: styles.tableLeftCol },
+          React.createElement(Text, { style: styles.tableMetricName }, row.leftTop),
+          row.leftSub ? React.createElement(Text, { style: styles.tableMetricSource }, row.leftSub) : null
+        ),
+        React.createElement(
+          View,
+          { style: styles.tableRightCol },
+          React.createElement(Text, { style: styles.tableRightText }, row.right)
+        )
+      )
+    )
+  );
+};
+
+const renderPulseBlock = (content: string, key: string): React.ReactElement => {
+  return React.createElement(
+    View,
+    { key, style: styles.pulseContainer },
+    React.createElement(Text, { style: styles.pulseLabel }, 'FINANCIAL PULSE'),
+    React.createElement(Text, { style: styles.pulseText }, content.trim())
+  );
+};
+
 // ==================== IPO SNAPSHOT + SCORECARD SYSTEM ====================
 
 const SCORECARD_DIMENSIONS = [
@@ -754,13 +820,13 @@ const parseScorecardBlock = (content: string): ScorecardData => {
   let overall = { signal: 'MIXED', text: '' };
   
   content.split('\n').forEach(line => {
-    const overallMatch = line.match(/^OVERALL:(STRONG|MIXED|WEAK)\|(.+)$/);
+    const overallMatch = line.match(/^OVERALL:\s*(STRONG|MIXED|WEAK)\s*\|(.+)$/);
     if (overallMatch) {
       overall = { signal: overallMatch[1], text: overallMatch[2].trim() };
       return;
     }
     
-    const dimMatch = line.match(/^([A-Z_]+):(\d)\|([^|]+)\|(.+)$/);
+    const dimMatch = line.match(/^([A-Z_]+):\s*(\d)\s*\|([^|]+)\|(.+)$/);
     if (!dimMatch) return;
     const [, key, scoreStr, verdict, detail] = dimMatch;
     const dimDef = SCORECARD_DIMENSIONS.find(d => d.key === key);
@@ -922,6 +988,58 @@ export const renderEnhancedText = (
   // Strip bare backtick fences (``` lines) that models sometimes emit
   const cleanedText = text.replace(/^`{3,}.*$/gm, '').trim();
   
+  // Check for :::TABLE / :::PULSE markers (8K/10Q/10K Section 1)
+  const hasTableBlocks = /:::TABLE|:::PULSE/.test(cleanedText);
+
+  if (hasTableBlocks) {
+    const elements: React.ReactElement[] = [];
+    const blockPattern = /:::(TABLE|PULSE)([\s\S]*?):::END/g;
+    let lastIndex = 0;
+    let match;
+    let blockIndex = 0;
+
+    while ((match = blockPattern.exec(cleanedText)) !== null) {
+      if (match.index > lastIndex) {
+        const before = cleanedText.substring(lastIndex, match.index).trim();
+        if (before) renderContentLines(before, `tbl-pre-${blockIndex}`).forEach(el => elements.push(el));
+      }
+
+      const blockType = match[1];
+      const blockContent = match[2].trim();
+      const key = `tbl-${blockIndex}`;
+
+      if (blockType === 'TABLE') {
+        elements.push(renderTableBlock(blockContent, key));
+      } else {
+        elements.push(renderPulseBlock(blockContent, key));
+      }
+
+      blockIndex++;
+      lastIndex = match.index + match[0].length;
+    }
+
+    if (lastIndex < cleanedText.length) {
+      const remaining = cleanedText.substring(lastIndex).trim();
+      if (remaining) {
+        // Still parse thesis blocks in Section 2
+        const hasThesis = /:::BLOCK|:::SIGNAL/.test(remaining);
+        if (hasThesis) {
+          const blocks = parseThesisBlocks(remaining);
+          let cardIndex = 0;
+          blocks.forEach((block, i) => {
+            if (block.type === 'thesis') { elements.push(renderThesisCard(block, cardIndex)); cardIndex++; }
+            else if (block.type === 'signal') { elements.push(renderSignalBlock(block, i)); }
+            else { renderContentLines(block.content || '', `tbl-rem-${i}`).forEach(el => elements.push(el)); }
+          });
+        } else {
+          renderContentLines(remaining, 'tbl-post').forEach(el => elements.push(el));
+        }
+      }
+    }
+
+    return elements;
+  }
+
   // Check for IPO-specific markers first
   const hasIPOBlocks = /:::SNAPSHOT|:::SCORECARD/.test(cleanedText);
   
@@ -1245,6 +1363,82 @@ const styles = StyleSheet.create({
     borderTopColor: colors.gray900,
   },
 
+  // ==================== TABLE + PULSE STYLES ====================
+
+  tableContainer: {
+    marginVertical: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    overflow: 'hidden',
+  },
+
+  tableRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+  },
+
+  tableLeftCol: {
+    width: '35%',
+    paddingRight: 10,
+    paddingTop: 1,
+  },
+
+  tableMetricName: {
+    fontSize: typography.fontSize.sm,
+    fontFamily: typography.fontFamily.serif,
+    color: '#1F2937',
+    lineHeight: 20,
+  },
+
+  tableMetricSource: {
+    fontSize: 10,
+    fontFamily: 'Courier New',
+    color: '#9CA3AF',
+    marginTop: 2,
+    letterSpacing: 0.2,
+  },
+
+  tableRightCol: {
+    flex: 1,
+  },
+
+  tableRightText: {
+    fontSize: typography.fontSize.sm,
+    fontFamily: typography.fontFamily.serif,
+    color: '#374151',
+    lineHeight: 22,
+  },
+
+  pulseContainer: {
+    marginTop: 14,
+    marginBottom: 4,
+    borderLeftWidth: 2,
+    borderLeftColor: '#9CA3AF',
+    backgroundColor: '#F9FAFB',
+    borderRadius: 6,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+  },
+
+  pulseLabel: {
+    fontSize: 8,
+    fontFamily: 'Courier New',
+    color: '#9CA3AF',
+    letterSpacing: 1.5,
+    textTransform: 'uppercase',
+    marginBottom: 6,
+  },
+
+  pulseText: {
+    fontSize: typography.fontSize.sm,
+    fontFamily: typography.fontFamily.serif,
+    color: '#374151',
+    lineHeight: 22,
+  },
+
   // ==================== IPO SNAPSHOT STYLES ====================
 
   snapshotContainer: {
@@ -1266,9 +1460,9 @@ const styles = StyleSheet.create({
 
   snapshotLabel: {
     width: 110,
-    fontSize: 10,
+    fontSize: 13,
     fontFamily: 'Courier New',
-    color: '#9CA3AF',
+    color: '#6B7280',
     letterSpacing: 0.5,
     textTransform: 'uppercase',
     paddingTop: 2,
@@ -1309,9 +1503,9 @@ const styles = StyleSheet.create({
   },
 
   scoreDimLabel: {
-    fontSize: 12,
+    fontSize: 16,
     fontFamily: 'Courier New',
-    color: '#374151',
+    color: '#1F2937',
     letterSpacing: 0.3,
   },
 
@@ -1361,10 +1555,11 @@ const styles = StyleSheet.create({
   },
 
   overallSignalLabel: {
-    fontSize: 9,
+    fontSize: 13,
     fontFamily: 'Courier New',
     letterSpacing: 1.5,
     textTransform: 'uppercase',
+    fontWeight: '700',
     marginBottom: 8,
   },
 
