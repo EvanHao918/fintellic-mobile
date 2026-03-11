@@ -702,7 +702,17 @@ interface TableRow {
 
 const parseTableBlock = (content: string): TableRow[] => {
   const rows: TableRow[] = [];
-  content.split('\n').forEach(line => {
+  // Merge split METRIC lines: if a line starts with || it belongs to the previous METRIC line
+  const rawLines = content.split('\n');
+  const mergedLines: string[] = [];
+  for (const line of rawLines) {
+    if (line.trimStart().startsWith('||') && mergedLines.length > 0) {
+      mergedLines[mergedLines.length - 1] = mergedLines[mergedLines.length - 1].trimEnd() + ' ' + line.trim();
+    } else {
+      mergedLines.push(line);
+    }
+  }
+  mergedLines.forEach(line => {
     const metricMatch = line.match(/^METRIC:\s*(.+?)\s*\|\s*([^|]*)\s*\|\|\s*(.+)$/);
     const labelMatch = line.match(/^([^:|\n]+):\s*\|\s*([^|]*)\s*\|\|\s*(.+)$/);
     const match = metricMatch || labelMatch;
@@ -742,7 +752,16 @@ const renderTableBlock = (content: string, key: string): React.ReactElement => {
         React.createElement(
           View,
           { style: styles.tableRightCol },
-          React.createElement(Text, { style: styles.tableRightText }, row.right)
+          React.createElement(
+            Text,
+            { style: styles.tableRightText },
+            ...parseInlineMarkup(row.right).map((seg, si) => {
+              const sk = `row-${i}-seg-${si}`;
+              if (seg.type === 'trendUp') return React.createElement(Text, { key: sk, style: styles.trendUp }, seg.content);
+              if (seg.type === 'trendDown') return React.createElement(Text, { key: sk, style: styles.trendDown }, seg.content);
+              return React.createElement(Text, { key: sk, style: styles.tableRightText }, seg.content);
+            })
+          )
         )
       )
     )
