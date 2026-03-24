@@ -14,13 +14,13 @@ import { Singular, SingularConfig } from 'singular-react-native';
 
 // Singular API keys (get these from Singular dashboard)
 const SINGULAR_API_KEY = Platform.select({
-  ios: 'YOUR_IOS_API_KEY', // Replace with your iOS API key
-  android: 'YOUR_ANDROID_API_KEY', // Replace with your Android API key
+  ios: 'all_sight_app_d1fe4376', // Replace with your iOS API key
+  android: 'all_sight_app_d1fe4376', // Replace with your Android API key
 }) || '';
 
 const SINGULAR_SECRET_KEY = Platform.select({
-  ios: 'YOUR_IOS_SECRET_KEY', // Replace with your iOS secret key
-  android: 'YOUR_ANDROID_SECRET_KEY', // Replace with your Android secret key
+  ios: '5a93e5a2d1a21f9a15cc30a2f296daf8', // Replace with your iOS secret key
+  android: '5a93e5a2d1a21f9a15cc30a2f296daf8', // Replace with your Android secret key
 }) || '';
 
 // Enable debug logging in development
