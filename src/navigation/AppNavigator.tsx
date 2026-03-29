@@ -53,12 +53,21 @@ export default function AppNavigator() {
     initializeSingular();
   }, []);
 
-  // 登录后获取 onboarding 状态
+  // 登录后获取 onboarding 状态 + 请求通知权限
   useEffect(() => {
     if (isAuthenticated) {
       setIsCheckingOnboarding(true);
       dispatch(getOnboardingStatus()).finally(() => {
         setIsCheckingOnboarding(false);
+      });
+
+      // 请求通知权限（首次登录时弹出系统权限弹窗）
+      NotificationService.requestPermission().then((granted) => {
+        if (granted) {
+          NotificationService.registerForPushNotifications().then(() => {
+            NotificationService.syncTokenWithBackend();
+          });
+        }
       });
     } else {
       setIsCheckingOnboarding(false);

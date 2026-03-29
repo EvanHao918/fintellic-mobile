@@ -32,6 +32,11 @@ import { useAddToHistory } from '../hooks/useHistory';
 import { BRAND_IMAGES } from '../constants/brand';
 import SingularService from '../services/SingularService';
 import ShareService from '../services/ShareService';
+import * as StoreReview from 'expo-store-review';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+const STORAGE_KEY_FILING_VIEW_COUNT = '@allsight_filing_view_count';
+const REVIEW_TRIGGER_COUNT = 6;
 
 // Route types
 type FilingDetailScreenRouteProp = RouteProp<RootStackParamList, 'FilingDetail'>;
@@ -123,6 +128,23 @@ export default function FilingDetailScreen() {
         companyName: filingData.company?.name || 'Unknown',
         formType: filingData.form_type
       });
+
+      // 触发App Store评分（第6次查看filing时）
+      try {
+        const raw = await AsyncStorage.getItem(STORAGE_KEY_FILING_VIEW_COUNT);
+        const currentCount = raw ? parseInt(raw, 10) : 0;
+        const newCount = currentCount + 1;
+        await AsyncStorage.setItem(STORAGE_KEY_FILING_VIEW_COUNT, String(newCount));
+
+        if (newCount === REVIEW_TRIGGER_COUNT) {
+          const isAvailable = await StoreReview.isAvailableAsync();
+          if (isAvailable) {
+            await StoreReview.requestReview();
+          }
+        }
+      } catch (reviewError) {
+        console.log('[Review] Error triggering review:', reviewError);
+      }
       
       // 🆕 如果有公司ticker，加载公司信息
       if (filingData?.company?.ticker) {
