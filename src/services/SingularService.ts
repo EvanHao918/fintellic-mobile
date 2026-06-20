@@ -13,7 +13,14 @@
  */
 
 import { Platform } from 'react-native';
-import NativeSingular from 'singular-react-native/js/NativeSingular';
+
+// NativeSingular is a TurboModule only available on iOS/Android.
+// On web (expo --web) the native bridge does not exist and importing it
+// directly causes an immediate crash. We use a conditional require so the
+// module is never loaded in a web environment.
+const NativeSingular = Platform.OS !== 'web'
+  ? require('singular-react-native/js/NativeSingular').default
+  : null;
 
 const SINGULAR_API_KEY = Platform.select({
   ios: 'all_sight_app_d1fe4376',
@@ -31,6 +38,10 @@ class SingularService {
   private isInitialized: boolean = false;
 
   async init(): Promise<void> {
+    if (Platform.OS === 'web') {
+      if (DEBUG_MODE) console.log('[Singular] Skipping init on web platform');
+      return;
+    }
     try {
       if (this.isInitialized) {
         if (DEBUG_MODE) console.log('[Singular] Already initialized');
@@ -57,6 +68,7 @@ class SingularService {
   }
 
   trackSignup(method: 'email' | 'apple' | 'google'): void {
+    if (Platform.OS === 'web') return;
     try {
       if (!this.isInitialized) {
         console.warn('[Singular] SDK not initialized, skipping Signup event');
@@ -77,6 +89,7 @@ class SingularService {
     companyName: string;
     formType: string;
   }): void {
+    if (Platform.OS === 'web') return;
     try {
       if (!this.isInitialized) {
         console.warn('[Singular] SDK not initialized, skipping ViewContent event');
@@ -98,6 +111,7 @@ class SingularService {
     viewsToday: number;
     dailyLimit: number;
   }): void {
+    if (Platform.OS === 'web') return;
     try {
       if (!this.isInitialized) {
         console.warn('[Singular] SDK not initialized, skipping PaywallHit event');
@@ -120,6 +134,7 @@ class SingularService {
     currency: string;
     platform: 'ios' | 'android';
   }): void {
+    if (Platform.OS === 'web') return;
     try {
       if (!this.isInitialized) {
         console.warn('[Singular] SDK not initialized, skipping Subscription event');
