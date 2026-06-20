@@ -156,7 +156,7 @@ export const smartPaginateText = (
   }
   
   const tokens: Token[] = [];
-  const blockPattern = /:::(?:BLOCK|SIGNAL)[\s\S]*?:::END/g;
+  const blockPattern = /:::(?:VERDICT|BLOCK|SIGNAL)[\s\S]*?:::END/g;
   let lastIndex = 0;
   let match;
   
@@ -655,6 +655,95 @@ const renderSignalBlock = (block: ThesisBlock, index: number): React.ReactElemen
   );
 };
 
+// ==================== :::VERDICT SYSTEM (top-of-page value verdict) ====================
+// New in v8: a single top-of-page card that states what the filing does to the
+// investment thesis. Three tiers: PIVOT / CONFIRM / PROCEDURAL.
+// Backward compatibility: historical filings have no :::VERDICT block — extractVerdict
+// returns null for them, and the detail screen simply renders no verdict card.
+
+export type VerdictTier = 'PIVOT' | 'CONFIRM' | 'PROCEDURAL';
+
+export interface VerdictData {
+  tier: VerdictTier;
+  statement: string;
+}
+
+// Visual config per tier. Colors are self-contained hex (consistent with the
+// rest of this file, which uses literal hex rather than theme tokens for block cards).
+const VERDICT_TIER_CONFIG: Record<VerdictTier, {
+  label: string;
+  accent: string;   // border + label color
+  bg: string;       // card background
+  labelText: string; // text color on the tier pill
+}> = {
+  PIVOT:      { label: 'PIVOT',      accent: '#0F6E56', bg: '#E1F5EE', labelText: '#FFFFFF' },
+  CONFIRM:    { label: 'CONFIRM',    accent: '#185FA5', bg: '#E6F1FB', labelText: '#FFFFFF' },
+  PROCEDURAL: { label: 'PROCEDURAL', accent: '#5F5E5A', bg: '#F1EFE8', labelText: '#FFFFFF' },
+};
+
+/**
+ * Extract the :::VERDICT block from analysis text.
+ * Returns { verdict, body } where:
+ *   - verdict: parsed VerdictData, or null if no well-formed VERDICT block exists
+ *   - body: the analysis text with the VERDICT block removed (for normal pagination)
+ * If no VERDICT block is present (e.g. all historical filings), verdict is null
+ * and body is the original text unchanged — fully backward compatible.
+ */
+export const extractVerdict = (text: string): { verdict: VerdictData | null; body: string } => {
+  if (!text) return { verdict: null, body: text || '' };
+
+  const match = text.match(/:::VERDICT([\s\S]*?):::END/);
+  if (!match) return { verdict: null, body: text };
+
+  const inner = match[1].trim();
+
+  // Parse TIER line
+  const tierMatch = inner.match(/^TIER:\s*(PIVOT|CONFIRM|PROCEDURAL)\s*$/im);
+  const tier = (tierMatch ? tierMatch[1].toUpperCase() : 'CONFIRM') as VerdictTier;
+
+  // Statement = everything after the TIER line, cleaned of citations/markup noise
+  let statement = inner.replace(/^TIER:\s*(PIVOT|CONFIRM|PROCEDURAL)\s*$/im, '').trim();
+  // Collapse internal whitespace/newlines into single spaces for a one-line statement
+  statement = statement.replace(/\s*\n\s*/g, ' ').replace(/\s{2,}/g, ' ').trim();
+
+  // Remove the whole VERDICT block (plus any immediately trailing blank lines) from body
+  const body = text.replace(/:::VERDICT[\s\S]*?:::END\s*/, '').trim();
+
+  // If the statement is empty, treat as malformed → no verdict card, keep body intact
+  if (!statement) {
+    return { verdict: null, body };
+  }
+
+  return { verdict: { tier, statement }, body };
+};
+
+/**
+ * Render the top-of-page verdict card. Rendered by the detail screen / PaginatedAnalysis
+ * ABOVE the paginated content, so it is always visible regardless of page.
+ */
+export const renderVerdictCard = (verdict: VerdictData, keyPrefix: string = 'verdict'): React.ReactElement => {
+  const cfg = VERDICT_TIER_CONFIG[verdict.tier] || VERDICT_TIER_CONFIG.CONFIRM;
+
+  return React.createElement(
+    View,
+    { key: keyPrefix, style: [styles.verdictCard, { backgroundColor: cfg.bg, borderColor: cfg.accent }] },
+    React.createElement(
+      View,
+      { style: styles.verdictHeader },
+      React.createElement(
+        View,
+        { style: [styles.verdictTierPill, { backgroundColor: cfg.accent }] },
+        React.createElement(Text, { style: [styles.verdictTierText, { color: cfg.labelText }] }, cfg.label)
+      )
+    ),
+    React.createElement(
+      Text,
+      { style: [styles.verdictStatement, { color: cfg.accent }] },
+      verdict.statement
+    )
+  );
+};
+
 /**
  * Render lines within a section (block or regular content)
  */
@@ -672,6 +761,7 @@ const renderContentLines = (content: string, keyPrefix: string): React.ReactElem
   
   return elements;
 };
+
 
 /**
  * Render a legacy [BLOCK:] card component (S-1)
@@ -1005,7 +1095,12 @@ export const renderEnhancedText = (
   if (!text) return [];
   
   // Strip bare backtick fences (``` lines) that models sometimes emit
-  const cleanedText = text.replace(/^`{3,}.*$/gm, '').trim();
+  let cleanedText = text.replace(/^`{3,}.*$/gm, '').trim();
+
+  // Defensive: the :::VERDICT block is normally extracted upstream (extractVerdict)
+  // and rendered as a fixed top-of-page card. If any code path passes text that
+  // still contains it, strip it here so it never renders as stray plain text.
+  cleanedText = cleanedText.replace(/:::VERDICT[\s\S]*?:::END\s*/, '').trim();
   
   // Check for :::TABLE / :::PULSE markers (8K/10Q/10K Section 1)
   const hasTableBlocks = /:::TABLE|:::PULSE/.test(cleanedText);
@@ -1382,6 +1477,43 @@ const styles = StyleSheet.create({
     borderTopColor: colors.gray900,
   },
 
+  // ==================== VERDICT CARD STYLES (top-of-page) ====================
+
+  verdictCard: {
+    borderRadius: 12,
+    borderWidth: 1.5,
+    paddingHorizontal: 14,
+    paddingTop: 12,
+    paddingBottom: 14,
+    marginBottom: 16,
+  },
+
+  verdictHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+
+  verdictTierPill: {
+    paddingHorizontal: 9,
+    paddingVertical: 3,
+    borderRadius: 5,
+  },
+
+  verdictTierText: {
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 1,
+    fontFamily: 'Courier New',
+  },
+
+  verdictStatement: {
+    fontSize: typography.fontSize.base,
+    fontWeight: '600',
+    lineHeight: 23,
+    fontFamily: typography.fontFamily.serif,
+  },
+
   // ==================== TABLE + PULSE STYLES ====================
 
   tableContainer: {
@@ -1614,4 +1746,6 @@ export default {
   hasUnifiedAnalysis,
   getDisplaySummary,
   getDisplayAnalysis,
+  extractVerdict,
+  renderVerdictCard,
 };

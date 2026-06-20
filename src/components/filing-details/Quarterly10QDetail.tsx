@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { colors, typography, spacing, borderRadius } from '../../theme';
-import { hasUnifiedAnalysis, getDisplayAnalysis, smartPaginateText } from '../../utils/textHelpers';
+import { hasUnifiedAnalysis, getDisplayAnalysis, smartPaginateText, extractVerdict } from '../../utils/textHelpers';
 import CompanyInfoCard from './CompanyInfoCard';
 import PaginatedAnalysis from './PaginatedAnalysis';
 import { Filing } from '../../types';
@@ -75,7 +75,8 @@ const Quarterly10QDetail: React.FC<Quarterly10QDetailProps> = ({ filing }) => {
     const isUnified = hasUnifiedAnalysis(filing);
 
     // 使用智能分页
-    const textPages = smartPaginateText(content, 2000);
+    const { verdict, body } = extractVerdict(content);
+    const textPages = smartPaginateText(body, 2000);
 
     return (
       <View style={styles.unifiedSection}>
@@ -89,7 +90,7 @@ const Quarterly10QDetail: React.FC<Quarterly10QDetailProps> = ({ filing }) => {
         </View>
 
         {/* 使用分页组件 */}
-        <PaginatedAnalysis pages={textPages} />
+        <PaginatedAnalysis pages={textPages} verdict={verdict} />
       </View>
     );
   };

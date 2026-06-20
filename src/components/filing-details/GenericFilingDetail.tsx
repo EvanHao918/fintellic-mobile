@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { colors, typography, spacing, borderRadius } from '../../theme';
-import { parseUnifiedAnalysis, hasUnifiedAnalysis, getDisplayAnalysis } from '../../utils/textHelpers';
+import { parseUnifiedAnalysis, hasUnifiedAnalysis, getDisplayAnalysis, extractVerdict, renderVerdictCard } from '../../utils/textHelpers';
 import CompanyInfoCard from './CompanyInfoCard';
 import { Filing } from '../../types';
 
@@ -35,6 +35,8 @@ const GenericFilingDetail: React.FC<GenericFilingDetailProps> = ({ filing }) => 
     if (!content) return null;
 
     const isUnified = hasUnifiedAnalysis(filing);
+    // 抽出顶部判别卡（若有）；历史/通用 filing 无 verdict 时 verdict=null、body=原文
+    const { verdict, body } = extractVerdict(content);
 
     return (
       <View style={styles.unifiedSection}>
@@ -50,14 +52,15 @@ const GenericFilingDetail: React.FC<GenericFilingDetailProps> = ({ filing }) => 
         </View>
 
         <View style={styles.unifiedContent}>
+          {verdict && renderVerdictCard(verdict, 'generic-verdict')}
           {isUnified ? (
             // 使用智能标记解析
             <View style={styles.analysisText}>
-              {parseUnifiedAnalysis(content)}
+              {parseUnifiedAnalysis(body)}
             </View>
           ) : (
             // 降级到普通文本
-            <Text style={styles.legacyText}>{content}</Text>
+            <Text style={styles.legacyText}>{body}</Text>
           )}
         </View>
       </View>

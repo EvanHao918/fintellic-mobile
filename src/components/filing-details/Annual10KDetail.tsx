@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { colors, typography, spacing, borderRadius } from '../../theme';
-import { hasUnifiedAnalysis, getDisplayAnalysis, smartPaginateText } from '../../utils/textHelpers';
+import { hasUnifiedAnalysis, getDisplayAnalysis, smartPaginateText, extractVerdict } from '../../utils/textHelpers';
 import CompanyInfoCard from './CompanyInfoCard';
 import PaginatedAnalysis from './PaginatedAnalysis';
 import { Filing } from '../../types';
@@ -63,7 +63,8 @@ const Annual10KDetail: React.FC<Annual10KDetailProps> = ({ filing }) => {
 
     const isUnified = hasUnifiedAnalysis(filing);
 
-    const textPages = smartPaginateText(content, 2000);
+    const { verdict, body } = extractVerdict(content);
+    const textPages = smartPaginateText(body, 2000);
 
     return (
       <View style={styles.unifiedSection}>
@@ -76,7 +77,7 @@ const Annual10KDetail: React.FC<Annual10KDetailProps> = ({ filing }) => {
           )}
         </View>
 
-        <PaginatedAnalysis pages={textPages} />
+        <PaginatedAnalysis pages={textPages} verdict={verdict} />
       </View>
     );
   };

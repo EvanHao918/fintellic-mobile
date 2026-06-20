@@ -11,13 +11,14 @@ import {
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { colors, typography, spacing, borderRadius } from '../../theme';
-import { parseUnifiedAnalysis } from '../../utils/textHelpers';
+import { parseUnifiedAnalysis, renderVerdictCard, VerdictData } from '../../utils/textHelpers';
 
 interface PaginatedAnalysisProps {
   pages: string[];  // 分页后的文本数组
+  verdict?: VerdictData | null;  // 🆕 可选：顶部判别卡（不传则不渲染，向后兼容历史 filing）
 }
 
-const PaginatedAnalysis: React.FC<PaginatedAnalysisProps> = ({ pages }) => {
+const PaginatedAnalysis: React.FC<PaginatedAnalysisProps> = ({ pages, verdict = null }) => {
   const [currentPage, setCurrentPage] = useState(0);
   
   // 🆕 动画值
@@ -174,6 +175,13 @@ const PaginatedAnalysis: React.FC<PaginatedAnalysisProps> = ({ pages }) => {
     <View style={styles.outerContainer}>
       {/* 🆕 纸张卡片容器（铺满宽度） */}
       <View style={styles.paperContainer}>
+        {/* 🆕 顶部判别卡（Verdict）— 固定在所有分页之上，不随翻页变化。仅当传入 verdict 时渲染 */}
+        {verdict && (
+          <View style={styles.verdictWrapper}>
+            {renderVerdictCard(verdict, 'paginated-verdict')}
+          </View>
+        )}
+
         {/* 页面内容 */}
         <View style={styles.pageWrapper}>
           {renderPageContent()}
@@ -215,6 +223,12 @@ const styles = StyleSheet.create({
   
   pageWrapper: {
     flex: 1,
+  },
+
+  // 🆕 顶部判别卡的包裹层（在纸张容器内侧四周留白）
+  verdictWrapper: {
+    paddingHorizontal: spacing.xl,
+    paddingTop: spacing.xl,
   },
   
   // 🆕 动画包装器
