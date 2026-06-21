@@ -35,8 +35,8 @@ const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 export default function UpgradePromptModal({
   visible,
   onClose,
-  viewsToday = 2,
-  dailyLimit = 2,
+  viewsToday = 5,
+  dailyLimit = 5,
 }: UpgradePromptModalProps) {
   const navigation = useNavigation<NavigationProp>();
 
@@ -143,7 +143,7 @@ export default function UpgradePromptModal({
               <View style={styles.planComparison}>
                 <View style={styles.planItem}>
                   <Text style={styles.planLabel}>Free Trial</Text>
-                  <Text style={styles.planValue}>2 Daily</Text>
+                  <Text style={styles.planValue}>{dailyLimit} Daily</Text>
                 </View>
                 <View style={styles.divider} />
                 <View style={styles.planItem}>
