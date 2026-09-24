@@ -453,6 +453,56 @@ export const googleSignIn = createAsyncThunk(
   }
 );
 
+// Email OTP — request a 6-digit sign-in code (also signup + email verification)
+export const requestOtp = createAsyncThunk(
+  'auth/requestOtp',
+  async (email: string) => {
+    const response = await apiClient.post<{ resend_in: number }>('/auth/otp/request', {
+      email: email.trim().toLowerCase(),
+    });
+    return response;
+  }
+);
+
+// Email OTP — verify code → sign in (returns SocialAuthResponse, same shape as apple/google)
+export const verifyOtp = createAsyncThunk(
+  'auth/verifyOtp',
+  async (payload: { email: string; code: string }) => {
+    const response = await apiClient.post<{
+      access_token: string;
+      refresh_token: string;
+      token_type: string;
+      is_new_user: boolean;
+      tier: string;
+      is_early_bird: boolean;
+      user_sequence_number?: number;
+    }>('/auth/otp/verify', {
+      email: payload.email.trim().toLowerCase(),
+      code: payload.code.trim(),
+    });
+
+    apiClient.setAuthToken(response.access_token);
+    const userResponse = await apiClient.get<UserWithSubscription>('/users/me');
+
+    await AsyncStorage.setItem(STORAGE_KEYS.AUTH_TOKEN, response.access_token);
+    if (response.refresh_token) {
+      await AsyncStorage.setItem(STORAGE_KEYS.REFRESH_TOKEN, response.refresh_token);
+    }
+    await AsyncStorage.setItem(STORAGE_KEYS.USER_INFO, JSON.stringify(userResponse));
+    if (response.is_new_user && response.is_early_bird) {
+      await AsyncStorage.setItem('@is_early_bird', 'true');
+    }
+
+    return {
+      access_token: response.access_token,
+      refresh_token: response.refresh_token || null,
+      token_type: response.token_type,
+      user: userResponse,
+      is_new_user: response.is_new_user,
+    };
+  }
+);
+
 // ==================== ONBOARDING THUNKS ====================
 // 获取 onboarding 状态
 export const getOnboardingStatus = createAsyncThunk(
@@ -663,6 +713,26 @@ const authSlice = createSlice({
         state.token = null;
         state.refreshToken = null;
         state.error = action.error.message || 'Apple Sign In failed';
+      });
+
+    // Email OTP verify cases (same shape as social sign-ins)
+    builder
+      .addCase(verifyOtp.pending, (state) => {
+        state.isLoading = true;
+        state.error = null;
+      })
+      .addCase(verifyOtp.fulfilled, (state, action) => {
+        state.isLoading = false;
+        state.isAuthenticated = true;
+        state.token = action.payload.access_token;
+        state.refreshToken = action.payload.refresh_token;
+        state.user = action.payload.user;
+        state.error = null;
+      })
+      .addCase(verifyOtp.rejected, (state, action) => {
+        state.isLoading = false;
+        state.isAuthenticated = false;
+        state.error = action.error.message || 'Sign in failed';
       });
 
     // Google Sign In cases

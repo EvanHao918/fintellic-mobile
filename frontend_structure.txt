@@ -14,6 +14,7 @@ src/
 │       ├── AllSight_Logo copy.png
 │       ├── AllSight_Logo.png
 │       ├── AllSight_text.png
+│       ├── AppIcon copy.png
 │       ├── AppIcon.png
 │       ├── card_10k.png
 │       ├── card_10k_1.png
@@ -35,9 +36,11 @@ src/
 │       ├── detail_cover_3.png
 │       ├── detail_s1.png
 │       ├── icon_annual_review.png
+│       ├── icon_fact_clarity.png
 │       ├── icon_investment_analysis.png
 │       ├── icon_investment_perspective.png
 │       ├── icon_ipo_snapshot.png
+│       ├── icon_market_perspective.png
 │       ├── icon_strategic_direction.png
 │       ├── insightflash_icon.png
 │       ├── insightflash_logo.png
@@ -106,6 +109,7 @@ src/
 ├── services
 │   ├── IAPService.ts
 │   ├── NotificationService.ts
+│   ├── ShareService.ts
 │   ├── SingularService 2.ts
 │   └── SingularService.ts
 ├── store
@@ -131,4 +135,4 @@ src/
     ├── storage.ts
     └── textHelpers.ts
 
-18 directories, 114 files
+18 directories, 118 files

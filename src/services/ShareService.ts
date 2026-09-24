@@ -6,8 +6,8 @@ import { Share, Platform } from 'react-native';
 import { Filing } from '../types';
 import { Singular } from 'singular-react-native';
 
-// 分享链接基础 URL
-const SHARE_BASE_URL = 'https://allsight.up.railway.app/api/v1/r';
+// 分享链接基础 URL —— 服务端渲染的 OG 页在根路径 /r/{id}(不在 /api/v1 下)
+const SHARE_BASE_URL = 'https://www.allsight.ai/r';
 
 // 开发模式日志
 const DEBUG_MODE = __DEV__;

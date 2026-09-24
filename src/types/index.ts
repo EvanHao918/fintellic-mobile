@@ -293,8 +293,35 @@ export interface Filing {
     views_remaining: number;
     is_pro: boolean;
     views_today: number;
+    daily_limit?: number;
+    seen_ids?: number[];
   };
-  
+
+  // --- AllSight v13 decode / scorecard / reaction (feed FilingBrief + /public) ---
+  card_summary?: string;
+  ai_sentiment?: string;
+  read_label?: string;        // objective read: "Beat" / "Guidance cut" / "$500M acquisition"
+  read_basis?: string;        // the receipt/number behind the read
+  novelty?: string;           // 'new' | 'partly known' | 'priced in'
+  polarity?: string;          // 'positive'|'negative'|'neutral'|'mixed' — INTERNAL (never render as a word)
+  whats_next?: string;
+  seo_hook?: string;
+  event_type?: string;        // content category (Earnings/Acquisition/…)
+  event_items?: string[];     // 8-K item codes (internal/source only)
+  today_change_pct?: number | null;
+  event_return_pct?: number | null;   // since-filed move (retrospective — no prediction claims)
+  event_reacted?: boolean;
+  event_reaction_settled?: boolean;
+  event_anchor_price?: number | null;
+  event_cutoff_at?: string | null;
+  event_reaction_curve?: [number, number][];
+  receipts?: { claim?: string; quote: string; context?: string }[];
+  references?: { id?: string; title?: string; url?: string }[];
+  stats?: {
+    price?: number; change_pct?: number; day_volume?: number;
+    avg_volume?: number; market_cap?: number; pe?: number; dividend_yield?: number;
+  };
+
   status: 'pending' | 'processing' | 'completed' | 'failed';
   processed_at?: string;
   error_message?: string;

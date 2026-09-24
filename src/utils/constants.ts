@@ -1,5 +1,6 @@
 // API Configuration
-export const API_BASE_URL = 'https://allsight.up.railway.app/api/v1';
+// Shared backend — same prod service the web app uses (was the stale allsight.up.railway.app).
+export const API_BASE_URL = 'https://www.allsight.ai/api/v1';
 
 // Storage Keys
 export const STORAGE_KEYS = {
